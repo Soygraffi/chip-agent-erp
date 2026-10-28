@@ -1,7 +1,7 @@
-import { describe, it, beforeEach } from 'node:test';
+﻿import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { orderService, orderAttachmentService, customerService } from '@erp/db';
+import { orderService, orderAttachmentService, customerService, materialService } from '@erp/db';
 import { createTestDb, statusByName, dictIdByName } from '../db/helpers.ts';
 
 function baseInput(db: DatabaseSync) {
@@ -142,6 +142,52 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
     // 明细字段齐全，可直接展示物料名称/料号规格/品牌/数量
     expect(row.items[0].chipModel).toBe('STM32F103');
     expect(row.items[0].qty).toBe(100);
+  });
+
+  it('V1.6.1 订单明细手输物料自动进入物料库并回填 material_id', () => {
+    const input = baseInput(db);
+    const id = orderService.create(db, input);
+    const detail = orderService.get(db, id);
+    // 两行明细都应已关联物料库
+    expect(detail.items.every((it) => it.materialId != null)).toBe(true);
+    const materials = materialService.list(db, { page: 1, pageSize: 50 }).rows;
+    expect(materials).toHaveLength(2);
+    const stm32 = materials.find((m) => m.code === 'STM32F103')!;
+    expect(stm32).toBeTruthy();
+    expect(stm32.name).toBe('STM32F103'); // 无物料名称时用料号规格
+    expect(stm32.spec).toBe('STM32F103');
+    // 再次下单使用相同编码：复用同一物料，不重复建档
+    orderService.create(db, {
+      ...input,
+      items: [
+        { chipModel: 'STM32F103', brand: null, packageSpec: null, qty: 1, unitPrice: 9.5, subtotal: 9.5, customerPn: null, remark: null },
+      ],
+    });
+    expect(materialService.list(db, { page: 1, pageSize: 50 }).total).toBe(2);
+  });
+
+  it('V1.6.1 显式指定 materialId 时不覆盖物料主数据', () => {
+    const cid = customerService.create(db, { name: '物料客户' });
+    const mid = materialService.create(db, { code: 'M-001', name: '已有物料', salePrice: 10 });
+    const oid = orderService.create(db, {
+      customerId: cid,
+      items: [
+        {
+          materialId: mid,
+          chipModel: 'M-001',
+          brand: null,
+          packageSpec: null,
+          qty: 1,
+          unitPrice: 12,
+          subtotal: 12,
+          customerPn: null,
+          remark: null,
+        },
+      ],
+    });
+    expect(orderService.get(db, oid).items[0].materialId).toBe(mid);
+    expect(orderService.get(db, oid).items[0].unitPrice).toBe(12);
+    expect(materialService.get(db, mid).salePrice).toBe(10); // 主数据价格不变
   });
 
   it('isTerminal：状态为空视为未结束', () => {

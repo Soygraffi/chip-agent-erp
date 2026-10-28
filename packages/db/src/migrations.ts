@@ -408,6 +408,44 @@ INSERT INTO setting (key, value) VALUES ('menu_order', '')
   ON CONFLICT(key) DO NOTHING;
 `;
 
+/**
+ * V1.6.1：历史订单明细回填物料库（手工录入、未关联物料的明细自动建档并回填 material_id）。
+ */
+const V161 = `
+UPDATE order_item
+SET material_code = COALESCE(NULLIF(TRIM(material_code), ''), TRIM(chip_model)),
+    material_name = COALESCE(NULLIF(TRIM(material_name), ''), TRIM(chip_model))
+WHERE (material_code IS NULL OR TRIM(material_code) = '')
+  AND TRIM(COALESCE(chip_model, '')) <> '';
+
+INSERT OR IGNORE INTO material (code, code_norm, name, spec, brand, purchase_price, purchase_tax_included,
+                                sale_price, price_tax_included, tax_rate, is_active)
+SELECT
+  COALESCE(NULLIF(TRIM(oi.material_code), ''), TRIM(oi.chip_model)),
+  lower(COALESCE(NULLIF(TRIM(oi.material_code), ''), TRIM(oi.chip_model))),
+  COALESCE(NULLIF(TRIM(oi.material_name), ''), TRIM(oi.chip_model)),
+  NULLIF(TRIM(oi.chip_model), ''),
+  NULLIF(TRIM(oi.brand), ''),
+  oi.purchase_price,
+  COALESCE(oi.purchase_tax_included, 1),
+  oi.unit_price,
+  COALESCE(oi.price_tax_included, 1),
+  COALESCE(oi.tax_rate, 13),
+  1
+FROM order_item oi
+WHERE oi.material_id IS NULL
+  AND (TRIM(COALESCE(oi.material_code, '')) <> '' OR TRIM(COALESCE(oi.chip_model, '')) <> '')
+GROUP BY lower(COALESCE(NULLIF(TRIM(oi.material_code), ''), TRIM(oi.chip_model)));
+
+UPDATE order_item
+SET material_id = (
+  SELECT m.id FROM material m
+  WHERE m.code_norm = lower(COALESCE(NULLIF(TRIM(order_item.material_code), ''), TRIM(order_item.chip_model)))
+)
+WHERE material_id IS NULL
+  AND (TRIM(COALESCE(material_code, '')) <> '' OR TRIM(COALESCE(chip_model, '')) <> '');
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -416,5 +454,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 5, name: 'v1.4 customer sort order & per-price tax flags', sql: V14 },
   { version: 6, name: 'v1.5 customer contact & member company', sql: V15 },
   { version: 7, name: 'v1.6 supplier management & menu order', sql: V16 },
+  { version: 8, name: 'v1.6.1 backfill materials from order items', sql: V161 },
 ];
 

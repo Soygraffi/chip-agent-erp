@@ -65,10 +65,14 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
   const [statuses, setStatuses] = useState<OptionItem[]>([]);
   const [types, setTypes] = useState<OptionItem[]>([]);
   const [nodeModal, setNodeModal] = useState<OrderNode | null>(null);
+  const [statusValue, setStatusValue] = useState<string>('pending');
   const [form] = Form.useForm();
 
   useEffect(() => {
-    if (nodeModal) form.setFieldsValue({ name: nodeModal.name, status: nodeModal.status });
+    if (nodeModal) {
+      form.setFieldsValue({ name: nodeModal.name });
+      setStatusValue(nodeModal.status);
+    }
   }, [nodeModal, form]);
 
   const load = useCallback(async () => {
@@ -113,7 +117,7 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
     if (!nodeModal) return;
     const values = await form.validateFields();
     try {
-      await api.nodes.update(nodeModal.id, { name: values.name, status: values.status });
+      await api.nodes.update(nodeModal.id, { name: values.name, status: statusValue as never });
       setNodeModal(null);
       void load();
     } catch (e) {
@@ -317,32 +321,24 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
           <Form.Item name="name" label="节点名称" rules={[{ required: true, message: '请输入节点名称' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="status" label="当前进度状态">
-            <Form.Item noStyle shouldUpdate>
-              {({ getFieldValue, setFieldValue }) => {
-                const current = getFieldValue('status') as string | undefined;
-                return (
-                  <Space wrap>
-                    {Object.entries(NODE_STATUS_LABELS).map(([value, label]) => (
-                      <Button
-                        key={value}
-                        type={current === value ? 'primary' : 'default'}
-                        style={
-                          current === value
-                            ? { background: NODE_STATUS_COLORS[value], borderColor: NODE_STATUS_COLORS[value] }
-                            : undefined
-                        }
-                        onClick={() => setFieldValue('status', value)}
-                      >
-                        {label}
-                      </Button>
-                    ))}
-                  </Space>
-                );
-              }}
-            </Form.Item>
-          </Form.Item>
         </Form>
+        <div style={{ marginBottom: 8, color: '#595959' }}>当前进度状态</div>
+        <Space wrap>
+          {Object.entries(NODE_STATUS_LABELS).map(([value, label]) => (
+            <Button
+              key={value}
+              type={statusValue === value ? 'primary' : 'default'}
+              style={
+                statusValue === value
+                  ? { background: NODE_STATUS_COLORS[value], borderColor: NODE_STATUS_COLORS[value] }
+                  : undefined
+              }
+              onClick={() => setStatusValue(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </Space>
       </Modal>
     </div>
   );

@@ -57,6 +57,7 @@ export function OrderDetailPage(): JSX.Element {
   const [docs, setDocs] = useState<OrderAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [nodeModal, setNodeModal] = useState<{ mode: 'edit' | 'create'; node: OrderNode | null } | null>(null);
+  const [statusValue, setStatusValue] = useState<string>('pending');
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -101,9 +102,11 @@ export function OrderDetailPage(): JSX.Element {
   useEffect(() => {
     if (!nodeModal) return;
     if (nodeModal.mode === 'edit' && nodeModal.node) {
-      form.setFieldsValue({ name: nodeModal.node.name, status: nodeModal.node.status });
+      form.setFieldsValue({ name: nodeModal.node.name });
+      setStatusValue(nodeModal.node.status);
     } else {
       form.resetFields();
+      setStatusValue('pending');
     }
   }, [nodeModal, form]);
 
@@ -122,7 +125,7 @@ export function OrderDetailPage(): JSX.Element {
     const values = await form.validateFields();
     try {
       if (nodeModal?.mode === 'edit' && nodeModal.node) {
-        await api.nodes.update(nodeModal.node.id, { name: values.name, status: values.status });
+        await api.nodes.update(nodeModal.node.id, { name: values.name, status: statusValue as never });
       } else {
         await api.nodes.create(orderId, { name: values.name });
       }
@@ -393,32 +396,24 @@ export function OrderDetailPage(): JSX.Element {
           <Form.Item name="name" label="节点名称" rules={[{ required: true, message: '请输入节点名称' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="status" label="当前进度状态">
-            <Form.Item noStyle shouldUpdate>
-              {({ getFieldValue, setFieldValue }) => {
-                const current = getFieldValue('status') as string | undefined;
-                return (
-                  <Space wrap>
-                    {Object.entries(NODE_STATUS_LABELS).map(([value, label]) => (
-                      <Button
-                        key={value}
-                        type={current === value ? 'primary' : 'default'}
-                        style={
-                          current === value
-                            ? { background: NODE_STATUS_COLORS[value], borderColor: NODE_STATUS_COLORS[value] }
-                            : undefined
-                        }
-                        onClick={() => setFieldValue('status', value)}
-                      >
-                        {label}
-                      </Button>
-                    ))}
-                  </Space>
-                );
-              }}
-            </Form.Item>
-          </Form.Item>
         </Form>
+        <div style={{ marginBottom: 8, color: '#595959' }}>当前进度状态</div>
+        <Space wrap>
+          {Object.entries(NODE_STATUS_LABELS).map(([value, label]) => (
+            <Button
+              key={value}
+              type={statusValue === value ? 'primary' : 'default'}
+              style={
+                statusValue === value
+                  ? { background: NODE_STATUS_COLORS[value], borderColor: NODE_STATUS_COLORS[value] }
+                  : undefined
+              }
+              onClick={() => setStatusValue(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </Space>
       </Modal>
     </Card>
   );

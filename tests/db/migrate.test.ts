@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(7);
+    expect(SCHEMA_VERSION).toBe(8);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -127,6 +127,37 @@ describe('数据库迁移与种子', () => {
     expect(custCols).toContain('contact');
     const memberCols = (db.prepare("SELECT name FROM pragma_table_info('wechat_member')").all() as { name: string }[]).map((c) => c.name);
     expect(memberCols).toContain('company');
+    db.close();
+  });
+
+  it('V1.6.1 迁移：历史订单明细回填物料库', () => {
+    const db = openDatabase(':memory:');
+    db.exec('CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT)');
+    for (const m of MIGRATIONS.filter((x) => x.version <= 7)) {
+      db.exec(m.sql);
+      db.prepare(
+        "INSERT INTO schema_meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).run(String(m.version));
+    }
+    db.prepare("INSERT INTO customer (name, name_norm) VALUES ('旧客户', '旧客户')").run();
+    db.prepare(
+      "INSERT INTO orders (order_no, customer_id, status_id) VALUES ('OLD-1', 1, 1)",
+    ).run();
+    db.prepare(
+      "INSERT INTO order_item (order_id, chip_model, brand, qty, unit_price, subtotal) VALUES (1, 'GD32F407ZGT6', '兆易创新', 5, 29.24, 146.2)",
+    ).run();
+    migrate(db);
+    const material = db.prepare("SELECT name, spec, brand FROM material WHERE code_norm = 'gd32f407zgt6'").get() as
+      | { name: string; spec: string; brand: string }
+      | undefined;
+    expect(material?.name).toBe('GD32F407ZGT6');
+    expect(material?.brand).toBe('兆易创新');
+    const item = db.prepare("SELECT material_id, material_code FROM order_item WHERE id = 1").get() as {
+      material_id: number | null;
+      material_code: string | null;
+    };
+    expect(typeof item.material_id).toBe('number');
+    expect(item.material_code).toBe('GD32F407ZGT6');
     db.close();
   });
 

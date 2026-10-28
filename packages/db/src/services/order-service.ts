@@ -4,11 +4,14 @@ import { bizError, isValidDateStr, round2 } from '@erp/shared';
 import {
   attachmentPathsByOrder,
   deleteOrder,
+  findMaterialByNorm,
   getAllOrderNos,
   getCustomer,
+  getMaterial,
   getOrder,
   getOrderNoConfig,
   getStatus,
+  insertMaterial,
   insertOrder,
   listGroupsByOrder,
   listItems,
@@ -24,6 +27,7 @@ import {
 } from '../repos/index.js';
 import { withTransaction } from '../connection.js';
 import { autoTotal, effectiveTotal, itemSubtotal, nextOrderNo } from '@erp/domain';
+import { normalizeName } from '@erp/domain';
 
 export interface OrderCreateInput {
   customerId: number;
@@ -76,6 +80,44 @@ function validateGroupIds(db: DatabaseSync, customerId: number, groupIds: number
   }
 }
 
+/**
+ * V1.6.1：订单明细里手工录入的物料自动落库到物料管理，并回填 material_id。
+ * 物料编码优先取「物料编码」，缺省用「料号规格」；已存在同编码物料则复用。
+ */
+export function resolveMaterialLinks(db: DatabaseSync, items: ItemInput[]): ItemInput[] {
+  return items.map((it) => {
+    if (it.materialId != null) return it;
+    const code = (it.materialCode ?? it.chipModel ?? '').trim();
+    if (!code) return it;
+    const norm = normalizeName(code);
+    let material = findMaterialByNorm(db, norm);
+    if (!material) {
+      const id = insertMaterial(db, {
+        code,
+        codeNorm: norm,
+        name: (it.materialName ?? '').trim() || it.chipModel || code,
+        spec: it.chipModel || null,
+        brand: it.brand ?? null,
+        purchasePrice: it.purchasePrice ?? null,
+        purchaseTaxIncluded: it.purchaseTaxIncluded !== false,
+        salePrice: it.unitPrice ?? null,
+        priceTaxIncluded: it.priceTaxIncluded !== false,
+        taxRate: it.taxRate ?? 13,
+        remark: null,
+        isActive: true,
+        supplierId: null,
+      });
+      material = getMaterial(db, id);
+    }
+    return {
+      ...it,
+      materialId: material?.id ?? null,
+      materialCode: material?.code ?? it.materialCode ?? code,
+      materialName: material?.name ?? it.materialName ?? it.chipModel,
+    };
+  });
+}
+
 export const orderService = {
   create(db: DatabaseSync, input: OrderCreateInput): number {
     const customer = getCustomer(db, input.customerId);
@@ -105,7 +147,7 @@ export const orderService = {
       orderNo = nextOrderNo(getOrderNoConfig(db), new Date(), existingNos);
     }
 
-    const items: ItemInput[] = input.items.map((it) => ({
+    const rawItems: ItemInput[] = input.items.map((it) => ({
       ...it,
       chipModel: it.chipModel.trim(),
       materialCode: it.materialCode?.trim() || null,
@@ -115,6 +157,8 @@ export const orderService = {
       taxRate: it.taxRate ?? 13,
       subtotal: itemSubtotal(it),
     }));
+    // 手输物料自动进入物料库，并回填 material_id
+    const items = resolveMaterialLinks(db, rawItems);
     const auto = autoTotal(items);
     const amountManual = !!input.amountManual;
     const totalAmount = effectiveTotal(amountManual, input.totalAmount, auto);
@@ -187,7 +231,7 @@ export const orderService = {
     withTransaction(db, () => {
       if (input.items !== undefined) {
         if (input.items.length > 50) throw bizError('VALIDATION', '单订单最多 50 条物料明细');
-        const items: ItemInput[] = input.items.map((it, i) => ({
+        const rawItems: ItemInput[] = input.items.map((it, i) => ({
           ...it,
           chipModel: it.chipModel.trim(),
           materialCode: it.materialCode?.trim() || null,
@@ -198,6 +242,7 @@ export const orderService = {
           subtotal: itemSubtotal(it),
           sortOrder: i + 1,
         }));
+        const items = resolveMaterialLinks(db, rawItems);
         const auto = autoTotal(items);
         const amountManual = input.amountManual !== undefined ? input.amountManual : existing.amountManual;
         const manualValue = input.totalAmount !== undefined ? input.totalAmount : existing.totalAmount;
