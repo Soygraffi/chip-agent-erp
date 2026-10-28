@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -11,7 +11,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Steps,
   Table,
   Tag,
   message,
@@ -27,6 +26,7 @@ import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
 import type { Customer, OrderAttachment, OrderDetail, OrderNode } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
+import { NodeStepper } from '../components/NodeStepper';
 
 interface StatusItem {
   id: number;
@@ -172,13 +172,6 @@ export function OrderDetailPage(): JSX.Element {
     } catch (e) {
       void message.error(errorMessage(e));
     }
-  };
-
-  const stepStatus = (n: OrderNode): 'wait' | 'process' | 'finish' | 'error' => {
-    if (n.status === 'done') return 'finish';
-    if (n.status === 'delayed') return 'error';
-    if (n.status === 'in_progress') return 'process';
-    return 'wait';
   };
 
   return (
@@ -353,21 +346,7 @@ export function OrderDetailPage(): JSX.Element {
           新增节点
         </Button>
       </Divider>
-      <div style={{ overflowX: 'auto', padding: '4px 0 12px' }}>
-        <Steps
-          current={Math.max(0, sortedNodes.findIndex((n) => n.status !== 'done'))}
-          size="small"
-          style={{ minWidth: Math.max(720, sortedNodes.length * 120) }}
-          onChange={(idx) => openNodeModal('edit', sortedNodes[idx])}
-          items={sortedNodes.map((n) => ({
-            title: n.name,
-            status: stepStatus(n),
-            description: (
-              <Tag color={NODE_STATUS_COLORS[n.status]}>{NODE_STATUS_LABELS[n.status]}</Tag>
-            ),
-          }))}
-        />
-      </div>
+      <NodeStepper nodes={sortedNodes} onSelect={(n) => openNodeModal('edit', n)} />
       <div style={{ color: '#999', fontSize: 12, marginBottom: 8 }}>
         点击任意步骤即可编辑名称与「当前进度状态」（未开始 / 进行中 / 已完成 / 异常延误）。
       </div>

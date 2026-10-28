@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -10,7 +10,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Steps,
   Table,
   Tag,
   message,
@@ -21,6 +20,7 @@ import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
 import type { OrderItem, OrderNode, OrderWithDetails, Page } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
+import { NodeStepper } from './NodeStepper';
 
 interface OptionItem {
   id: number;
@@ -133,13 +133,6 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
     } catch (e) {
       void message.error(errorMessage(e));
     }
-  };
-
-  const stepStatus = (n: OrderNode): 'wait' | 'process' | 'finish' | 'error' => {
-    if (n.status === 'done') return 'finish';
-    if (n.status === 'delayed') return 'error';
-    if (n.status === 'in_progress') return 'process';
-    return 'wait';
   };
 
   /** 订单状态与时间轴联动：取当前（第一个未完成）节点的状态；全部完成则为已完结 */
@@ -267,21 +260,7 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
               </Space>
             }
           >
-            <div style={{ overflowX: 'auto', marginBottom: 8 }}>
-              <Steps
-                size="small"
-                current={Math.max(0, o.nodes.findIndex((n) => n.status !== 'done'))}
-                onChange={(idx) => openNode(o.nodes[idx])}
-                style={{ minWidth: Math.max(640, o.nodes.length * 110) }}
-                items={[...o.nodes]
-                  .sort((a, b) => a.sortOrder - b.sortOrder)
-                  .map((n) => ({
-                    title: n.name,
-                    status: stepStatus(n),
-                    description: <Tag color={NODE_STATUS_COLORS[n.status]}>{NODE_STATUS_LABELS[n.status]}</Tag>,
-                  }))}
-              />
-            </div>
+            <NodeStepper nodes={o.nodes} onSelect={openNode} compact />
             <Table<OrderItem>
               rowKey="id"
               size="small"
