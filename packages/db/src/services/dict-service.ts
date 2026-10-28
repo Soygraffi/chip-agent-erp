@@ -18,6 +18,9 @@ import {
   listRates,
   listStatuses,
   listTemplates,
+  reorderDictItems,
+  reorderStatuses,
+  reorderTemplates,
   updateDictItem,
   updateStatus,
   updateTemplate,
@@ -57,6 +60,15 @@ export const dictService = {
     const refs = countDictRefs(db, item);
     if (refs > 0) throw bizError('DICT_IN_USE', `被 ${refs} 条业务数据引用`);
     deleteDictItem(db, id);
+  },
+
+  /** 拖动排序（V1.4）：ids 为该类别字典项的全集 */
+  reorder(db: DatabaseSync, category: DictCategory, ids: number[]): void {
+    const existing = new Set(listDictItems(db, category).map((d) => d.id));
+    if (ids.length !== existing.size || ids.some((id) => !existing.has(id))) {
+      throw bizError('VALIDATION', '排序列表与当前字典项不一致');
+    }
+    withTransaction(db, () => reorderDictItems(db, ids));
   },
 };
 
@@ -139,6 +151,15 @@ export const statusDictService = {
     if (refs > 0) throw bizError('STATUS_IN_USE', `被 ${refs} 个订单引用`);
     deleteStatus(db, id);
   },
+
+  /** 拖动排序（V1.4）：ids 为全部状态的全集 */
+  reorder(db: DatabaseSync, ids: number[]): void {
+    const existing = new Set(listStatuses(db).map((s) => s.id));
+    if (ids.length !== existing.size || ids.some((id) => !existing.has(id))) {
+      throw bizError('VALIDATION', '排序列表与当前状态不一致');
+    }
+    withTransaction(db, () => reorderStatuses(db, ids));
+  },
 };
 
 /* ---------------- 节点模板 ---------------- */
@@ -191,6 +212,15 @@ export const templateService = {
     const refs = countTemplateRefs(db, id);
     if (refs > 0) throw bizError('TEMPLATE_IN_USE', `被 ${refs} 个订单节点引用`);
     deleteTemplate(db, id);
+  },
+
+  /** 拖动排序（V1.4）：ids 为全部节点模板的全集；影响新建订单的节点顺序 */
+  reorder(db: DatabaseSync, ids: number[]): void {
+    const existing = new Set(listTemplates(db).map((t) => t.id));
+    if (ids.length !== existing.size || ids.some((id) => !existing.has(id))) {
+      throw bizError('VALIDATION', '排序列表与当前节点模板不一致');
+    }
+    withTransaction(db, () => reorderTemplates(db, ids));
   },
 };
 

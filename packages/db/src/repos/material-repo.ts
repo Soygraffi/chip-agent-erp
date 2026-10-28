@@ -9,6 +9,7 @@ export interface MaterialInput {
   spec?: string | null;
   brand?: string | null;
   purchasePrice?: number | null;
+  purchaseTaxIncluded?: boolean;
   salePrice?: number | null;
   priceTaxIncluded?: boolean;
   taxRate?: number;
@@ -17,8 +18,8 @@ export interface MaterialInput {
 }
 
 const COLS = `m.id, m.code, m.code_norm AS codeNorm, m.name, m.spec, m.brand,
-  m.purchase_price AS purchasePrice, m.sale_price AS salePrice,
-  m.price_tax_included AS priceTaxIncluded, m.tax_rate AS taxRate,
+  m.purchase_price AS purchasePrice, m.purchase_tax_included AS purchaseTaxIncluded,
+  m.sale_price AS salePrice, m.price_tax_included AS priceTaxIncluded, m.tax_rate AS taxRate,
   m.remark, m.is_active AS isActive, m.created_at AS createdAt, m.updated_at AS updatedAt`;
 
 function mapMaterial(r: Record<string, unknown>): Material {
@@ -27,6 +28,7 @@ function mapMaterial(r: Record<string, unknown>): Material {
     spec: (r.spec as string | null) ?? null,
     brand: (r.brand as string | null) ?? null,
     purchasePrice: (r.purchasePrice as number | null) ?? null,
+    purchaseTaxIncluded: r.purchaseTaxIncluded == null ? true : !!r.purchaseTaxIncluded,
     salePrice: (r.salePrice as number | null) ?? null,
     remark: (r.remark as string | null) ?? null,
     priceTaxIncluded: !!r.priceTaxIncluded,
@@ -37,8 +39,8 @@ function mapMaterial(r: Record<string, unknown>): Material {
 export function insertMaterial(db: DatabaseSync, m: MaterialInput): number {
   const r = db
     .prepare(
-      'INSERT INTO material (code, code_norm, name, spec, brand, purchase_price, sale_price, ' +
-        'price_tax_included, tax_rate, remark, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO material (code, code_norm, name, spec, brand, purchase_price, purchase_tax_included, ' +
+        'sale_price, price_tax_included, tax_rate, remark, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       m.code,
@@ -47,6 +49,7 @@ export function insertMaterial(db: DatabaseSync, m: MaterialInput): number {
       m.spec ?? null,
       m.brand ?? null,
       m.purchasePrice ?? null,
+      m.purchaseTaxIncluded === false ? 0 : 1,
       m.salePrice ?? null,
       m.priceTaxIncluded === false ? 0 : 1,
       m.taxRate ?? 13,
@@ -83,6 +86,10 @@ export function updateMaterial(
   if (patch.priceTaxIncluded !== undefined) {
     fields.push('price_tax_included = ?');
     args.push(patch.priceTaxIncluded ? 1 : 0);
+  }
+  if (patch.purchaseTaxIncluded !== undefined) {
+    fields.push('purchase_tax_included = ?');
+    args.push(patch.purchaseTaxIncluded ? 1 : 0);
   }
   if (patch.taxRate !== undefined) {
     fields.push('tax_rate = ?');
@@ -169,6 +176,7 @@ export interface MaterialOption {
   spec: string | null;
   brand: string | null;
   purchasePrice: number | null;
+  purchaseTaxIncluded: boolean;
   salePrice: number | null;
   priceTaxIncluded: boolean;
   taxRate: number;
@@ -179,8 +187,9 @@ export function listMaterialOptions(db: DatabaseSync): MaterialOption[] {
   return (
     db
       .prepare(
-        `SELECT id, code, name, spec, brand, purchase_price AS purchasePrice, sale_price AS salePrice,
-                price_tax_included AS priceTaxIncluded, tax_rate AS taxRate
+        `SELECT id, code, name, spec, brand,
+                purchase_price AS purchasePrice, purchase_tax_included AS purchaseTaxIncluded,
+                sale_price AS salePrice, price_tax_included AS priceTaxIncluded, tax_rate AS taxRate
          FROM material WHERE is_active = 1 ORDER BY code`,
       )
       .all() as Record<string, unknown>[]
@@ -191,6 +200,7 @@ export function listMaterialOptions(db: DatabaseSync): MaterialOption[] {
         spec: (r.spec as string | null) ?? null,
         brand: (r.brand as string | null) ?? null,
         purchasePrice: (r.purchasePrice as number | null) ?? null,
+        purchaseTaxIncluded: r.purchaseTaxIncluded == null ? true : !!r.purchaseTaxIncluded,
         salePrice: (r.salePrice as number | null) ?? null,
         priceTaxIncluded: !!r.priceTaxIncluded,
       }) as MaterialOption,

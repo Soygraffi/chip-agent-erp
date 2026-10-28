@@ -28,6 +28,7 @@ describe('物料仓储（V1.3）', () => {
       spec: 'GD32F407ZGT6',
       brand: '兆易创新',
       purchasePrice: 12.5,
+      purchaseTaxIncluded: false,
       salePrice: 29.24,
       priceTaxIncluded: true,
       taxRate: 13,
@@ -35,6 +36,7 @@ describe('物料仓储（V1.3）', () => {
     const m = getMaterial(db, id)!;
     expect(m.code).toBe('RDDZX03001');
     expect(m.purchasePrice).toBe(12.5);
+    expect(m.purchaseTaxIncluded).toBe(false);
     expect(m.salePrice).toBe(29.24);
     expect(m.priceTaxIncluded).toBe(true);
     expect(m.taxRate).toBe(13);

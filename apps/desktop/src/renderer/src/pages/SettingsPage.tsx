@@ -11,13 +11,13 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tabs,
   Tag,
   message,
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { api, errorMessage } from '../api';
+import { SortableList } from '../components/SortableList';
 
 interface DictItem {
   id: number;
@@ -48,18 +48,6 @@ interface TemplateItem {
   enabled: boolean;
   remark: string | null;
 }
-interface RateItem {
-  currencyId: number;
-  currencyName: string;
-  rate: number;
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  customer_type: '客户类型',
-  order_type: '订单类型',
-  payment_method: '付款方式',
-  currency: '币种',
-};
 
 function DictTab({ category }: { category: string }): JSX.Element {
   const [rows, setRows] = useState<DictItem[]>([]);
@@ -89,58 +77,60 @@ function DictTab({ category }: { category: string }): JSX.Element {
 
   return (
     <div>
-      <Button
-        type="primary"
-        size="small"
-        icon={<PlusOutlined />}
-        style={{ marginBottom: 12 }}
-        onClick={() => {
-          setEditing(null);
-          form.resetFields();
-          setOpen(true);
+      <Space style={{ marginBottom: 12 }}>
+        <Button
+          type="primary"
+          size="small"
+          icon={<PlusOutlined />}
+          onClick={() => {
+            setEditing(null);
+            form.resetFields();
+            form.setFieldsValue({ enabled: true });
+            setOpen(true);
+          }}
+        >
+          新增项
+        </Button>
+      </Space>
+      <SortableList<DictItem>
+        items={rows}
+        getKey={(r) => r.id}
+        hint="按住左侧拖动手柄上下拖动即可调整顺序（影响下拉选项的显示顺序）"
+        onReorder={async (ids) => {
+          await api.dicts.reorder(category, ids);
+          load();
         }}
-      >
-        新增{category === 'currency' ? '币种' : '项'}
-      </Button>
-      <Table<DictItem>
-        rowKey="id"
-        size="small"
-        dataSource={rows}
-        pagination={false}
-        columns={[
-          { title: '名称', dataIndex: 'name' },
-          { title: '排序', dataIndex: 'sortOrder', width: 80 },
-          { title: '启用', dataIndex: 'enabled', width: 70, render: (v: boolean) => (v ? '是' : '否') },
-          { title: '系统预置', dataIndex: 'isSystem', width: 90, render: (v: boolean) => (v ? '是' : '否') },
-          {
-            title: '操作',
-            width: 140,
-            render: (_, r) => (
-              <Space>
-                <a
-                  onClick={() => {
-                    setEditing(r);
-                    form.setFieldsValue({ name: r.name, sortOrder: r.sortOrder, enabled: r.enabled });
-                    setOpen(true);
-                  }}
-                >
-                  编辑
-                </a>
-                <Popconfirm title="删除该字典项（被引用时将被拒绝）" onConfirm={() => void api.dicts.remove(r.id).then(load).catch((e) => void message.error(errorMessage(e)))}>
-                  <a style={{ color: '#ff4d4f' }}>删除</a>
-                </Popconfirm>
-              </Space>
-            ),
-          },
-        ]}
+        renderMain={(r) => (
+          <Space>
+            <span>{r.name}</span>
+            {r.enabled ? <Tag color="green">启用</Tag> : <Tag>停用</Tag>}
+            {r.isSystem && <Tag color="blue">预置</Tag>}
+          </Space>
+        )}
+        renderActions={(r) => (
+          <Space>
+            <a
+              onClick={() => {
+                setEditing(r);
+                form.setFieldsValue({ name: r.name, enabled: r.enabled });
+                setOpen(true);
+              }}
+            >
+              编辑
+            </a>
+            <Popconfirm
+              title="删除该字典项（被引用时将被拒绝）"
+              onConfirm={() => void api.dicts.remove(r.id).then(load).catch((e) => void message.error(errorMessage(e)))}
+            >
+              <a style={{ color: '#ff4d4f' }}>删除</a>
+            </Popconfirm>
+          </Space>
+        )}
       />
       <Modal title={editing ? '编辑' : '新增'} open={open} onOk={() => void submit()} onCancel={() => setOpen(false)} destroyOnClose>
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
             <Input />
-          </Form.Item>
-          <Form.Item name="sortOrder" label="排序值">
-            <InputNumber style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked" initialValue={true}>
             <Switch />
@@ -166,8 +156,8 @@ function StatusTab(): JSX.Element {
     const values = await form.validateFields();
     const payload = {
       ...values,
-      color: typeof values.color === 'string' ? values.color : values.color?.toHexString?.() ?? values.color,
-      terminalResult: values.isTerminal ? values.terminalResult ?? null : null,
+      color: typeof values.color === 'string' ? values.color : (values.color?.toHexString?.() ?? values.color),
+      terminalResult: values.isTerminal ? (values.terminalResult ?? null) : null,
     };
     try {
       if (editing) {
@@ -184,63 +174,64 @@ function StatusTab(): JSX.Element {
 
   return (
     <div>
-      <Button
-        type="primary"
-        size="small"
-        icon={<PlusOutlined />}
-        style={{ marginBottom: 12 }}
-        onClick={() => {
-          setEditing(null);
-          form.resetFields();
-          form.setFieldsValue({ isTerminal: false, isDefaultCompleted: false, enabled: true, color: '#1677FF' });
-          setOpen(true);
+      <Space style={{ marginBottom: 12 }}>
+        <Button
+          type="primary"
+          size="small"
+          icon={<PlusOutlined />}
+          onClick={() => {
+            setEditing(null);
+            form.resetFields();
+            form.setFieldsValue({ isTerminal: false, isDefaultCompleted: false, enabled: true, color: '#1677FF' });
+            setOpen(true);
+          }}
+        >
+          新增状态
+        </Button>
+      </Space>
+      <SortableList<StatusItem>
+        items={rows}
+        getKey={(r) => r.id}
+        hint="拖动调整订单状态的显示顺序（影响首页状态分布与筛选下拉顺序）"
+        onReorder={async (ids) => {
+          await api.statuses.reorder(ids);
+          load();
         }}
-      >
-        新增状态
-      </Button>
-      <Table<StatusItem>
-        rowKey="id"
-        size="small"
-        dataSource={rows}
-        pagination={false}
-        columns={[
-          { title: '名称', dataIndex: 'name' },
-          { title: '颜色', dataIndex: 'color', width: 80, render: (v: string) => <Tag color={v}>{v}</Tag> },
-          { title: '排序', dataIndex: 'sortOrder', width: 70 },
-          { title: '终态', dataIndex: 'isTerminal', width: 70, render: (v: boolean) => (v ? '是' : '否') },
-          { title: '终态结果', dataIndex: 'terminalResult', width: 90, render: (v: string | null) => (v === 'completed' ? '完成' : v === 'cancelled' ? '取消' : '-') },
-          { title: '默认完成', dataIndex: 'isDefaultCompleted', width: 90, render: (v: boolean) => (v ? <Tag color="green">是</Tag> : '否') },
-          { title: '启用', dataIndex: 'enabled', width: 70, render: (v: boolean) => (v ? '是' : '否') },
-          { title: '系统预置', dataIndex: 'isSystem', width: 90, render: (v: boolean) => (v ? '是' : '否') },
-          {
-            title: '操作',
-            width: 140,
-            render: (_, r) => (
-              <Space>
-                <a
-                  onClick={() => {
-                    setEditing(r);
-                    form.setFieldsValue({
-                      name: r.name,
-                      color: r.color,
-                      sortOrder: r.sortOrder,
-                      isTerminal: r.isTerminal,
-                      terminalResult: r.terminalResult,
-                      isDefaultCompleted: r.isDefaultCompleted,
-                      enabled: r.enabled,
-                    });
-                    setOpen(true);
-                  }}
-                >
-                  编辑
-                </a>
-                <Popconfirm title="删除该状态（被引用或系统预置将被拒绝）" onConfirm={() => void api.statuses.remove(r.id).then(load).catch((e) => void message.error(errorMessage(e)))}>
-                  <a style={{ color: '#ff4d4f' }}>删除</a>
-                </Popconfirm>
-              </Space>
-            ),
-          },
-        ]}
+        renderMain={(r) => (
+          <Space wrap>
+            <Tag color={r.color}>{r.name}</Tag>
+            {r.isTerminal && <Tag color="red">终态·{r.terminalResult === 'cancelled' ? '取消' : '完成'}</Tag>}
+            {r.isDefaultCompleted && <Tag color="green">默认完成</Tag>}
+            {!r.enabled && <Tag>停用</Tag>}
+            {r.isSystem && <Tag color="blue">预置</Tag>}
+          </Space>
+        )}
+        renderActions={(r) => (
+          <Space>
+            <a
+              onClick={() => {
+                setEditing(r);
+                form.setFieldsValue({
+                  name: r.name,
+                  color: r.color,
+                  isTerminal: r.isTerminal,
+                  terminalResult: r.terminalResult,
+                  isDefaultCompleted: r.isDefaultCompleted,
+                  enabled: r.enabled,
+                });
+                setOpen(true);
+              }}
+            >
+              编辑
+            </a>
+            <Popconfirm
+              title="删除该状态（被引用或系统预置将被拒绝）"
+              onConfirm={() => void api.statuses.remove(r.id).then(load).catch((e) => void message.error(errorMessage(e)))}
+            >
+              <a style={{ color: '#ff4d4f' }}>删除</a>
+            </Popconfirm>
+          </Space>
+        )}
       />
       <Modal title={editing ? '编辑状态' : '新增状态'} open={open} onOk={() => void submit()} onCancel={() => setOpen(false)} destroyOnClose width={480}>
         <Form form={form} layout="vertical">
@@ -249,9 +240,6 @@ function StatusTab(): JSX.Element {
           </Form.Item>
           <Form.Item name="color" label="颜色" rules={[{ required: true, message: '请选择颜色' }]}>
             <ColorPicker showText />
-          </Form.Item>
-          <Form.Item name="sortOrder" label="排序值">
-            <InputNumber style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="isTerminal" label="是否终态" valuePropName="checked">
             <Switch />
@@ -310,52 +298,57 @@ function TemplateTab(): JSX.Element {
 
   return (
     <div>
-      <Button
-        type="primary"
-        size="small"
-        icon={<PlusOutlined />}
-        style={{ marginBottom: 12 }}
-        onClick={() => {
-          setEditing(null);
-          form.resetFields();
-          setOpen(true);
+      <Space style={{ marginBottom: 12 }}>
+        <Button
+          type="primary"
+          size="small"
+          icon={<PlusOutlined />}
+          onClick={() => {
+            setEditing(null);
+            form.resetFields();
+            form.setFieldsValue({ enabled: true });
+            setOpen(true);
+          }}
+        >
+          新增节点模板
+        </Button>
+      </Space>
+      <SortableList<TemplateItem>
+        items={rows}
+        getKey={(r) => r.id}
+        hint="拖动调整节点顺序（影响之后新建订单的进度节点顺序，历史订单不受影响）"
+        onReorder={async (ids) => {
+          await api.templates.reorder(ids);
+          load();
         }}
-      >
-        新增节点模板
-      </Button>
-      <Table<TemplateItem>
-        rowKey="id"
-        size="small"
-        dataSource={rows}
-        pagination={false}
-        columns={[
-          { title: '名称', dataIndex: 'name' },
-          { title: '语义码', dataIndex: 'code', width: 110, render: (v: string | null) => v ?? '-' },
-          { title: '排序', dataIndex: 'sortOrder', width: 70 },
-          { title: '启用', dataIndex: 'enabled', width: 70, render: (v: boolean) => (v ? '是' : '否') },
-          { title: '系统预置', dataIndex: 'isSystem', width: 90, render: (v: boolean) => (v ? '是' : '否') },
-          { title: '备注', dataIndex: 'remark' },
-          {
-            title: '操作',
-            width: 140,
-            render: (_, r) => (
-              <Space>
-                <a
-                  onClick={() => {
-                    setEditing(r);
-                    form.setFieldsValue({ name: r.name, code: r.code, sortOrder: r.sortOrder, enabled: r.enabled, remark: r.remark });
-                    setOpen(true);
-                  }}
-                >
-                  编辑
-                </a>
-                <Popconfirm title="删除该模板（被订单节点引用时将被拒绝）" onConfirm={() => void api.templates.remove(r.id).then(load).catch((e) => void message.error(errorMessage(e)))}>
-                  <a style={{ color: '#ff4d4f' }}>删除</a>
-                </Popconfirm>
-              </Space>
-            ),
-          },
-        ]}
+        renderMain={(r) => (
+          <Space wrap>
+            <span>{r.name}</span>
+            {r.code && <Tag color="blue">{r.code}</Tag>}
+            {r.enabled ? <Tag color="green">启用</Tag> : <Tag>停用</Tag>}
+            {r.isSystem && <Tag color="cyan">预置</Tag>}
+            {r.remark && <span style={{ color: '#999' }}>{r.remark}</span>}
+          </Space>
+        )}
+        renderActions={(r) => (
+          <Space>
+            <a
+              onClick={() => {
+                setEditing(r);
+                form.setFieldsValue({ name: r.name, code: r.code, enabled: r.enabled, remark: r.remark });
+                setOpen(true);
+              }}
+            >
+              编辑
+            </a>
+            <Popconfirm
+              title="删除该模板（被订单节点引用时将被拒绝）"
+              onConfirm={() => void api.templates.remove(r.id).then(load).catch((e) => void message.error(errorMessage(e)))}
+            >
+              <a style={{ color: '#ff4d4f' }}>删除</a>
+            </Popconfirm>
+          </Space>
+        )}
       />
       <Modal title={editing ? '编辑节点模板' : '新增节点模板'} open={open} onOk={() => void submit()} onCancel={() => setOpen(false)} destroyOnClose>
         <Form form={form} layout="vertical">
@@ -364,9 +357,6 @@ function TemplateTab(): JSX.Element {
           </Form.Item>
           <Form.Item name="code" label="语义码" extra="内置语义码用于统计口径（如 arrival/ship 驱动待发货），自定义模板可留空；不可与其他模板重复">
             <Input />
-          </Form.Item>
-          <Form.Item name="sortOrder" label="排序值">
-            <InputNumber style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked">
             <Switch />
@@ -377,50 +367,6 @@ function TemplateTab(): JSX.Element {
         </Form>
       </Modal>
     </div>
-  );
-}
-
-function RateTab(): JSX.Element {
-  const [rows, setRows] = useState<RateItem[]>([]);
-  const load = useCallback(() => {
-    void api.rates.list().then((r) => setRows(r as RateItem[]));
-  }, []);
-  useEffect(load, [load]);
-
-  return (
-    <Table<RateItem>
-      rowKey="currencyId"
-      size="small"
-      dataSource={rows}
-      pagination={false}
-      columns={[
-        { title: '币种', dataIndex: 'currencyName' },
-        { title: '对人民币汇率', dataIndex: 'rate' },
-        {
-          title: '操作',
-          width: 200,
-          render: (_, r) => (
-            <Space>
-              <InputNumber
-                defaultValue={r.rate}
-                precision={6}
-                min={0.000001}
-                style={{ width: 140 }}
-                onBlur={(e) => {
-                  const v = Number(e.target.value);
-                  if (Number.isFinite(v) && v > 0) {
-                    void api.rates.upsert(r.currencyId, v).then(() => {
-                      void message.success('汇率已更新（仅影响之后新建订单）');
-                      load();
-                    });
-                  }
-                }}
-              />
-            </Space>
-          ),
-        },
-      ]}
-    />
   );
 }
 
@@ -597,7 +543,7 @@ export function SettingsPage(): JSX.Element {
           { key: 'order_type', label: '订单类型', children: <DictTab category="order_type" /> },
           { key: 'payment_method', label: '付款方式', children: <DictTab category="payment_method" /> },
           { key: 'status', label: '订单状态（语义）', children: <StatusTab /> },
-          { key: 'template', label: '节点模板', children: <TemplateTab /> },
+          { key: 'template', label: '节点顺序 / 模板', children: <TemplateTab /> },
           { key: 'quote', label: '报价单', children: <QuoteTab /> },
           { key: 'numbering', label: '编号规则', children: <NumberingTab /> },
           { key: 'storage', label: '存储设置', children: <StorageTab /> },

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
-  DatePicker,
   Descriptions,
   Divider,
   Form,
@@ -12,15 +11,14 @@ import {
   Popconfirm,
   Select,
   Space,
+  Steps,
   Table,
   Tag,
-  Timeline,
   message,
 } from 'antd';
 import {
   ArrowLeftOutlined,
   CheckCircleOutlined,
-  DeleteOutlined,
   EditOutlined,
   FileAddOutlined,
   PaperClipOutlined,
@@ -28,7 +26,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
-import type { Customer, NodeAttachment, NodeFollowUp, OrderAttachment, OrderDetail, OrderNode } from '../models';
+import type { Customer, OrderAttachment, OrderDetail, OrderNode } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 
 interface StatusItem {
@@ -60,9 +58,6 @@ export function OrderDetailPage(): JSX.Element {
   const [docs, setDocs] = useState<OrderAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [nodeModal, setNodeModal] = useState<{ mode: 'edit' | 'create'; node: OrderNode | null } | null>(null);
-  const [followModal, setFollowModal] = useState<{ nodeId: number; records: NodeFollowUp[] } | null>(null);
-  const [followText, setFollowText] = useState('');
-  const [attModal, setAttModal] = useState<{ nodeId: number; list: NodeAttachment[] } | null>(null);
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -97,15 +92,12 @@ export function OrderDetailPage(): JSX.Element {
       ? dayjs(today).diff(dayjs(detail.expectedDeliveryDate), 'day')
       : 0;
 
+  const sortedNodes = [...detail.nodes].sort((a, b) => a.sortOrder - b.sortOrder);
+
   const openNodeModal = (mode: 'edit' | 'create', node: OrderNode | null): void => {
     setNodeModal({ mode, node });
     if (mode === 'edit' && node) {
-      form.setFieldsValue({
-        name: node.name,
-        status: node.status,
-        planTime: node.planTime ? dayjs(node.planTime) : null,
-        actualTime: node.actualTime ? dayjs(node.actualTime) : null,
-      });
+      form.setFieldsValue({ name: node.name, status: node.status });
     } else {
       form.resetFields();
     }
@@ -113,17 +105,11 @@ export function OrderDetailPage(): JSX.Element {
 
   const submitNode = async (): Promise<void> => {
     const values = await form.validateFields();
-    const payload = {
-      name: values.name,
-      status: values.status,
-      planTime: values.planTime ? (values.planTime as dayjs.Dayjs).format('YYYY-MM-DD') : null,
-      actualTime: values.actualTime ? (values.actualTime as dayjs.Dayjs).format('YYYY-MM-DD') : null,
-    };
     try {
       if (nodeModal?.mode === 'edit' && nodeModal.node) {
-        await api.nodes.update(nodeModal.node.id, payload);
+        await api.nodes.update(nodeModal.node.id, { name: values.name, status: values.status });
       } else {
-        await api.nodes.create(orderId, { name: payload.name });
+        await api.nodes.create(orderId, { name: values.name });
       }
       setNodeModal(null);
       void load();
@@ -135,7 +121,7 @@ export function OrderDetailPage(): JSX.Element {
   const markDone = async (node: OrderNode): Promise<void> => {
     try {
       await api.nodes.update(node.id, { status: 'done' });
-      void message.success('节点已完成');
+      void message.success(`「${node.name}」已完成`);
       void load();
     } catch (e) {
       void message.error(errorMessage(e));
@@ -147,64 +133,6 @@ export function OrderDetailPage(): JSX.Element {
       await api.nodes.remove(node.id);
       void message.success('节点已删除');
       void load();
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
-  const moveNode = async (node: OrderNode, delta: number): Promise<void> => {
-    const sorted = [...detail.nodes].sort((a, b) => a.sortOrder - b.sortOrder);
-    const idx = sorted.findIndex((n) => n.id === node.id);
-    const target = idx + delta;
-    if (target < 0 || target >= sorted.length) return;
-    [sorted[idx], sorted[target]] = [sorted[target], sorted[idx]];
-    try {
-      await api.nodes.reorder(orderId, sorted.map((n) => n.id));
-      void load();
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
-  const openFollow = async (node: OrderNode): Promise<void> => {
-    const records = (await api.nodes.listFollowUps(node.id)) as NodeFollowUp[];
-    setFollowText('');
-    setFollowModal({ nodeId: node.id, records });
-  };
-
-  const addFollow = async (): Promise<void> => {
-    if (!followText.trim()) return;
-    try {
-      await api.nodes.addFollowUp(followModal!.nodeId, followText);
-      const records = (await api.nodes.listFollowUps(followModal!.nodeId)) as NodeFollowUp[];
-      setFollowModal({ nodeId: followModal!.nodeId, records });
-      setFollowText('');
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
-  const openAtt = async (node: OrderNode): Promise<void> => {
-    const list = (await api.nodes.listAttachments(node.id)) as NodeAttachment[];
-    setAttModal({ nodeId: node.id, list });
-  };
-
-  const addAttachment = async (nodeId: number): Promise<void> => {
-    try {
-      await api.attachments.pickAndAdd(nodeId);
-      const list = (await api.nodes.listAttachments(nodeId)) as NodeAttachment[];
-      setAttModal({ nodeId, list });
-      void load();
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
-  const deleteAttachment = async (att: NodeAttachment): Promise<void> => {
-    try {
-      await api.nodes.deleteAttachment(att.id);
-      const list = (await api.nodes.listAttachments(attModal!.nodeId)) as NodeAttachment[];
-      setAttModal({ nodeId: attModal!.nodeId, list });
     } catch (e) {
       void message.error(errorMessage(e));
     }
@@ -238,7 +166,12 @@ export function OrderDetailPage(): JSX.Element {
     }
   };
 
-  const sortedNodes = [...detail.nodes].sort((a, b) => b.sortOrder - a.sortOrder);
+  const stepStatus = (n: OrderNode): 'wait' | 'process' | 'finish' | 'error' => {
+    if (n.status === 'done') return 'finish';
+    if (n.status === 'delayed') return 'error';
+    if (n.status === 'in_progress') return 'process';
+    return 'wait';
+  };
 
   return (
     <Card
@@ -246,7 +179,7 @@ export function OrderDetailPage(): JSX.Element {
       title={
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/orders')} />
-          <span>{detail.orderNo}</span>
+          <span>{customerName}</span>
           {status ? <Tag color={status.color}>{status.name}</Tag> : <Tag color="#BFBFBF">未填写</Tag>}
           {daysOverdue > 0 && <Tag color="red">逾期 {daysOverdue} 天</Tag>}
           {detail.isKey && <Tag color="gold">重点跟进</Tag>}
@@ -288,7 +221,10 @@ export function OrderDetailPage(): JSX.Element {
         <Descriptions.Item label="订单日期">{detail.orderDate ?? '未填写'}</Descriptions.Item>
         <Descriptions.Item label="预计交货日期">{detail.expectedDeliveryDate ?? '未填写'}</Descriptions.Item>
         <Descriptions.Item label="实际交货日期">{detail.actualDeliveryDate ?? '未填写'}</Descriptions.Item>
-        <Descriptions.Item label="订单总金额">{(detail.totalAmount ?? 0).toFixed(2)}{detail.amountManual && <Tag style={{ marginLeft: 8 }}>已手改</Tag>}</Descriptions.Item>
+        <Descriptions.Item label="订单总金额">
+          {(detail.totalAmount ?? 0).toFixed(2)}
+          {detail.amountManual && <Tag style={{ marginLeft: 8 }}>已手改</Tag>}
+        </Descriptions.Item>
         <Descriptions.Item label="沟通微信群">
           {detail.wechatGroups.length > 0
             ? detail.wechatGroups.map((g) => <Tag key={g.id}>{g.name}</Tag>)
@@ -363,10 +299,12 @@ export function OrderDetailPage(): JSX.Element {
           },
           {
             title: '价格口径',
-            dataIndex: 'priceTaxIncluded',
-            width: 100,
-            render: (v: boolean, r) => (
-              <Tag color={v ? 'blue' : 'orange'}>{v ? '含税' : '不含税'} {r.taxRate}%</Tag>
+            width: 110,
+            render: (_: unknown, r) => (
+              <Space size={2} direction="vertical">
+                <Tag color={r.purchaseTaxIncluded ? 'blue' : 'orange'}>进货{r.purchaseTaxIncluded ? '含税' : '不含税'}</Tag>
+                <Tag color={r.priceTaxIncluded ? 'blue' : 'orange'}>出货{r.priceTaxIncluded ? '含税' : '不含税'}</Tag>
+              </Space>
             ),
           },
           {
@@ -391,11 +329,9 @@ export function OrderDetailPage(): JSX.Element {
             width: 100,
             align: 'right' as const,
             render: (_: unknown, r) => {
-              const p = r.unitPrice ?? 0;
-              const c = r.purchasePrice ?? 0;
               const rate = 1 + r.taxRate / 100;
-              const grossSale = r.priceTaxIncluded ? p : p * rate;
-              const grossCost = r.priceTaxIncluded ? c : c * rate;
+              const grossSale = r.priceTaxIncluded ? (r.unitPrice ?? 0) : (r.unitPrice ?? 0) * rate;
+              const grossCost = r.purchaseTaxIncluded ? (r.purchasePrice ?? 0) : (r.purchasePrice ?? 0) * rate;
               return (Math.round(r.qty * (grossSale - grossCost) * 100) / 100).toFixed(2);
             },
           },
@@ -404,51 +340,35 @@ export function OrderDetailPage(): JSX.Element {
       />
 
       <Divider orientation="left">
-        进度时间线（{detail.nodes.length} 个节点）
+        进度（{sortedNodes.filter((n) => n.status === 'done').length}/{sortedNodes.length} 已完成，点击节点可编辑）
         <Button size="small" type="link" onClick={() => openNodeModal('create', null)}>
           新增节点
         </Button>
       </Divider>
-      <Timeline
-        items={sortedNodes.map((n) => ({
-          color: NODE_STATUS_COLORS[n.status],
-          children: (
-            <Card size="small" title={
-              <Space>
-                <span>{n.name}</span>
-                <Tag color={NODE_STATUS_COLORS[n.status]}>{NODE_STATUS_LABELS[n.status]}</Tag>
-                {!n.planTime && n.status !== 'done' && <Tag>未设计划</Tag>}
-              </Space>
-            } extra={
-              <Space>
-                {n.status !== 'done' && (
-                  <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />} onClick={() => void markDone(n)}>
-                    标记完成
-                  </Button>
-                )}
-                <Button size="small" onClick={() => moveNode(n, -1)} disabled={n === sortedNodes[sortedNodes.length - 1]}>上移</Button>
-                <Button size="small" onClick={() => moveNode(n, 1)} disabled={n === sortedNodes[0]}>下移</Button>
-                <Button size="small" icon={<EditOutlined />} onClick={() => openNodeModal('edit', n)} />
-                <Popconfirm title="删除此节点（附件与跟进记录一并删除）" onConfirm={() => void doDeleteNode(n)}>
-                  <Button size="small" danger icon={<DeleteOutlined />} />
-                </Popconfirm>
-              </Space>
-            }>
-              <Descriptions size="small" column={3}>
-                <Descriptions.Item label="计划完成">{n.planTime ?? '-'}</Descriptions.Item>
-                <Descriptions.Item label="实际完成">{n.actualTime ?? '-'}</Descriptions.Item>
-                <Descriptions.Item label="负责人">{'-'}</Descriptions.Item>
-              </Descriptions>
-              <Space>
-                <Button size="small" onClick={() => void openFollow(n)}>跟进记录</Button>
-                <Button size="small" icon={<PaperClipOutlined />} onClick={() => void openAtt(n)}>
-                  附件
-                </Button>
-              </Space>
-            </Card>
-          ),
-        }))}
-      />
+      <div style={{ overflowX: 'auto', padding: '4px 0 12px' }}>
+        <Steps
+          current={Math.max(0, sortedNodes.findIndex((n) => n.status !== 'done'))}
+          size="small"
+          style={{ minWidth: Math.max(720, sortedNodes.length * 120) }}
+          onChange={(idx) => openNodeModal('edit', sortedNodes[idx])}
+          items={sortedNodes.map((n) => ({
+            title: n.name,
+            status: stepStatus(n),
+            description: (
+              <Tag color={NODE_STATUS_COLORS[n.status]}>{NODE_STATUS_LABELS[n.status]}</Tag>
+            ),
+          }))}
+        />
+      </div>
+      <Space wrap size={8}>
+        {sortedNodes
+          .filter((n) => n.status !== 'done')
+          .map((n) => (
+            <Button key={n.id} size="small" type="primary" ghost icon={<CheckCircleOutlined />} onClick={() => void markDone(n)}>
+              完成：{n.name}
+            </Button>
+          ))}
+      </Space>
 
       <Modal
         title={nodeModal?.mode === 'edit' ? '编辑节点' : '新增节点'}
@@ -456,85 +376,28 @@ export function OrderDetailPage(): JSX.Element {
         onOk={() => void submitNode()}
         onCancel={() => setNodeModal(null)}
         destroyOnClose
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            {nodeModal?.node && (
+              <Popconfirm title="删除此节点" onConfirm={() => {
+                void doDeleteNode(nodeModal.node!).then(() => setNodeModal(null));
+              }}>
+                <Button danger style={{ float: 'left' }}>删除节点</Button>
+              </Popconfirm>
+            )}
+            <CancelBtn />
+            <OkBtn />
+          </>
+        )}
       >
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="节点名称" rules={[{ required: true, message: '请输入节点名称' }]}>
             <Input />
           </Form.Item>
           <Form.Item name="status" label="节点状态">
-            <Select
-              options={Object.entries(NODE_STATUS_LABELS).map(([v, l]) => ({ value: v, label: l }))}
-            />
-          </Form.Item>
-          <Form.Item name="planTime" label="计划完成时间">
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="actualTime" label="实际完成时间">
-            <DatePicker style={{ width: '100%' }} />
+            <Select options={Object.entries(NODE_STATUS_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
           </Form.Item>
         </Form>
-      </Modal>
-
-      <Modal
-        title="跟进记录"
-        open={!!followModal}
-        onCancel={() => setFollowModal(null)}
-        footer={null}
-      >
-        <List
-          size="small"
-          dataSource={followModal?.records ?? []}
-          locale={{ emptyText: '暂无跟进记录' }}
-          renderItem={(r) => (
-            <List.Item>
-              <Space direction="vertical" size={0}>
-                <span>{r.content}</span>
-                <span style={{ color: '#999', fontSize: 12 }}>{r.createdAt}</span>
-              </Space>
-            </List.Item>
-          )}
-        />
-        <Space.Compact style={{ width: '100%', marginTop: 12 }}>
-          <Input
-            placeholder="输入跟进内容"
-            value={followText}
-            onChange={(e) => setFollowText(e.target.value)}
-            onPressEnter={() => void addFollow()}
-          />
-          <Button type="primary" onClick={() => void addFollow()}>
-            追加
-          </Button>
-        </Space.Compact>
-      </Modal>
-
-      <Modal
-        title="附件"
-        open={!!attModal}
-        onCancel={() => setAttModal(null)}
-        footer={
-          <Button type="primary" onClick={() => void addAttachment(attModal!.nodeId)}>
-            添加附件
-          </Button>
-        }
-      >
-        <List
-          size="small"
-          dataSource={attModal?.list ?? []}
-          locale={{ emptyText: '暂无附件' }}
-          renderItem={(a) => (
-            <List.Item
-              actions={[
-                <a key="open" onClick={() => void api.attachments.open(a.storedPath)}>打开</a>,
-                <a key="folder" onClick={() => void api.attachments.openFolder(a.storedPath)}>所在目录</a>,
-                <Popconfirm key="del" title="删除附件" onConfirm={() => void deleteAttachment(a)}>
-                  <a style={{ color: '#ff4d4f' }}>删除</a>
-                </Popconfirm>,
-              ]}
-            >
-              {a.originalName}（{Math.round(a.size / 1024)} KB）
-            </List.Item>
-          )}
-        />
       </Modal>
     </Card>
   );

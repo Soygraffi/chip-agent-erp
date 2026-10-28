@@ -30,6 +30,19 @@ interface MaterialOrderRow {
   subtotal: number | null;
 }
 
+const TAX_OPTIONS = [
+  { value: true, label: '含税' },
+  { value: false, label: '不含税' },
+];
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function round4(n: number): number {
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
+}
+
 export function MaterialsPage(): JSX.Element {
   const navigate = useNavigate();
   const [rows, setRows] = useState<MaterialListRow[]>([]);
@@ -42,6 +55,7 @@ export function MaterialsPage(): JSX.Element {
   const [editing, setEditing] = useState<MaterialListRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [form] = Form.useForm();
+  const [margin, setMargin] = useState<number | null>(null);
   const [ordersDrawer, setOrdersDrawer] = useState<{ material: MaterialListRow; rows: MaterialOrderRow[] } | null>(null);
 
   const load = useCallback(async () => {
@@ -68,15 +82,28 @@ export function MaterialsPage(): JSX.Element {
 
   const openCreate = (): void => {
     setEditing(null);
+    setMargin(null);
     form.resetFields();
-    form.setFieldsValue({ priceTaxIncluded: true, taxRate: 13, isActive: true });
+    form.setFieldsValue({ purchaseTaxIncluded: true, priceTaxIncluded: true, taxRate: 13, isActive: true });
     setCreating(true);
   };
 
   const openEdit = (row: MaterialListRow): void => {
     setEditing(row);
     form.setFieldsValue(row);
+    const cost = row.purchaseTaxIncluded ? (row.purchasePrice ?? 0) : (row.purchasePrice ?? 0) * (1 + row.taxRate / 100);
+    const sale = row.priceTaxIncluded ? (row.salePrice ?? 0) : (row.salePrice ?? 0) * (1 + row.taxRate / 100);
+    setMargin(cost > 0 ? round2(((sale - cost) / cost) * 100) : null);
     setCreating(true);
+  };
+
+  /** 利润率 → 出货价 = 进货价 × (1 + 利润率%)，保持原出货口径 */
+  const applyMargin = (pct: number | null): void => {
+    setMargin(pct);
+    if (pct == null) return;
+    const cost = Number(form.getFieldValue('purchasePrice') ?? 0);
+    if (!Number.isFinite(cost)) return;
+    form.setFieldsValue({ salePrice: round4(cost * (1 + pct / 100)) });
   };
 
   const submit = async (): Promise<void> => {
@@ -122,6 +149,13 @@ export function MaterialsPage(): JSX.Element {
     } catch (e) {
       void message.error(errorMessage(e));
     }
+  };
+
+  const marginOf = (r: MaterialListRow): number | null => {
+    const k = 1 + r.taxRate / 100;
+    const cost = r.purchaseTaxIncluded ? (r.purchasePrice ?? 0) : (r.purchasePrice ?? 0) * k;
+    const sale = r.priceTaxIncluded ? (r.salePrice ?? 0) : (r.salePrice ?? 0) * k;
+    return cost > 0 ? round2(((sale - cost) / cost) * 100) : null;
   };
 
   return (
@@ -179,42 +213,50 @@ export function MaterialsPage(): JSX.Element {
           },
         }}
         columns={[
-          { title: '物料编码', dataIndex: 'code', width: 140 },
-          { title: '物料名称', dataIndex: 'name', width: 160 },
-          { title: '料号规格', dataIndex: 'spec', width: 160, render: (v: string | null) => v ?? '-' },
+          { title: '物料编码', dataIndex: 'code', width: 130 },
+          { title: '物料名称', dataIndex: 'name', width: 150 },
+          { title: '料号规格', dataIndex: 'spec', width: 150, render: (v: string | null) => v ?? '-' },
           { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
           {
             title: '进货价',
             dataIndex: 'purchasePrice',
-            width: 100,
+            width: 150,
             align: 'right' as const,
-            render: (v: number | null) => (v == null ? '-' : v.toFixed(2)),
+            render: (v: number | null, r) => (
+              <Space size={4}>
+                <span>{v == null ? '-' : v.toFixed(2)}</span>
+                <Tag color={r.purchaseTaxIncluded ? 'blue' : 'orange'}>{r.purchaseTaxIncluded ? '含税' : '不含税'}</Tag>
+              </Space>
+            ),
           },
           {
             title: '出货价',
             dataIndex: 'salePrice',
-            width: 100,
+            width: 150,
             align: 'right' as const,
-            render: (v: number | null) => (v == null ? '-' : v.toFixed(2)),
-          },
-          {
-            title: '价格口径',
-            dataIndex: 'priceTaxIncluded',
-            width: 90,
-            render: (v: boolean, r) => (
-              <Tag color={v ? 'blue' : 'orange'}>
-                {v ? '含税' : '不含税'} {r.taxRate}%
-              </Tag>
+            render: (v: number | null, r) => (
+              <Space size={4}>
+                <span>{v == null ? '-' : v.toFixed(2)}</span>
+                <Tag color={r.priceTaxIncluded ? 'blue' : 'orange'}>{r.priceTaxIncluded ? '含税' : '不含税'}</Tag>
+              </Space>
             ),
           },
+          {
+            title: '利润率',
+            width: 95,
+            align: 'right' as const,
+            render: (_: unknown, r) => {
+              const m = marginOf(r);
+              return m == null ? '-' : `${m.toFixed(2)}%`;
+            },
+          },
+          { title: '税率(%)', dataIndex: 'taxRate', width: 90, align: 'right' as const },
           {
             title: '关联订单',
             dataIndex: 'orderCount',
             width: 90,
             align: 'center' as const,
-            render: (v: number, r) => (
-              <a onClick={() => void openOrders(r)}>{v} 单</a>
-            ),
+            render: (v: number, r) => <a onClick={() => void openOrders(r)}>{v} 单</a>,
           },
           {
             title: '最近订单',
@@ -258,7 +300,7 @@ export function MaterialsPage(): JSX.Element {
         onOk={() => void submit()}
         onCancel={() => setCreating(false)}
         destroyOnClose
-        width={640}
+        width={720}
       >
         <Form form={form} layout="vertical">
           <Space size={16} wrap>
@@ -276,25 +318,32 @@ export function MaterialsPage(): JSX.Element {
             <Form.Item name="brand" label="品牌">
               <Input style={{ width: 160 }} placeholder="如 兆易创新" />
             </Form.Item>
+            <Form.Item name="taxRate" label="税率（%）">
+              <InputNumber min={0} max={100} precision={2} style={{ width: 120 }} />
+            </Form.Item>
           </Space>
           <Space size={16} wrap>
             <Form.Item name="purchasePrice" label="进货价">
               <InputNumber min={0} precision={4} style={{ width: 160 }} />
             </Form.Item>
+            <Form.Item name="purchaseTaxIncluded" label="进货价口径">
+              <Select style={{ width: 120 }} options={TAX_OPTIONS} />
+            </Form.Item>
             <Form.Item name="salePrice" label="出货价">
               <InputNumber min={0} precision={4} style={{ width: 160 }} />
             </Form.Item>
-            <Form.Item name="priceTaxIncluded" label="价格口径">
-              <Select
-                style={{ width: 120 }}
-                options={[
-                  { value: true, label: '含税' },
-                  { value: false, label: '不含税' },
-                ]}
-              />
+            <Form.Item name="priceTaxIncluded" label="出货价口径">
+              <Select style={{ width: 120 }} options={TAX_OPTIONS} />
             </Form.Item>
-            <Form.Item name="taxRate" label="税率（%）">
-              <InputNumber min={0} max={100} precision={2} style={{ width: 120 }} />
+            <Form.Item label="利润率（%）" extra="填写后自动算出货价">
+              <InputNumber
+                min={-100}
+                max={1000}
+                precision={2}
+                value={margin ?? undefined}
+                style={{ width: 140 }}
+                onChange={(v) => applyMargin(v ?? null)}
+              />
             </Form.Item>
           </Space>
           <Form.Item name="remark" label="备注">

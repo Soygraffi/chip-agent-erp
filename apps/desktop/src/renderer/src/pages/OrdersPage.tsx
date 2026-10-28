@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -11,16 +11,15 @@ import {
   Tag,
   message,
 } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
-import type { OrderListRow, Page } from '../models';
+import type { OrderItem, OrderListRow, Page } from '../models';
 
 interface OptionItem {
   id: number;
   name: string;
-  color?: string | null;
 }
 
 export function OrdersPage(): JSX.Element {
@@ -29,31 +28,31 @@ export function OrdersPage(): JSX.Element {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [customerId, setCustomerId] = useState<number | null>(null);
   const [statusId, setStatusId] = useState<number | null>(null);
   const [typeId, setTypeId] = useState<number | null>(null);
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null);
-  const [deliveryRange, setDeliveryRange] = useState<[string, string] | null>(null);
-  const [sortField, setSortField] = useState<string>('order_date');
+  const [range, setRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
+  const [onlyOverdue, setOnlyOverdue] = useState(false);
+  const [onlyKey, setOnlyKey] = useState(false);
+  const [sortField, setSortField] = useState('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [customers, setCustomers] = useState<OptionItem[]>([]);
   const [statuses, setStatuses] = useState<OptionItem[]>([]);
   const [types, setTypes] = useState<OptionItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [itemsCache, setItemsCache] = useState<Record<number, OrderItem[]>>({});
+  const [expandedKeys, setExpandedKeys] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = (await api.orders.list({
         search: search || undefined,
-        customerId,
         statusId,
         typeId,
-        dateFrom: dateRange?.[0],
-        dateTo: dateRange?.[1],
-        deliveryFrom: deliveryRange?.[0],
-        deliveryTo: deliveryRange?.[1],
+        dateFrom: range?.[0]?.format('YYYY-MM-DD') ?? undefined,
+        dateTo: range?.[1]?.format('YYYY-MM-DD') ?? undefined,
+        onlyOverdue,
+        onlyKey,
         sortField,
         sortDir,
         page,
@@ -66,22 +65,63 @@ export function OrdersPage(): JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [search, customerId, statusId, typeId, dateRange, deliveryRange, sortField, sortDir, page, pageSize]);
+  }, [search, statusId, typeId, range, onlyOverdue, onlyKey, sortField, sortDir, page, pageSize]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    void api.customers.options().then((r) => setCustomers(r as OptionItem[]));
     void api.statuses.list().then((r) => setStatuses(r as OptionItem[]));
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
   }, []);
 
+  const loadItems = async (orderId: number): Promise<void> => {
+    if (itemsCache[orderId]) return;
+    try {
+      const items = (await api.orders.items(orderId)) as OrderItem[];
+      setItemsCache((prev) => ({ ...prev, [orderId]: items }));
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
+
+  const itemColumns = useMemo(
+    () => [
+      { title: '物料编码', dataIndex: 'materialCode', width: 130, render: (v: string | null) => v ?? '-' },
+      { title: '物料名称', dataIndex: 'materialName', width: 130, render: (v: string | null) => v ?? '-' },
+      { title: '料号规格', dataIndex: 'chipModel', width: 150 },
+      { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
+      { title: '数量', dataIndex: 'qty', width: 80, align: 'right' as const },
+      {
+        title: '进货价',
+        dataIndex: 'purchasePrice',
+        width: 100,
+        align: 'right' as const,
+        render: (v: number | null) => (v == null ? '-' : v.toFixed(2)),
+      },
+      {
+        title: '出货价',
+        dataIndex: 'unitPrice',
+        width: 100,
+        align: 'right' as const,
+        render: (v: number | null) => (v == null ? '-' : v.toFixed(2)),
+      },
+      {
+        title: '含税金额',
+        dataIndex: 'subtotal',
+        width: 110,
+        align: 'right' as const,
+        render: (v: number | null) => (v ?? 0).toFixed(2),
+      },
+    ],
+    [],
+  );
+
   const doDelete = async (row: OrderListRow): Promise<void> => {
     try {
       await api.orders.remove(row.id);
-      void message.success('订单已删除（明细、节点、附件一并删除）');
+      void message.success('订单已删除');
       void load();
     } catch (e) {
       void message.error(errorMessage(e));
@@ -92,14 +132,19 @@ export function OrdersPage(): JSX.Element {
     <Card
       title="订单管理"
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/orders/new')}>
-          新建订单
-        </Button>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => void load()}>
+            刷新
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/orders/new')}>
+            新建订单
+          </Button>
+        </Space>
       }
     >
       <Space style={{ marginBottom: 16 }} wrap>
         <Input.Search
-          placeholder="订单编号 / 芯片型号"
+          placeholder="搜索订单编号 / 芯片型号"
           allowClear
           style={{ width: 220 }}
           onSearch={(v) => {
@@ -109,20 +154,8 @@ export function OrdersPage(): JSX.Element {
         />
         <Select
           allowClear
-          showSearch
-          optionFilterProp="label"
-          placeholder="客户"
-          style={{ width: 180 }}
-          options={customers.map((c) => ({ value: c.id, label: c.name }))}
-          onChange={(v) => {
-            setPage(1);
-            setCustomerId(v ?? null);
-          }}
-        />
-        <Select
-          allowClear
           placeholder="订单状态"
-          style={{ width: 120 }}
+          style={{ width: 130 }}
           options={statuses.map((s) => ({ value: s.id, label: s.name }))}
           onChange={(v) => {
             setPage(1);
@@ -132,7 +165,7 @@ export function OrdersPage(): JSX.Element {
         <Select
           allowClear
           placeholder="订单类型"
-          style={{ width: 120 }}
+          style={{ width: 130 }}
           options={types.map((t) => ({ value: t.id, label: t.name }))}
           onChange={(v) => {
             setPage(1);
@@ -140,25 +173,49 @@ export function OrdersPage(): JSX.Element {
           }}
         />
         <DatePicker.RangePicker
-          placeholder={['订单日期从', '订单日期至']}
           onChange={(v) => {
             setPage(1);
-            setDateRange(v && v[0] && v[1] ? [v[0].format('YYYY-MM-DD'), v[1].format('YYYY-MM-DD')] : null);
+            setRange(v as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null);
           }}
         />
-        <DatePicker.RangePicker
-          placeholder={['预计交期从', '预计交期至']}
+        <Select
+          allowClear
+          placeholder="快捷筛选"
+          style={{ width: 150 }}
+          options={[
+            { value: 'overdue', label: '仅看逾期' },
+            { value: 'key', label: '仅看重点' },
+          ]}
           onChange={(v) => {
             setPage(1);
-            setDeliveryRange(v && v[0] && v[1] ? [v[0].format('YYYY-MM-DD'), v[1].format('YYYY-MM-DD')] : null);
+            setOnlyOverdue(v === 'overdue');
+            setOnlyKey(v === 'key');
           }}
         />
       </Space>
+
       <Table<OrderListRow>
         rowKey="id"
         loading={loading}
         dataSource={rows}
         rowClassName={(r) => (r.daysOverdue > 0 ? 'row-overdue' : '')}
+        expandable={{
+          expandedRowKeys: expandedKeys,
+          onExpand: (expanded, record) => {
+            setExpandedKeys((prev) => (expanded ? [...prev, record.id] : prev.filter((k) => k !== record.id)));
+            if (expanded) void loadItems(record.id);
+          },
+          expandedRowRender: (record) => (
+            <Table<OrderItem>
+              rowKey="id"
+              size="small"
+              pagination={false}
+              dataSource={itemsCache[record.id] ?? []}
+              locale={{ emptyText: '该订单暂无物料明细' }}
+              columns={itemColumns}
+            />
+          ),
+        }}
         pagination={{
           current: page,
           pageSize,
@@ -171,18 +228,23 @@ export function OrdersPage(): JSX.Element {
           },
         }}
         columns={[
-          { title: '订单编号', dataIndex: 'orderNo', sorter: false, render: (v: string, r) => <a onClick={() => navigate(`/orders/${r.id}`)}>{v}</a> },
           {
             title: '客户名称',
             dataIndex: 'customerName',
             render: (v: string, r) =>
-              r.customerDeleted ? <span>{v} <Tag color="red">已删除</Tag></span> : v,
+              r.customerDeleted ? (
+                <span>
+                  {v} <Tag color="red">已删除</Tag>
+                </span>
+              ) : (
+                v
+              ),
           },
-          { title: '订单类型', dataIndex: 'typeName', width: 90 },
+          { title: '订单类型', dataIndex: 'typeName', width: 90, render: (v: string | null) => v ?? '未填写' },
           {
             title: '订单状态',
             dataIndex: 'statusName',
-            width: 100,
+            width: 120,
             render: (v: string, r) => (
               <Space size={4}>
                 <Tag color={r.statusColor}>{v}</Tag>
@@ -193,29 +255,27 @@ export function OrdersPage(): JSX.Element {
           {
             title: '订单金额',
             dataIndex: 'totalAmount',
-            width: 130,
-            align: 'right',
-            sorter: true,
+            width: 120,
+            align: 'right' as const,
             render: (v: number | null) => (v ?? 0).toFixed(2),
           },
           {
             title: '订单日期',
             dataIndex: 'orderDate',
             width: 110,
-            sorter: true,
             render: (v: string | null) => v ?? '未填写',
           },
-          { title: '预计交期', dataIndex: 'expectedDeliveryDate', width: 110, sorter: true },
+          { title: '预计交期', dataIndex: 'expectedDeliveryDate', width: 110, render: (v: string | null) => v ?? '未填写' },
           {
             title: '操作',
-            width: 150,
+            width: 160,
             render: (_, r) => (
               <Space>
-                <a onClick={() => navigate(`/orders/${r.id}`)}>查看</a>
+                <a onClick={() => navigate(`/orders/${r.id}`)}>详情</a>
                 <a onClick={() => navigate(`/orders/${r.id}/edit`)}>编辑</a>
                 <Popconfirm
                   title={`删除订单「${r.orderNo}」`}
-                  description="删除后物料明细、进度节点、附件将一并删除，不可恢复。"
+                  description="删除后物料明细、进度节点、订单文档、附件将一并删除，不可恢复。"
                   okText="确认删除"
                   cancelText="取消"
                   okButtonProps={{ danger: true }}
@@ -227,7 +287,7 @@ export function OrdersPage(): JSX.Element {
             ),
           },
         ]}
-        onChange={(pagination, _filters, sorter) => {
+        onChange={(_pagination, _filters, sorter) => {
           const s = Array.isArray(sorter) ? sorter[0] : sorter;
           if (s && s.order) {
             const map: Record<string, string> = {

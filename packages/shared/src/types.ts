@@ -74,7 +74,7 @@ export interface NodeTemplate {
   remark: string | null;
 }
 
-/** 客户（V1.2：移除联系人/电话/邮箱/负责业务员/合作起始日期；V1.3：客户 logo） */
+/** 客户（V1.2：移除联系人/电话/邮箱/负责业务员/合作起始日期；V1.3：客户 logo；V1.4：卡片排序） */
 export interface Customer {
   id: number;
   name: string;
@@ -85,12 +85,13 @@ export interface Customer {
   isKey: boolean;
   remark: string | null;
   logoPath: string | null;
+  sortOrder: number;
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-/** 物料库（V1.3）：报价/订单明细的物料主数据 */
+/** 物料库（V1.3 新增；V1.4：进货价/出货价各自可选含税） */
 export interface Material {
   id: number;
   code: string;          // 物料编码（唯一，归一化后判重）
@@ -99,8 +100,9 @@ export interface Material {
   spec: string | null;   // 料号规格
   brand: string | null;
   purchasePrice: number | null; // 进货价
+  purchaseTaxIncluded: boolean; // 进货价是否含税
   salePrice: number | null;     // 出货价（默认报价）
-  priceTaxIncluded: boolean;    // true=价格为含税价
+  priceTaxIncluded: boolean;    // 出货价是否含税
   taxRate: number;              // 税率（%），默认 13
   remark: string | null;
   isActive: boolean;
@@ -136,6 +138,12 @@ export interface WechatMember {
   createdAt: string;
 }
 
+/** 微信群管理页（V1.4）：跨客户汇总视图 */
+export interface WechatGroupWithCustomer extends WechatGroup {
+  customerName: string;
+  memberCount: number;
+}
+
 /** 订单（V1.2：日期/类型/状态可选；移除币种/汇率/负责人） */
 export interface Order {
   id: number;
@@ -167,9 +175,10 @@ export interface OrderItem {
   qty: number;
   unitPrice: number | null;    // 出货价
   purchasePrice: number | null; // 进货价
-  priceTaxIncluded: boolean;   // 单价是否为含税价
+  priceTaxIncluded: boolean;   // 出货价是否为含税价
+  purchaseTaxIncluded: boolean; // 进货价是否为含税价
   taxRate: number;             // 税率（%）
-  subtotal: number | null;     // 含税金额 = 数量 × 含税单价
+  subtotal: number | null;     // 含税金额 = 数量 × 含税出货单价
   customerPn: string | null;
   remark: string | null;
   sortOrder: number;

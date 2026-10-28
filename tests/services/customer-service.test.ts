@@ -52,4 +52,17 @@ describe('客户服务（V1.2：无联系人/电话字段）', () => {
     expect(index.has('客户a')).toBe(true);
     expect(index.has('客户b')).toBe(false);
   });
+
+  it('拖动排序：list 顺序随 sort_order 变化，且只接受全集', () => {
+    const a = customerService.create(db, { name: '客户A' });
+    const b = customerService.create(db, { name: '客户B' });
+    const c = customerService.create(db, { name: '客户C' });
+    customerService.reorder(db, [c, a, b]);
+    expect(customerService.list(db, { page: 1, pageSize: 10 }).rows.map((r) => r.name)).toEqual([
+      '客户C',
+      '客户A',
+      '客户B',
+    ]);
+    expect(() => customerService.reorder(db, [c, a])).toThrowError(/排序列表与当前客户不一致/);
+  });
 });

@@ -154,12 +154,18 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
+  ipcMain.handle('customers:reorder', (_e, ids: number[]) => {
+    const r = wrap(() => customerService.reorder(db(), ids));
+    if (r.ok) changed();
+    return r;
+  });
 
   /* ---------------- 订单 ---------------- */
   ipcMain.handle('orders:list', (_e, filter: OrderFilter) =>
     wrap(() => orderService.list(db(), { ...filter, today: todayStr() })),
   );
   ipcMain.handle('orders:get', (_e, id: number) => wrap(() => orderService.get(db(), id)));
+  ipcMain.handle('orders:items', (_e, id: number) => wrap(() => orderService.get(db(), id).items));
   ipcMain.handle('orders:create', (_e, input) => {
     const r = wrap(() => orderService.create(db(), input));
     if (r.ok) changed();
@@ -190,6 +196,7 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   ipcMain.handle('wechat:listGroups', (_e, customerId: number) =>
     wrap(() => wechatService.listGroups(db(), customerId)),
   );
+  ipcMain.handle('wechat:listAllGroups', () => wrap(() => wechatService.listAllGroups(db())));
   ipcMain.handle('wechat:createGroup', (_e, customerId: number, input: { name: string; remark?: string | null }) => {
     const r = wrap(() => wechatService.createGroup(db(), customerId, input));
     if (r.ok) changed();
@@ -408,6 +415,11 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
+  ipcMain.handle('dicts:reorder', (_e, category: DictCategory, ids: number[]) => {
+    const r = wrap(() => dictService.reorder(db(), category, ids));
+    if (r.ok) changed();
+    return r;
+  });
   ipcMain.handle('statuses:list', (_e, enabledOnly?: boolean) =>
     wrap(() => statusDictService.list(db(), enabledOnly)),
   );
@@ -426,6 +438,11 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
+  ipcMain.handle('statuses:reorder', (_e, ids: number[]) => {
+    const r = wrap(() => statusDictService.reorder(db(), ids));
+    if (r.ok) changed();
+    return r;
+  });
   ipcMain.handle('templates:list', (_e, enabledOnly?: boolean) =>
     wrap(() => templateService.list(db(), enabledOnly)),
   );
@@ -441,6 +458,11 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   });
   ipcMain.handle('templates:delete', (_e, id: number) => {
     const r = wrap(() => templateService.delete(db(), id));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('templates:reorder', (_e, ids: number[]) => {
+    const r = wrap(() => templateService.reorder(db(), ids));
     if (r.ok) changed();
     return r;
   });

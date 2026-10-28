@@ -69,4 +69,21 @@ describe('客户微信群与群成员（V1.2）', () => {
     orderService.update(db, oid, { wechatGroupIds: [] });
     expect(wechatService.listOrderGroups(db, oid)).toHaveLength(0);
   });
+
+  it('V1.4 微信群管理：跨客户汇总 + 成员数', () => {
+    const c1 = customerService.create(db, { name: '客户一' });
+    const c2 = customerService.create(db, { name: '客户二' });
+    const g1 = wechatService.createGroup(db, c1, { name: '商务群' });
+    wechatService.createGroup(db, c2, { name: '研发群' });
+    wechatService.createMember(db, g1, { wechatId: 'wx01' });
+    wechatService.createMember(db, g1, { wechatId: 'wx02' });
+    const all = wechatService.listAllGroups(db);
+    expect(all).toHaveLength(2);
+    const 商务 = all.find((g) => g.name === '商务群')!;
+    expect(商务.customerName).toBe('客户一');
+    expect(商务.memberCount).toBe(2);
+    // 软删除客户的群不出现
+    customerService.softDelete(db, c2, '2026-10-28');
+    expect(wechatService.listAllGroups(db)).toHaveLength(1);
+  });
 });

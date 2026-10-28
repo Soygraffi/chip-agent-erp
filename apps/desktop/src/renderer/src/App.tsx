@@ -6,6 +6,7 @@ import {
   TeamOutlined,
   ProfileOutlined,
   AppstoreOutlined,
+  WechatOutlined,
   ToolOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
@@ -17,6 +18,7 @@ import { OrdersPage } from './pages/OrdersPage';
 import { OrderFormPage } from './pages/OrderFormPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
 import { MaterialsPage } from './pages/MaterialsPage';
+import { WechatGroupsPage } from './pages/WechatGroupsPage';
 import { ToolsPage } from './pages/ToolsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReminderBell, StartupReminderModal } from './components/Reminders';
@@ -26,6 +28,7 @@ const { Sider, Content, Header } = Layout;
 const MENU_ITEMS = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '首页看板' },
   { key: '/customers', icon: <TeamOutlined />, label: '客户管理' },
+  { key: '/wechat', icon: <WechatOutlined />, label: '微信群管理' },
   { key: '/orders', icon: <ProfileOutlined />, label: '订单管理' },
   { key: '/materials', icon: <AppstoreOutlined />, label: '物料管理' },
   { key: '/tools', icon: <ToolOutlined />, label: '数据工具' },
@@ -63,6 +66,7 @@ function Shell(): JSX.Element {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
+            <Route path="/wechat" element={<WechatGroupsPage />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/new" element={<OrderFormPage />} />
             <Route path="/orders/:id/edit" element={<OrderFormPage />} />

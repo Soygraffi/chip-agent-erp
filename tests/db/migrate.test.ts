@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(4);
+    expect(SCHEMA_VERSION).toBe(5);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -117,6 +117,25 @@ describe('数据库迁移与种子', () => {
     // 设置里有报价单抬头默认值
     const setting = db.prepare("SELECT value FROM setting WHERE key = 'company_name'").get() as { value: string };
     expect(setting.value).toBe('');
+    db.close();
+  });
+
+  it('V1.4 迁移：客户排序字段、进货价独立含税标记', () => {
+    const db = createTestDb();
+    const custCols = (db.prepare("SELECT name FROM pragma_table_info('customer')").all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    expect(custCols).toContain('sort_order');
+    expect(
+      (db.prepare("SELECT name FROM pragma_table_info('material')").all() as { name: string }[]).some(
+        (c) => c.name === 'purchase_tax_included',
+      ),
+    ).toBe(true);
+    expect(
+      (db.prepare("SELECT name FROM pragma_table_info('order_item')").all() as { name: string }[]).some(
+        (c) => c.name === 'purchase_tax_included',
+      ),
+    ).toBe(true);
     db.close();
   });
 

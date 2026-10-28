@@ -31,6 +31,7 @@ interface MaterialOption {
   spec: string | null;
   brand: string | null;
   purchasePrice: number | null;
+  purchaseTaxIncluded: boolean;
   salePrice: number | null;
   priceTaxIncluded: boolean;
   taxRate: number;
@@ -48,7 +49,9 @@ interface ItemRow {
   unitPrice: number | null;
   purchasePrice: number | null;
   priceTaxIncluded: boolean;
+  purchaseTaxIncluded: boolean;
   taxRate: number;
+  margin: number | null;
   customerPn: string | null;
   remark: string | null;
 }
@@ -57,13 +60,17 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-export function taxIncludedPrice(it: { unitPrice: number | null; priceTaxIncluded: boolean; taxRate: number }): number {
-  const price = it.unitPrice ?? 0;
-  return it.priceTaxIncluded ? price : round2(price * (1 + it.taxRate / 100));
+function round4(n: number): number {
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
 }
 
-export function itemAmount(it: { qty: number; unitPrice: number | null; priceTaxIncluded: boolean; taxRate: number }): number {
-  return round2(it.qty * taxIncludedPrice(it));
+export function grossPrice(price: number | null, taxIncluded: boolean, taxRate: number): number {
+  const p = price ?? 0;
+  return taxIncluded ? p : round4(p * (1 + taxRate / 100));
+}
+
+export function itemAmount(it: ItemRow): number {
+  return round2(it.qty * grossPrice(it.unitPrice, it.priceTaxIncluded, it.taxRate));
 }
 
 const EMPTY_ITEM: Omit<ItemRow, 'key'> = {
@@ -77,10 +84,17 @@ const EMPTY_ITEM: Omit<ItemRow, 'key'> = {
   unitPrice: null,
   purchasePrice: null,
   priceTaxIncluded: true,
+  purchaseTaxIncluded: true,
   taxRate: 13,
+  margin: null,
   customerPn: null,
   remark: null,
 };
+
+const TAX_OPTIONS = [
+  { value: true, label: '含税' },
+  { value: false, label: '不含税' },
+];
 
 export function OrderFormPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
@@ -125,22 +139,28 @@ export function OrderFormPage(): JSX.Element {
           wechatGroupIds: detail.wechatGroups.map((g) => g.id),
         });
         setItems(
-          detail.items.map((it, i) => ({
-            key: i,
-            materialId: it.materialId,
-            materialCode: it.materialCode,
-            materialName: it.materialName,
-            chipModel: it.chipModel,
-            brand: it.brand,
-            packageSpec: it.packageSpec,
-            qty: it.qty,
-            unitPrice: it.unitPrice,
-            purchasePrice: it.purchasePrice,
-            priceTaxIncluded: it.priceTaxIncluded,
-            taxRate: it.taxRate,
-            customerPn: it.customerPn,
-            remark: it.remark,
-          })),
+          detail.items.map((it, i) => {
+            const grossSale = grossPrice(it.unitPrice, it.priceTaxIncluded, it.taxRate);
+            const grossCost = grossPrice(it.purchasePrice, it.purchaseTaxIncluded, it.taxRate);
+            return {
+              key: i,
+              materialId: it.materialId,
+              materialCode: it.materialCode,
+              materialName: it.materialName,
+              chipModel: it.chipModel,
+              brand: it.brand,
+              packageSpec: it.packageSpec,
+              qty: it.qty,
+              unitPrice: it.unitPrice,
+              purchasePrice: it.purchasePrice,
+              priceTaxIncluded: it.priceTaxIncluded,
+              purchaseTaxIncluded: it.purchaseTaxIncluded,
+              taxRate: it.taxRate,
+              margin: grossCost > 0 ? round2(((grossSale - grossCost) / grossCost) * 100) : null,
+              customerPn: it.customerPn,
+              remark: it.remark,
+            };
+          }),
         );
         setManual(detail.amountManual);
         setManualAmount(detail.totalAmount);
@@ -167,12 +187,21 @@ export function OrderFormPage(): JSX.Element {
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
   };
 
+  /** 利润率变化 → 出货价 = 进货价 × (1 + 利润率%) */
+  const onMarginChange = (key: number, row: ItemRow, pct: number | null): void => {
+    const margin = pct ?? null;
+    const sale = row.purchasePrice != null ? round4(row.purchasePrice * (1 + (margin ?? 0) / 100)) : null;
+    updateItem(key, { margin, unitPrice: sale });
+  };
+
   const onPickMaterial = (key: number, materialId: number): void => {
     const m = materials.find((x) => x.id === materialId);
     if (!m) {
       updateItem(key, { materialId: null });
       return;
     }
+    const grossSale = grossPrice(m.salePrice, m.priceTaxIncluded, m.taxRate);
+    const grossCost = grossPrice(m.purchasePrice, m.purchaseTaxIncluded, m.taxRate);
     updateItem(key, {
       materialId: m.id,
       materialCode: m.code,
@@ -180,9 +209,11 @@ export function OrderFormPage(): JSX.Element {
       chipModel: m.spec ?? '',
       brand: m.brand,
       purchasePrice: m.purchasePrice,
+      purchaseTaxIncluded: m.purchaseTaxIncluded,
       unitPrice: m.salePrice,
       priceTaxIncluded: m.priceTaxIncluded,
       taxRate: m.taxRate,
+      margin: grossCost > 0 ? round2(((grossSale - grossCost) / grossCost) * 100) : null,
     });
   };
 
@@ -217,6 +248,7 @@ export function OrderFormPage(): JSX.Element {
             unitPrice: it.unitPrice,
             purchasePrice: it.purchasePrice,
             priceTaxIncluded: it.priceTaxIncluded,
+            purchaseTaxIncluded: it.purchaseTaxIncluded,
             taxRate: it.taxRate,
             subtotal: itemAmount(it),
             customerPn: it.customerPn,
@@ -242,7 +274,7 @@ export function OrderFormPage(): JSX.Element {
   const itemColumns = [
     {
       title: '从物料库选择',
-      width: 200,
+      width: 190,
       render: (_: unknown, r: ItemRow) => (
         <Select
           showSearch
@@ -261,65 +293,90 @@ export function OrderFormPage(): JSX.Element {
     },
     {
       title: '物料编码',
-      width: 140,
+      width: 130,
       render: (_: unknown, r: ItemRow) => (
         <Input value={r.materialCode ?? ''} onChange={(e) => updateItem(r.key, { materialCode: e.target.value || null })} />
       ),
     },
     {
       title: '物料名称',
-      width: 140,
+      width: 130,
       render: (_: unknown, r: ItemRow) => (
         <Input value={r.materialName ?? ''} onChange={(e) => updateItem(r.key, { materialName: e.target.value || null })} />
       ),
     },
     {
       title: '料号规格 *',
-      width: 150,
+      width: 140,
       render: (_: unknown, r: ItemRow) => (
         <Input value={r.chipModel} placeholder="如 GD32F407ZGT6" onChange={(e) => updateItem(r.key, { chipModel: e.target.value })} />
       ),
     },
     {
       title: '品牌',
-      width: 100,
+      width: 90,
       render: (_: unknown, r: ItemRow) => (
         <Input value={r.brand ?? ''} onChange={(e) => updateItem(r.key, { brand: e.target.value || null })} />
       ),
     },
     {
       title: '数量 *',
-      width: 90,
+      width: 80,
       render: (_: unknown, r: ItemRow) => (
         <InputNumber min={0} precision={0} value={r.qty} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { qty: v ?? 0 })} />
       ),
     },
     {
       title: '进货价',
-      width: 110,
+      width: 100,
       render: (_: unknown, r: ItemRow) => (
         <InputNumber min={0} precision={4} value={r.purchasePrice ?? undefined} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { purchasePrice: v ?? null })} />
       ),
     },
     {
-      title: '出货价',
-      width: 110,
+      title: '进货口径',
+      width: 105,
       render: (_: unknown, r: ItemRow) => (
-        <InputNumber min={0} precision={4} value={r.unitPrice ?? undefined} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { unitPrice: v ?? null })} />
+        <Select
+          value={r.purchaseTaxIncluded}
+          style={{ width: '100%' }}
+          options={TAX_OPTIONS}
+          onChange={(v) => updateItem(r.key, { purchaseTaxIncluded: v as boolean })}
+        />
       ),
     },
     {
-      title: '价格口径',
-      width: 110,
+      title: '出货价',
+      width: 100,
+      render: (_: unknown, r: ItemRow) => (
+        <InputNumber min={0} precision={4} value={r.unitPrice ?? undefined} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { unitPrice: v ?? null, margin: null })} />
+      ),
+    },
+    {
+      title: '出货口径',
+      width: 105,
       render: (_: unknown, r: ItemRow) => (
         <Select
           value={r.priceTaxIncluded}
           style={{ width: '100%' }}
-          options={[
-            { value: true, label: '含税' },
-            { value: false, label: '不含税' },
-          ]}
+          options={TAX_OPTIONS}
           onChange={(v) => updateItem(r.key, { priceTaxIncluded: v as boolean })}
+        />
+      ),
+    },
+    {
+      title: '利润率%',
+      width: 95,
+      render: (_: unknown, r: ItemRow) => (
+        <InputNumber
+          min={-100}
+          max={1000}
+          precision={2}
+          value={r.margin ?? undefined}
+          disabled={r.purchasePrice == null}
+          style={{ width: '100%' }}
+          placeholder={r.purchasePrice == null ? '先填进货价' : ''}
+          onChange={(v) => onMarginChange(r.key, r, v)}
         />
       ),
     },
@@ -332,19 +389,19 @@ export function OrderFormPage(): JSX.Element {
     },
     {
       title: '含税单价',
-      width: 100,
+      width: 95,
       align: 'right' as const,
-      render: (_: unknown, r: ItemRow) => taxIncludedPrice(r).toFixed(2),
+      render: (_: unknown, r: ItemRow) => grossPrice(r.unitPrice, r.priceTaxIncluded, r.taxRate).toFixed(2),
     },
     {
       title: '含税金额',
-      width: 110,
+      width: 105,
       align: 'right' as const,
       render: (_: unknown, r: ItemRow) => itemAmount(r).toFixed(2),
     },
     {
       title: '备注',
-      width: 120,
+      width: 110,
       render: (_: unknown, r: ItemRow) => (
         <Input value={r.remark ?? ''} onChange={(e) => updateItem(r.key, { remark: e.target.value || null })} />
       ),
@@ -406,13 +463,13 @@ export function OrderFormPage(): JSX.Element {
       </Form>
 
       <div style={{ marginBottom: 8, fontWeight: 600 }}>
-        订单物料明细（最多 50 行；可先从物料库选择，自动带出编码/名称/规格/品牌/价格）
+        订单物料明细（最多 50 行；进货价/出货价可分别选择含税或不含税；填利润率可自动算出货价）
       </div>
       <Table<ItemRow>
         rowKey="key"
         size="small"
         pagination={false}
-        scroll={{ x: 1700 }}
+        scroll={{ x: 1900 }}
         dataSource={items}
         columns={itemColumns}
         footer={() => (

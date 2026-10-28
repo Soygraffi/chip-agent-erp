@@ -1,4 +1,4 @@
-import { describe, it, beforeEach } from 'node:test';
+﻿import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import {
@@ -12,6 +12,24 @@ import {
 import { createTestDb, statusByName, dictIdByName } from '../db/helpers.ts';
 
 describe('字典服务', () => {
+  it('V1.4 拖动排序：字典/状态/模板', () => {
+    const orderTypes = dictService.list(db, 'order_type');
+    const reversedTypes = [...orderTypes].reverse().map((d) => d.id);
+    dictService.reorder(db, 'order_type', reversedTypes);
+    expect(dictService.list(db, 'order_type')[0].id).toBe(reversedTypes[0]);
+
+    const statuses = statusDictService.list(db);
+    const reversed = [...statuses].reverse().map((s) => s.id);
+    statusDictService.reorder(db, reversed);
+    expect(statusDictService.list(db)[0].id).toBe(reversed[0]);
+
+    const templates = templateService.list(db);
+    const tr = [...templates].reverse().map((t) => t.id);
+    templateService.reorder(db, tr);
+    expect(templateService.list(db)[0].id).toBe(tr[0]);
+    expect(() => templateService.reorder(db, tr.slice(0, -1))).toThrowError(/排序列表与当前节点模板不一致/);
+  });
+
   let db: DatabaseSync;
   beforeEach(() => {
     db = createTestDb();

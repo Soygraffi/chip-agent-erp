@@ -111,6 +111,7 @@ export const orderService = {
       materialCode: it.materialCode?.trim() || null,
       materialName: it.materialName?.trim() || null,
       priceTaxIncluded: it.priceTaxIncluded !== false,
+      purchaseTaxIncluded: it.purchaseTaxIncluded !== false,
       taxRate: it.taxRate ?? 13,
       subtotal: itemSubtotal(it),
     }));
@@ -192,6 +193,7 @@ export const orderService = {
           materialCode: it.materialCode?.trim() || null,
           materialName: it.materialName?.trim() || null,
           priceTaxIncluded: it.priceTaxIncluded !== false,
+          purchaseTaxIncluded: it.purchaseTaxIncluded !== false,
           taxRate: it.taxRate ?? 13,
           subtotal: itemSubtotal(it),
           sortOrder: i + 1,

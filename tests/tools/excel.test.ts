@@ -197,7 +197,8 @@ describe('导出（V1.2）', () => {
     const rows = await readAll(buf);
     expect(rows[0][2]).toBe('物料编码');
     expect(rows[0][4]).toBe('料号规格');
-    expect(rows[0][9]).toBe('含税口径');
+    expect(rows[0][8]).toBe('进货口径');
+    expect(rows[0][10]).toBe('出货口径');
     expect(rows[1][4]).toBe('STM32F103');
   });
 

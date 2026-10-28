@@ -9,6 +9,7 @@ import {
   insertCustomer,
   listCustomers,
   listCustomerOptions,
+  reorderCustomers,
   softDeleteCustomer,
   updateCustomer,
 } from '../repos/customer-repo.js';
@@ -87,6 +88,18 @@ export const customerService = {
 
   existingNorms(db: DatabaseSync): Set<string> {
     return activeNameNorms(db);
+  },
+
+  /** 客户卡片拖动排序（V1.4）：ids 必须是当前未删除客户的全集 */
+  reorder(db: DatabaseSync, ids: number[]): void {
+    const rows = db
+      .prepare('SELECT id FROM customer WHERE deleted_at IS NULL')
+      .all() as { id: number }[];
+    const existing = new Set(rows.map((r) => r.id));
+    if (ids.length !== existing.size || ids.some((id) => !existing.has(id))) {
+      throw bizError('VALIDATION', '排序列表与当前客户不一致');
+    }
+    reorderCustomers(db, ids);
   },
 
   /** 客户的微信群 */

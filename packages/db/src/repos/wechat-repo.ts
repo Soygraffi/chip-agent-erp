@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { WechatGroup, WechatMember } from '@erp/shared';
+import type { WechatGroup, WechatGroupWithCustomer, WechatMember } from '@erp/shared';
 
 const GROUP_COLS = `g.id, g.customer_id AS customerId, g.name, g.remark,
   g.sort_order AS sortOrder, g.created_at AS createdAt`;
@@ -162,4 +162,29 @@ export function setOrderGroups(db: DatabaseSync, orderId: number, groupIds: numb
   db.prepare('DELETE FROM order_wechat_group WHERE order_id = ?').run(orderId);
   const stmt = db.prepare('INSERT INTO order_wechat_group (order_id, group_id) VALUES (?, ?)');
   for (const gid of groupIds) stmt.run(orderId, gid);
+}
+
+/** 微信群管理页：全部客户（未删除）的微信群汇总 */
+export function listAllGroups(db: DatabaseSync): WechatGroupWithCustomer[] {
+  return (
+    db
+      .prepare(
+        `SELECT g.id, g.customer_id AS customerId, g.name, g.remark,
+                g.sort_order AS sortOrder, g.created_at AS createdAt,
+                c.name AS customerName,
+                (SELECT COUNT(*) FROM wechat_member m WHERE m.group_id = g.id) AS memberCount
+         FROM customer_wechat_group g
+         JOIN customer c ON c.id = g.customer_id
+         WHERE c.deleted_at IS NULL
+         ORDER BY c.sort_order, c.id, g.sort_order, g.id`,
+      )
+      .all() as Record<string, unknown>[]
+  ).map(
+    (r) =>
+      ({
+        ...r,
+        remark: (r.remark as string | null) ?? null,
+        memberCount: Number(r.memberCount ?? 0),
+      }) as WechatGroupWithCustomer,
+  );
 }

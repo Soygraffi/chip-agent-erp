@@ -1,4 +1,4 @@
-﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.3）
+﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.4）
 
 以客户为中心的芯片代理商订单全流程管理工具：客户 → 订单 → 进度节点三级数据，替代碎片化的 Excel 记录。
 数据 100% 本地存储（SQLite），支持 Excel 导入导出与一键备份恢复（含附件）。
@@ -13,11 +13,12 @@
 - **物料管理**（V1.3）：物料库维护进货价/出货价/含税口径/税率，订单明细一键带出，可反查关联订单
 - **报价单导出**（V1.3）：订单详情一键导出 Excel 报价单（公司抬头/明细/合计含税/备注说明）
 - **客户卡片**（V1.3）：客户管理改为卡片方块布局，支持上传公司 Logo
+- **V1.4**：微信群独立菜单、客户卡片拖动排序、进货/出货价分别选含税、利润率自动算售价、订单列表内联明细、横向进度条、设置项拖动排序
 - 升级自动迁移数据库（v2 → v3 → v4），原有客户/订单/节点数据完整保留
 
 ## 文档
 
-- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md)）
+- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md)）
 - 数据模型：[docs/data-model.md](docs/data-model.md)
 - 开发计划：[docs/dev-plan.md](docs/dev-plan.md)
 - 使用说明：[docs/USAGE.md](docs/USAGE.md)
@@ -38,7 +39,7 @@ packages/shared/       共享类型与工具（纯 TS）
 packages/domain/       领域逻辑（编号/金额/状态机/口径/提醒/导入校验，纯函数可单测）
 packages/db/           数据访问层（node:sqlite 迁移/种子/仓储）+ 应用服务层
 packages/tools/        Excel 导入导出 / 附件托管 / 备份恢复
-tests/                 领域/仓储/服务/工具/验收/性能 共 198 个测试
+tests/                 领域/仓储/服务/工具/验收/性能 共 203 个测试
 scripts/               benchmark.ts（性能基准）、download-electron.mjs（镜像下载 Electron）、verify-migration.mjs
 ```
 
@@ -47,6 +48,6 @@ scripts/               benchmark.ts（性能基准）、download-electron.mjs（
 ```bash
 pnpm install          # 安装依赖（首次需网络）
 pnpm build:packages   # 编译 shared/domain/db/tools
-pnpm test             # 运行全部测试（198 个）
+pnpm test             # 运行全部测试（203 个）
 pnpm typecheck        # 全仓类型检查
 pnpm build            # 构建桌面应用（packages + rollup）

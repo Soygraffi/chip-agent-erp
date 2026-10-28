@@ -5,7 +5,9 @@ import {
   autoTotal,
   effectiveTotal,
   taxIncludedPrice,
+  purchaseTaxIncludedPrice,
   itemGrossProfit,
+  marginRate,
   taxExcludedTotal,
   toCny,
   round2,
@@ -44,6 +46,9 @@ describe('金额计算', () => {
     expect(itemSubtotal({ qty: 5, unitPrice: 100, priceTaxIncluded: false, taxRate: 13 })).toBe(565);
     // 未传含税标记时默认按含税处理（兼容历史数据）
     expect(itemSubtotal({ qty: 2, unitPrice: 10 })).toBe(20);
+    // 进货价独立口径
+    expect(purchaseTaxIncludedPrice({ purchasePrice: 100, purchaseTaxIncluded: false, taxRate: 13 })).toBe(113);
+    expect(purchaseTaxIncludedPrice({ purchasePrice: 113, purchaseTaxIncluded: true, taxRate: 13 })).toBe(113);
   });
 
   it('毛利 = 数量 ×（含税出货价 − 含税进货价）', () => {
@@ -53,6 +58,43 @@ describe('金额计算', () => {
     expect(
       itemGrossProfit({ qty: 2, unitPrice: 100, purchasePrice: 80, priceTaxIncluded: false, taxRate: 13 }),
     ).toBe(45.2); // (113-90.4)*2
+  });
+
+  it('V1.4：进货价/出货价各自可选含税，互不影响', () => {
+    // 出货含税、进货不含税：进项先换算再算毛利
+    expect(
+      itemGrossProfit({
+        qty: 1,
+        unitPrice: 113,
+        priceTaxIncluded: true,
+        purchasePrice: 80,
+        purchaseTaxIncluded: false,
+        taxRate: 13,
+      }),
+    ).toBe(22.6);
+    // 进货含税、出货不含税
+    expect(
+      itemGrossProfit({
+        qty: 1,
+        unitPrice: 100,
+        priceTaxIncluded: false,
+        purchasePrice: 90.4,
+        purchaseTaxIncluded: true,
+        taxRate: 13,
+      }),
+    ).toBe(22.6);
+    // 利润率：(113-90.4)/90.4 ≈ 25%
+    expect(
+      marginRate({
+        qty: 1,
+        unitPrice: 100,
+        priceTaxIncluded: false,
+        purchasePrice: 80,
+        purchaseTaxIncluded: false,
+        taxRate: 13,
+      }),
+    ).toBe(25);
+    expect(marginRate({ qty: 1, unitPrice: 100, purchasePrice: 0 })).toBeNull();
   });
 
   it('不含税合计（从含税金额反算）', () => {

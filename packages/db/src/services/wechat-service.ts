@@ -8,6 +8,7 @@ import {
   getMember,
   insertGroup,
   insertMember,
+  listAllGroups,
   listGroups,
   listGroupsByOrder,
   listMembers,
@@ -17,6 +18,11 @@ import {
 } from '../repos/wechat-repo.js';
 
 export const wechatService = {
+  /** 微信群管理页：跨客户汇总（V1.4） */
+  listAllGroups(db: DatabaseSync) {
+    return listAllGroups(db);
+  },
+
   listGroups(db: DatabaseSync, customerId: number): WechatGroup[] {
     return listGroups(db, customerId);
   },

@@ -354,7 +354,7 @@ export async function exportOrders(db: DatabaseSync, filter: OrderFilter): Promi
 export async function exportItems(db: DatabaseSync): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('订单明细');
-  const headers = ['订单编号', '客户名称', '物料编码', '物料名称', '料号规格', '品牌', '数量', '进货价', '出货价', '含税口径', '税率(%)', '含税单价', '含税金额', '毛利', '客户料号'];
+  const headers = ['订单编号', '客户名称', '物料编码', '物料名称', '料号规格', '品牌', '数量', '进货价', '进货口径', '出货价', '出货口径', '税率(%)', '含税单价', '含税金额', '利润率(%)', '毛利', '客户料号'];
   ws.addRow(headers);
   const page = listOrders(db, {
     page: 1,
@@ -373,19 +373,21 @@ export async function exportItems(db: DatabaseSync): Promise<Buffer> {
       unit_price: number | null;
       purchase_price: number | null;
       price_tax_included: number;
+      purchase_tax_included: number;
       tax_rate: number;
       subtotal: number | null;
       customer_pn: string | null;
     }[];
     items.forEach((it) => {
-      const taxIncluded = it.price_tax_included === 1;
       const rate = it.tax_rate ?? 13;
-      const grossPrice = taxIncluded
-        ? (it.unit_price ?? 0)
-        : Number(((it.unit_price ?? 0) * (1 + rate / 100)).toFixed(4));
-      const grossPurchase = taxIncluded
+      const k = 1 + rate / 100;
+      const saleIncluded = it.price_tax_included === 1;
+      const purchaseIncluded = it.purchase_tax_included === 1;
+      const grossSale = saleIncluded ? (it.unit_price ?? 0) : Number(((it.unit_price ?? 0) * k).toFixed(4));
+      const grossPurchase = purchaseIncluded
         ? (it.purchase_price ?? 0)
-        : Number(((it.purchase_price ?? 0) * (1 + rate / 100)).toFixed(4));
+        : Number(((it.purchase_price ?? 0) * k).toFixed(4));
+      const margin = grossPurchase > 0 ? Number((((grossSale - grossPurchase) / grossPurchase) * 100).toFixed(2)) : '';
       ws.addRow([
         o.orderNo,
         o.customerName,
@@ -395,12 +397,14 @@ export async function exportItems(db: DatabaseSync): Promise<Buffer> {
         it.brand ?? '',
         it.qty,
         it.purchase_price ?? '',
+        purchaseIncluded ? '含税' : '不含税',
         it.unit_price ?? '',
-        taxIncluded ? '含税' : '不含税',
+        saleIncluded ? '含税' : '不含税',
         rate,
-        grossPrice,
+        grossSale,
         it.subtotal ?? 0,
-        Number(((it.qty * (grossPrice - grossPurchase)) || 0).toFixed(2)),
+        margin,
+        Number((it.qty * (grossSale - grossPurchase)).toFixed(2)),
         it.customer_pn ?? '',
       ]);
     });
@@ -437,9 +441,15 @@ export async function exportOrderDetail(db: DatabaseSync, id: number): Promise<B
   wsInfo.getColumn(2).width = 40;
 
   const wsItems = wb.addWorksheet('物料明细');
-  const itemHeaders = ['物料编码', '物料名称', '料号规格', '品牌', '数量', '进货价', '出货价', '含税口径', '含税金额', '备注'];
+  const itemHeaders = ['物料编码', '物料名称', '料号规格', '品牌', '数量', '进货价', '进货口径', '出货价', '出货口径', '税率(%)', '含税单价', '含税金额', '利润率(%)', '毛利', '备注'];
   wsItems.addRow(itemHeaders);
-  detail.items.forEach((it) =>
+  detail.items.forEach((it) => {
+    const k = 1 + it.taxRate / 100;
+    const grossSale = it.priceTaxIncluded ? (it.unitPrice ?? 0) : Number(((it.unitPrice ?? 0) * k).toFixed(4));
+    const grossPurchase = it.purchaseTaxIncluded
+      ? (it.purchasePrice ?? 0)
+      : Number(((it.purchasePrice ?? 0) * k).toFixed(4));
+    const margin = grossPurchase > 0 ? Number((((grossSale - grossPurchase) / grossPurchase) * 100).toFixed(2)) : '';
     wsItems.addRow([
       it.materialCode ?? '',
       it.materialName ?? '',
@@ -447,12 +457,17 @@ export async function exportOrderDetail(db: DatabaseSync, id: number): Promise<B
       it.brand ?? '',
       it.qty,
       it.purchasePrice ?? '',
+      it.purchaseTaxIncluded ? '含税' : '不含税',
       it.unitPrice ?? '',
       it.priceTaxIncluded ? '含税' : '不含税',
+      it.taxRate,
+      grossSale,
       it.subtotal ?? 0,
+      margin,
+      Number((it.qty * (grossSale - grossPurchase)).toFixed(2)),
       it.remark ?? '',
-    ]),
-  );
+    ]);
+  });
   wsItems.columns.forEach((col, i) => (col.width = Math.max(10, (itemHeaders[i] ?? '').length + 8)));
   styleHeaderRow(wsItems);
 

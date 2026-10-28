@@ -43,12 +43,14 @@ export const api = {
     uploadLogo: (id: number): Promise<{ storedPath: string } | null> =>
       call('customers:uploadLogo', id),
     clearLogo: (id: number): Promise<void> => call('customers:clearLogo', id),
+    reorder: (ids: number[]): Promise<void> => call('customers:reorder', ids),
   },
 
   /* 订单 */
   orders: {
     list: (filter: unknown): Promise<unknown> => call('orders:list', filter),
     get: (id: number): Promise<unknown> => call('orders:get', id),
+    items: (id: number): Promise<unknown> => call('orders:items', id),
     create: (input: unknown): Promise<number> => call('orders:create', input),
     update: (id: number, input: unknown): Promise<void> => call('orders:update', id, input),
     restoreAutoAmount: (id: number): Promise<void> => call('orders:restoreAutoAmount', id),
@@ -79,6 +81,7 @@ export const api = {
 
   /* 客户微信群 */
   wechat: {
+    listAllGroups: (): Promise<unknown> => call('wechat:listAllGroups'),
     listGroups: (customerId: number): Promise<unknown> => call('wechat:listGroups', customerId),
     createGroup: (customerId: number, input: unknown): Promise<number> => call('wechat:createGroup', customerId, input),
     updateGroup: (id: number, input: unknown): Promise<void> => call('wechat:updateGroup', id, input),
@@ -121,18 +124,21 @@ export const api = {
     create: (input: unknown): Promise<number> => call('dicts:create', input),
     update: (id: number, patch: unknown): Promise<void> => call('dicts:update', id, patch),
     remove: (id: number): Promise<void> => call('dicts:delete', id),
+    reorder: (category: string, ids: number[]): Promise<void> => call('dicts:reorder', category, ids),
   },
   statuses: {
     list: (enabledOnly?: boolean): Promise<unknown> => call('statuses:list', enabledOnly),
     create: (input: unknown): Promise<number> => call('statuses:create', input),
     update: (id: number, patch: unknown): Promise<void> => call('statuses:update', id, patch),
     remove: (id: number): Promise<void> => call('statuses:delete', id),
+    reorder: (ids: number[]): Promise<void> => call('statuses:reorder', ids),
   },
   templates: {
     list: (enabledOnly?: boolean): Promise<unknown> => call('templates:list', enabledOnly),
     create: (input: unknown): Promise<number> => call('templates:create', input),
     update: (id: number, patch: unknown): Promise<void> => call('templates:update', id, patch),
     remove: (id: number): Promise<void> => call('templates:delete', id),
+    reorder: (ids: number[]): Promise<void> => call('templates:reorder', ids),
   },
   rates: {
     list: (): Promise<unknown> => call('rates:list'),

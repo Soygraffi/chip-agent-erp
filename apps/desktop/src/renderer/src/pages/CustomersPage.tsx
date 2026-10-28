@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -8,7 +8,6 @@ import {
   Form,
   Input,
   Modal,
-  Pagination,
   Popconfirm,
   Row,
   Select,
@@ -19,7 +18,6 @@ import {
   message,
 } from 'antd';
 import {
-  AppstoreAddOutlined,
   DeleteOutlined,
   EditOutlined,
   PictureOutlined,
@@ -39,8 +37,6 @@ export function CustomersPage(): JSX.Element {
   const navigate = useNavigate();
   const [rows, setRows] = useState<CustomerListRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12);
   const [search, setSearch] = useState('');
   const [typeId, setTypeId] = useState<number | null>(null);
   const [isKey, setIsKey] = useState<boolean | null>(null);
@@ -49,7 +45,9 @@ export function CustomersPage(): JSX.Element {
   const [editing, setEditing] = useState<CustomerListRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [logoUrls, setLogoUrls] = useState<Record<number, string>>({});
+  const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [form] = Form.useForm();
+  const dragIndex = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,12 +56,11 @@ export function CustomersPage(): JSX.Element {
         search: search || undefined,
         typeId,
         isKey,
-        page,
-        pageSize,
+        page: 1,
+        pageSize: 1000,
       })) as Page<CustomerListRow>;
       setRows(r.rows);
       setTotal(r.total);
-      // 解析 logo 的本地文件 URL
       const entries = await Promise.all(
         r.rows
           .filter((c) => !!c.logoPath)
@@ -82,7 +79,7 @@ export function CustomersPage(): JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [search, typeId, isKey, page, pageSize]);
+  }, [search, typeId, isKey]);
 
   useEffect(() => {
     void load();
@@ -94,11 +91,12 @@ export function CustomersPage(): JSX.Element {
 
   const openCreate = (): void => {
     setEditing(null);
+    setEditLogoUrl(null);
     form.resetFields();
     setCreating(true);
   };
 
-  const openEdit = (row: CustomerListRow): void => {
+  const openEdit = async (row: CustomerListRow): Promise<void> => {
     setEditing(row);
     form.setFieldsValue({
       name: row.name,
@@ -108,6 +106,7 @@ export function CustomersPage(): JSX.Element {
       isKey: row.isKey,
       remark: row.remark,
     });
+    setEditLogoUrl(row.logoPath ? ((await api.attachments.url(row.logoPath).catch(() => null))?.url ?? null) : null);
     setCreating(true);
   };
 
@@ -118,8 +117,9 @@ export function CustomersPage(): JSX.Element {
         await api.customers.update(editing.id, values);
         void message.success('客户已保存');
       } else {
-        await api.customers.create(values);
-        void message.success('客户已创建');
+        const id = await api.customers.create(values);
+        void message.success('客户已创建，可在卡片上上传 Logo');
+        void id;
       }
       setCreating(false);
       void load();
@@ -138,11 +138,15 @@ export function CustomersPage(): JSX.Element {
     }
   };
 
-  const uploadLogo = async (row: CustomerListRow): Promise<void> => {
+  const uploadLogo = async (row: CustomerListRow, forEdit = false): Promise<void> => {
     try {
       const r = await api.customers.uploadLogo(row.id);
       if (r) {
         void message.success('Logo 已更新');
+        if (forEdit) {
+          const u = await api.attachments.url(r.storedPath);
+          setEditLogoUrl(u.url);
+        }
         void load();
       }
     } catch (e) {
@@ -150,18 +154,35 @@ export function CustomersPage(): JSX.Element {
     }
   };
 
-  const clearLogo = async (row: CustomerListRow): Promise<void> => {
+  const clearLogo = async (row: CustomerListRow, forEdit = false): Promise<void> => {
     try {
       await api.customers.clearLogo(row.id);
+      if (forEdit) setEditLogoUrl(null);
       void load();
     } catch (e) {
       void message.error(errorMessage(e));
     }
   };
 
+  const onDrop = async (index: number): Promise<void> => {
+    const from = dragIndex.current;
+    dragIndex.current = null;
+    if (from == null || from === index) return;
+    const next = [...rows];
+    const [moved] = next.splice(from, 1);
+    next.splice(index, 0, moved);
+    setRows(next);
+    try {
+      await api.customers.reorder(next.map((c) => c.id));
+    } catch (e) {
+      void message.error(errorMessage(e));
+      void load();
+    }
+  };
+
   return (
     <Card
-      title="客户管理"
+      title={`客户管理（${total}）`}
       extra={
         <Space>
           <Button icon={<ReloadOutlined />} onClick={() => void load()}>
@@ -178,20 +199,14 @@ export function CustomersPage(): JSX.Element {
           placeholder="搜索客户全称 / 简称"
           allowClear
           style={{ width: 260 }}
-          onSearch={(v) => {
-            setPage(1);
-            setSearch(v);
-          }}
+          onSearch={(v) => setSearch(v)}
         />
         <Select
           allowClear
           placeholder="客户类型"
           style={{ width: 140 }}
           options={types.map((t) => ({ value: t.id, label: t.name }))}
-          onChange={(v) => {
-            setPage(1);
-            setTypeId(v ?? null);
-          }}
+          onChange={(v) => setTypeId(v ?? null)}
         />
         <Select
           allowClear
@@ -201,118 +216,116 @@ export function CustomersPage(): JSX.Element {
             { value: true, label: '重点客户' },
             { value: false, label: '普通客户' },
           ]}
-          onChange={(v) => {
-            setPage(1);
-            setIsKey(v ?? null);
-          }}
+          onChange={(v) => setIsKey(v ?? null)}
         />
+        <span style={{ color: '#999', fontSize: 12 }}>拖动卡片可调整客户前后顺序，自动保存</span>
       </Space>
 
       {rows.length === 0 && !loading ? (
         <Empty description="还没有客户，点击右上角「新建客户」开始" />
       ) : (
         <Row gutter={[16, 16]}>
-          {rows.map((c) => (
+          {rows.map((c, index) => (
             <Col key={c.id} xs={24} sm={12} md={8} xl={6}>
-              <Card
-                hoverable
-                loading={loading}
-                className={c.isKey ? 'customer-card customer-card-key' : 'customer-card'}
-                onClick={() => navigate(`/customers/${c.id}`)}
-                bodyStyle={{ padding: 16 }}
+              <div
+                draggable
+                onDragStart={() => {
+                  dragIndex.current = index;
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  void onDrop(index);
+                }}
+                style={{ cursor: 'grab' }}
               >
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <Avatar
-                    shape="square"
-                    size={56}
-                    src={logoUrls[c.id] || undefined}
-                    icon={<PictureOutlined />}
-                    style={{ flexShrink: 0, background: '#f0f5ff', color: '#1677ff' }}
-                  >
-                    {!logoUrls[c.id] ? c.name.slice(0, 2) : null}
-                  </Avatar>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div
-                      style={{
-                        fontWeight: 600,
-                        fontSize: 15,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                      title={c.name}
-                    >
-                      {c.name}
-                    </div>
-                    <div style={{ color: '#888', fontSize: 12, marginBottom: 6 }}>
-                      {c.shortName ? `简称：${c.shortName}` : '　'}
-                    </div>
-                    <Space size={4} wrap>
-                      {c.isKey && <Tag color="gold">重点</Tag>}
-                      <Tag>{c.typeName ?? '未分类'}</Tag>
-                    </Space>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12, color: '#666', fontSize: 12, lineHeight: 1.8 }}>
-                  <div>微信群：{c.wechatGroupCount} 个</div>
-                  <div>
-                    订单：{c.orderCount} 个（跟进中 {c.activeOrderCount}）
-                  </div>
-                  <div>地址：{c.address || '未填写'}</div>
-                </div>
-
-                <div
-                  style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between' }}
-                  onClick={(e) => e.stopPropagation()}
+                <Card
+                  hoverable
+                  loading={loading}
+                  className={c.isKey ? 'customer-card customer-card-key' : 'customer-card'}
+                  onClick={() => navigate(`/customers/${c.id}`)}
+                  bodyStyle={{ padding: 16 }}
                 >
-                  <Space size={4}>
-                    <Tooltip title="上传/更换 Logo">
-                      <Button size="small" icon={<PictureOutlined />} onClick={() => void uploadLogo(c)} />
-                    </Tooltip>
-                    {c.logoPath && (
-                      <Popconfirm title="移除 Logo" onConfirm={() => void clearLogo(c)}>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <Avatar
+                      shape="square"
+                      size={56}
+                      src={logoUrls[c.id] || undefined}
+                      icon={<PictureOutlined />}
+                      style={{ flexShrink: 0, background: '#f0f5ff', color: '#1677ff' }}
+                    >
+                      {!logoUrls[c.id] ? c.name.slice(0, 2) : null}
+                    </Avatar>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontSize: 15,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={c.name}
+                      >
+                        {c.name}
+                      </div>
+                      <div style={{ color: '#888', fontSize: 12, marginBottom: 6 }}>
+                        {c.shortName ? `简称：${c.shortName}` : '　'}
+                      </div>
+                      <Space size={4} wrap>
+                        {c.isKey && <Tag color="gold">重点</Tag>}
+                        <Tag>{c.typeName ?? '未分类'}</Tag>
+                      </Space>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 12, color: '#666', fontSize: 12, lineHeight: 1.8 }}>
+                    <div>微信群：{c.wechatGroupCount} 个</div>
+                    <div>
+                      订单：{c.orderCount} 个（跟进中 {c.activeOrderCount}）
+                    </div>
+                    <div>地址：{c.address || '未填写'}</div>
+                  </div>
+
+                  <div
+                    style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Space size={4}>
+                      <Tooltip title="上传/更换 Logo">
+                        <Button size="small" icon={<PictureOutlined />} onClick={() => void uploadLogo(c)} />
+                      </Tooltip>
+                      {c.logoPath && (
+                        <Popconfirm title="移除 Logo" onConfirm={() => void clearLogo(c)}>
+                          <Button size="small" danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                      )}
+                      <Button size="small" onClick={() => navigate(`/customers/${c.id}`)}>
+                        查看
+                      </Button>
+                    </Space>
+                    <Space size={4}>
+                      <Button size="small" icon={<EditOutlined />} onClick={() => void openEdit(c)} />
+                      <Popconfirm
+                        title={`删除客户「${c.name}」`}
+                        description={`该客户下存在 ${c.orderCount} 个订单，删除后订单数据将保留。`}
+                        okText="确认删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={() => void doDelete(c)}
+                      >
                         <Button size="small" danger icon={<DeleteOutlined />} />
                       </Popconfirm>
-                    )}
-                    <Button size="small" onClick={() => navigate(`/customers/${c.id}`)}>
-                      查看
-                    </Button>
-                  </Space>
-                  <Space size={4}>
-                    <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(c)} />
-                    <Popconfirm
-                      title={`删除客户「${c.name}」`}
-                      description={`该客户下存在 ${c.orderCount} 个订单，删除后订单数据将保留。`}
-                      okText="确认删除"
-                      cancelText="取消"
-                      okButtonProps={{ danger: true }}
-                      onConfirm={() => void doDelete(c)}
-                    >
-                      <Button size="small" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                  </Space>
-                </div>
-              </Card>
+                    </Space>
+                  </div>
+                </Card>
+              </div>
             </Col>
           ))}
         </Row>
       )}
-
-      <div style={{ marginTop: 16, textAlign: 'right' }}>
-        <Pagination
-          current={page}
-          pageSize={pageSize}
-          total={total}
-          showSizeChanger
-          pageSizeOptions={[12, 24, 48]}
-          showTotal={(t) => `共 ${t} 个客户`}
-          onChange={(p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          }}
-        />
-      </div>
 
       <Modal
         title={editing ? '编辑客户' : '新建客户'}
@@ -322,6 +335,29 @@ export function CustomersPage(): JSX.Element {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
+          {editing && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <Avatar
+                shape="square"
+                size={56}
+                src={editLogoUrl || undefined}
+                icon={<PictureOutlined />}
+                style={{ background: '#f0f5ff', color: '#1677ff' }}
+              />
+              <Space>
+                <Button size="small" icon={<PictureOutlined />} onClick={() => void uploadLogo(editing, true)}>
+                  上传/更换 Logo
+                </Button>
+                {editLogoUrl && (
+                  <Popconfirm title="移除 Logo" onConfirm={() => void clearLogo(editing, true)}>
+                    <Button size="small" danger>
+                      移除
+                    </Button>
+                  </Popconfirm>
+                )}
+              </Space>
+            </div>
+          )}
           <Form.Item name="name" label="客户全称" rules={[{ required: true, message: '请输入客户全称' }]}>
             <Input autoFocus />
           </Form.Item>
@@ -340,7 +376,7 @@ export function CustomersPage(): JSX.Element {
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} />
           </Form.Item>
-          <div style={{ color: '#999' }}>Logo、微信群及群成员请在客户卡片/详情页维护。</div>
+          {!editing && <div style={{ color: '#999' }}>创建后可在客户卡片上上传公司 Logo。</div>}
         </Form>
       </Modal>
     </Card>

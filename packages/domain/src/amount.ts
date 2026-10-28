@@ -6,10 +6,12 @@ export interface ItemLike {
   qty: number;
   /** 出货价 */
   unitPrice?: number | null;
+  /** 出货价是否含税（默认 true） */
+  priceTaxIncluded?: boolean | null;
   /** 进货价 */
   purchasePrice?: number | null;
-  /** true=单价为含税价（默认 true） */
-  priceTaxIncluded?: boolean | null;
+  /** 进货价是否含税（默认 true） */
+  purchaseTaxIncluded?: boolean | null;
   /** 税率（%），默认 13 */
   taxRate?: number | null;
 }
@@ -19,28 +21,46 @@ export function normalizeTaxRate(rate: number | null | undefined): number {
   return Number.isFinite(r) && r >= 0 ? r : 13;
 }
 
-/** 含税单价：含税价直接用；不含税价按税率换算（4 位小数） */
-export function taxIncludedPrice(item: ItemLike): number {
-  const price = item.unitPrice ?? 0;
-  if (!Number.isFinite(price)) return 0;
-  if (item.priceTaxIncluded === false) {
-    return round4(price * (1 + normalizeTaxRate(item.taxRate) / 100));
-  }
-  return price;
+function grossPrice(price: number | null | undefined, taxIncluded: boolean | null | undefined, rate: number): number {
+  const p = price ?? 0;
+  if (!Number.isFinite(p)) return 0;
+  return taxIncluded === false ? round4(p * (1 + rate / 100)) : p;
 }
 
-/** 单据金额（含税金额）= 数量 × 含税单价，2 位小数 */
+/** 含税出货单价：含税价直接用；不含税价按税率换算（4 位小数） */
+export function taxIncludedPrice(item: ItemLike): number {
+  return grossPrice(item.unitPrice, item.priceTaxIncluded, normalizeTaxRate(item.taxRate));
+}
+
+/** 含税进货单价：含税价直接用；不含税价按税率换算（未指定进货口径时沿用出货口径，兼容历史数据） */
+export function purchaseTaxIncludedPrice(item: ItemLike): number {
+  const flag =
+    item.purchaseTaxIncluded !== undefined && item.purchaseTaxIncluded !== null
+      ? item.purchaseTaxIncluded
+      : item.priceTaxIncluded;
+  return grossPrice(item.purchasePrice, flag, normalizeTaxRate(item.taxRate));
+}
+
+/** 单据金额（含税金额）= 数量 × 含税出货单价，2 位小数 */
 export function itemSubtotal(item: ItemLike): number {
   const price = taxIncludedPrice(item);
   if (!Number.isFinite(price) || !Number.isFinite(item.qty)) return 0;
   return round2(item.qty * price);
 }
 
-/** 毛利 = 数量 × (含税出货价 − 含税进货价)，按相同税率口径计算 */
+/** 毛利 = 数量 × (含税出货价 − 含税进货价) */
 export function itemGrossProfit(item: ItemLike): number {
   const sale = taxIncludedPrice(item);
-  const purchase = taxIncludedPrice({ ...item, unitPrice: item.purchasePrice ?? 0 });
+  const purchase = purchaseTaxIncludedPrice(item);
   return round2(item.qty * (sale - purchase));
+}
+
+/** 利润率（%）= (含税出货价 − 含税进货价) / 含税进货价 × 100；进货价为 0 时返回 null */
+export function marginRate(item: ItemLike): number | null {
+  const sale = taxIncludedPrice(item);
+  const purchase = purchaseTaxIncludedPrice(item);
+  if (!purchase) return null;
+  return round2(((sale - purchase) / purchase) * 100);
 }
 
 /** 自动总金额 = Σ小计（round2 汇总），无明细为 0 */

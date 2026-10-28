@@ -350,3 +350,22 @@ export function upsertRate(db: DatabaseSync, currencyId: number, rate: number): 
       'ON CONFLICT(currency_id) DO UPDATE SET rate = excluded.rate, updated_at = datetime(\'now\',\'localtime\')',
   ).run(currencyId, rate);
 }
+
+/* ---------------- 拖动排序（V1.4） ---------------- */
+
+function applySortOrder(db: DatabaseSync, table: string, ids: number[]): void {
+  const stmt = db.prepare(`UPDATE ${table} SET sort_order = ? WHERE id = ?`);
+  ids.forEach((id, i) => stmt.run(i + 1, id));
+}
+
+export function reorderDictItems(db: DatabaseSync, ids: number[]): void {
+  applySortOrder(db, 'dict_item', ids);
+}
+
+export function reorderStatuses(db: DatabaseSync, ids: number[]): void {
+  applySortOrder(db, 'order_status', ids);
+}
+
+export function reorderTemplates(db: DatabaseSync, ids: number[]): void {
+  applySortOrder(db, 'node_template', ids);
+}

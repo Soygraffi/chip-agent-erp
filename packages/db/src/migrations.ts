@@ -364,10 +364,22 @@ INSERT INTO setting (key, value) VALUES
   ON CONFLICT(key) DO NOTHING;
 `;
 
+/**
+ * V1.4：客户卡片可拖动排序（sort_order）；进货价/出货价各自可选含税口径。
+ */
+const V14 = `
+ALTER TABLE customer ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+UPDATE customer SET sort_order = id;
+
+ALTER TABLE material ADD COLUMN purchase_tax_included INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE order_item ADD COLUMN purchase_tax_included INTEGER NOT NULL DEFAULT 1;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
   { version: 3, name: 'v1.2 customer wechat & optional order fields', sql: V12 },
   { version: 4, name: 'v1.3 material library, tax-aware item prices, customer logo', sql: V13 },
+  { version: 5, name: 'v1.4 customer sort order & per-price tax flags', sql: V14 },
 ];
 

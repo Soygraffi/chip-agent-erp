@@ -1,9 +1,10 @@
-# 数据模型设计（V1.3 · 本地桌面版）
+﻿# 数据模型设计（V1.3 · 本地桌面版）
 
 > 本文档是《PRD v1.1》与增量说明（`docs/PRD-v1.2-delta.md`、`docs/PRD-v1.3-delta.md`）的技术配套文档，定义 SQLite 数据库的完整表结构、字典语义、种子数据、目录结构与关键算法。
 >
 > **V1.2 变更**：移除客户联系人/电话/邮箱/负责业务员/合作起始日期；新增客户微信群与成员、订单文档、订单-微信群关联；订单日期/类型/状态可空；移除订单币种/汇率/负责人与节点负责人。
-> **V1.3 变更**：新增物料库（进货价/出货价/含税口径/税率）；订单明细增加物料编码/名称/进货价/含税口径；客户增加 Logo；新增报价单导出。迁移脚本见 `packages/db/src/migrations.ts`（version 3、4）。
+> **V1.3 变更**：新增物料库（进货价/出货价/含税口径/税率）；订单明细增加物料编码/名称/进货价/含税口径；客户增加 Logo；新增报价单导出。
+> **V1.4 变更**：客户增加 sort_order（卡片拖动排序）；进货价/出货价各自独立含税标记（purchase_tax_included）；节点顺序改由模板拖动排序维护。迁移脚本见 packages/db/src/migrations.ts（version 3、4、5）。
 
 ## 一、实体关系（ER）
 
@@ -100,6 +101,7 @@ CREATE TABLE customer (
   is_key            INTEGER NOT NULL DEFAULT 0,  -- 重点客户
   remark            TEXT,
   logo_path         TEXT,                   -- V1.3 客户 Logo 相对路径
+  sort_order        INTEGER NOT NULL DEFAULT 0, -- V1.4 客户卡片拖动排序
   deleted_at        TEXT,                   -- 软删除时间；NULL=未删除
   created_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
@@ -183,8 +185,9 @@ CREATE TABLE material (
   spec               TEXT,                    -- 料号规格
   brand              TEXT,
   purchase_price     REAL,                    -- 进货价
+  purchase_tax_included INTEGER NOT NULL DEFAULT 1, -- V1.4 1=进货价含税
   sale_price         REAL,                    -- 出货价（默认报价）
-  price_tax_included INTEGER NOT NULL DEFAULT 1, -- 1=价格含税
+  price_tax_included INTEGER NOT NULL DEFAULT 1, -- 1=出货价含税
   tax_rate           REAL    NOT NULL DEFAULT 13,
   remark             TEXT,
   is_active          INTEGER NOT NULL DEFAULT 1,
@@ -207,7 +210,8 @@ CREATE TABLE order_item (
   qty                INTEGER NOT NULL DEFAULT 0,
   unit_price         REAL,                   -- 出货价（4 位小数）
   purchase_price     REAL,                   -- 进货价（4 位小数）
-  price_tax_included INTEGER NOT NULL DEFAULT 1, -- 1=单价含税
+  price_tax_included INTEGER NOT NULL DEFAULT 1, -- 1=出货价含税
+  purchase_tax_included INTEGER NOT NULL DEFAULT 1, -- V1.4 1=进货价含税
   tax_rate           REAL    NOT NULL DEFAULT 13, -- 税率 %
   subtotal           REAL,                   -- 含税金额 = 数量 × 含税单价（2 位小数）
   customer_pn        TEXT,

@@ -14,6 +14,7 @@ import type {
   OrderNode,
   ReminderItem,
   WechatGroup,
+  WechatGroupWithCustomer,
   WechatMember,
 } from '@erp/shared';
 
@@ -32,6 +33,7 @@ export type {
   OrderNode,
   ReminderItem,
   WechatGroup,
+  WechatGroupWithCustomer,
   WechatMember,
 };
 

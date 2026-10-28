@@ -10,13 +10,17 @@ export interface CustomerInput {
   isKey?: boolean;
   remark?: string | null;
   logoPath?: string | null;
+  sortOrder?: number;
 }
 
 export function insertCustomer(db: DatabaseSync, c: CustomerInput): number {
+  const sortOrder =
+    c.sortOrder ??
+    ((db.prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM customer').get() as { n: number }).n);
   const r = db
     .prepare(
-      'INSERT INTO customer (name, name_norm, short_name, type_id, address, is_key, remark, logo_path) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO customer (name, name_norm, short_name, type_id, address, is_key, remark, logo_path, sort_order) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       c.name,
@@ -27,8 +31,15 @@ export function insertCustomer(db: DatabaseSync, c: CustomerInput): number {
       c.isKey ? 1 : 0,
       c.remark ?? null,
       c.logoPath ?? null,
+      sortOrder,
     );
   return Number(r.lastInsertRowid);
+}
+
+/** 客户卡片拖动排序（V1.4）：按给定顺序重写 sort_order */
+export function reorderCustomers(db: DatabaseSync, ids: number[]): void {
+  const stmt = db.prepare('UPDATE customer SET sort_order = ? WHERE id = ?');
+  ids.forEach((id, i) => stmt.run(i + 1, id));
 }
 
 export function updateCustomer(
@@ -72,8 +83,8 @@ export function updateCustomer(
 }
 
 const CUSTOMER_COLS = `c.id, c.name, c.name_norm AS nameNorm, c.short_name AS shortName, c.type_id AS typeId,
-  c.address, c.is_key AS isKey, c.remark, c.logo_path AS logoPath, c.deleted_at AS deletedAt,
-  c.created_at AS createdAt, c.updated_at AS updatedAt`;
+  c.address, c.is_key AS isKey, c.remark, c.logo_path AS logoPath, c.sort_order AS sortOrder,
+  c.deleted_at AS deletedAt, c.created_at AS createdAt, c.updated_at AS updatedAt`;
 
 export function getCustomer(db: DatabaseSync, id: number): Customer | null {
   const r = db
@@ -161,13 +172,14 @@ export function listCustomers(
         (SELECT COUNT(*) FROM customer_wechat_group w WHERE w.customer_id = c.id) AS wechatGroupCount
        FROM customer c LEFT JOIN dict_item d ON d.id = c.type_id
        WHERE ${whereSql}
-       ORDER BY c.name
+       ORDER BY c.sort_order, c.id
        LIMIT ? OFFSET ?`,
     )
     .all(...args, filter.pageSize, (filter.page - 1) * filter.pageSize)
     .map((r) => ({
       ...r,
       isKey: !!r.isKey,
+      sortOrder: Number(r.sortOrder ?? 0),
       typeName: (r.typeName as string | null) ?? null,
       shortName: (r.shortName as string | null) ?? null,
       logoPath: (r.logoPath as string | null) ?? null,
