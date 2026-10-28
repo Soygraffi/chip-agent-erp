@@ -7,7 +7,8 @@ import {
   dictService,
   getAllOrderNos,
   getOrderNoConfig,
-  getRate,
+  listGroupsByOrder,
+  listMembers,
   listOrders,
   orderService,
   statusDictService,
@@ -22,29 +23,17 @@ import {
   type ImportDicts,
 } from '@erp/domain';
 
-/* ---------------- 模板（PRD 4.5.1） ---------------- */
+/* ---------------- 模板（V1.2） ---------------- */
 
-const CUSTOMER_HEADERS = [
-  '客户全称*',
-  '客户类型*',
-  '联系人*',
-  '联系电话*',
-  '客户简称',
-  '邮箱',
-  '地址',
-  '合作起始日期(YYYY-MM-DD)',
-  '备注',
-];
+const CUSTOMER_HEADERS = ['客户全称*', '客户类型', '客户简称', '地址', '备注'];
 const ORDER_HEADERS = [
   '订单编号(留空自动生成)',
   '客户全称*',
-  '订单日期(YYYY-MM-DD)*',
-  '订单类型*',
-  '订单状态*',
-  '币种(留空=人民币)',
+  '订单日期(YYYY-MM-DD)',
+  '订单类型',
+  '订单状态',
   '总金额(留空=自动汇总)',
   '预计交货日期(YYYY-MM-DD)',
-  '负责人',
   '是否重点跟进(是/否)',
   '备注',
 ];
@@ -73,12 +62,8 @@ export async function customerTemplate(): Promise<Buffer> {
   const wb = buildTemplate(CUSTOMER_HEADERS, [
     '示例电子有限公司',
     '终端',
-    '张三',
-    '13800000000',
     '示例电子',
-    'a@example.com',
     '深圳市',
-    '2026-01-01',
     '示例行，导入前请删除',
   ]);
   return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
@@ -94,27 +79,21 @@ export async function orderTemplate(db: DatabaseSync): Promise<Buffer> {
     types || '批量订单',
     statuses || '进行中',
     '',
-    '',
     '2026-11-30',
-    '',
     '否',
     '示例行，导入前请删除',
   ]);
   return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
 }
 
-/* ---------------- 导入（PRD 4.5.1） ---------------- */
+/* ---------------- 导入（PRD 4.5.1 / V1.2 可选字段） ---------------- */
 
 export interface ParsedCustomerRow {
   row: number;
   name: string | null;
   type: string | null;
-  contact: string | null;
-  phone: string | null;
   shortName: string | null;
-  email: string | null;
   address: string | null;
-  cooperationStart: string | null;
   remark: string | null;
 }
 
@@ -125,10 +104,8 @@ export interface ParsedOrderRow {
   orderDate: string | null;
   type: string | null;
   status: string | null;
-  currency: string | null;
   amount: string | null;
   expectedDeliveryDate: string | null;
-  owner: string | null;
   isKey: string | null;
   remark: string | null;
 }
@@ -176,13 +153,9 @@ export function parseCustomerRows(raw: string[][]): ParsedCustomerRow[] {
     row: i + 2,
     name: toCell(r[0]),
     type: toCell(r[1]),
-    contact: toCell(r[2]),
-    phone: toCell(r[3]),
-    shortName: toCell(r[4]),
-    email: toCell(r[5]),
-    address: toCell(r[6]),
-    cooperationStart: toCell(r[7]),
-    remark: toCell(r[8]),
+    shortName: toCell(r[2]),
+    address: toCell(r[3]),
+    remark: toCell(r[4]),
   }));
 }
 
@@ -194,12 +167,10 @@ export function parseOrderRows(raw: string[][]): ParsedOrderRow[] {
     orderDate: toCell(r[2]),
     type: toCell(r[3]),
     status: toCell(r[4]),
-    currency: toCell(r[5]),
-    amount: toCell(r[6]),
-    expectedDeliveryDate: toCell(r[7]),
-    owner: toCell(r[8]),
-    isKey: toCell(r[9]),
-    remark: toCell(r[10]),
+    amount: toCell(r[5]),
+    expectedDeliveryDate: toCell(r[6]),
+    isKey: toCell(r[7]),
+    remark: toCell(r[8]),
   }));
 }
 
@@ -208,11 +179,11 @@ function buildDicts(db: DatabaseSync): ImportDicts {
     customerTypeNames: new Set(dictService.list(db, 'customer_type').map((d) => d.name)),
     orderTypeNames: new Set(dictService.list(db, 'order_type').map((d) => d.name)),
     statusNames: new Set(statusDictService.list(db).map((s) => s.name)),
-    currencyNames: new Set(dictService.list(db, 'currency').map((d) => d.name)),
+    currencyNames: new Set<string>(),
   };
 }
 
-/** 导入客户：行级失败、重复跳过、报告成功/失败与原因 */
+/** 导入客户：仅全称必填；重复跳过；报告成功/失败与原因 */
 export async function importCustomers(db: DatabaseSync, buf: Buffer): Promise<ImportReport> {
   const rows = parseCustomerRows(await parseRows(buf));
   const dicts = buildDicts(db);
@@ -223,8 +194,7 @@ export async function importCustomers(db: DatabaseSync, buf: Buffer): Promise<Im
   db.exec('BEGIN');
   try {
     const stmt = db.prepare(
-      'INSERT INTO customer (name, name_norm, short_name, type_id, contact, phone, email, address, cooperation_start, remark) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO customer (name, name_norm, short_name, type_id, address, remark) VALUES (?, ?, ?, ?, ?, ?)',
     );
     for (const r of rows) {
       const err = validateCustomerRow(r, dicts, seen);
@@ -237,12 +207,8 @@ export async function importCustomers(db: DatabaseSync, buf: Buffer): Promise<Im
         r.name!.trim(),
         normalizeName(r.name!),
         r.shortName,
-        typeIds.get(r.type!) ?? null,
-        r.contact!.trim(),
-        r.phone!.trim(),
-        r.email,
+        typeIds.get(r.type ?? '') ?? null,
         r.address,
-        r.cooperationStart,
         r.remark,
       );
       report.successCount += 1;
@@ -255,7 +221,7 @@ export async function importCustomers(db: DatabaseSync, buf: Buffer): Promise<Im
   return report;
 }
 
-/** 导入订单：客户精确匹配、编号留空按规则生成、成功行自动生成 10 个标准节点 */
+/** 导入订单：客户必须已存在；日期/类型/状态可选；成功行自动生成 10 个标准节点 */
 export async function importOrders(db: DatabaseSync, buf: Buffer): Promise<ImportReport> {
   const rows = parseOrderRows(await parseRows(buf));
   const dicts = buildDicts(db);
@@ -263,10 +229,6 @@ export async function importOrders(db: DatabaseSync, buf: Buffer): Promise<Impor
   const seenNos = new Set(getAllOrderNos(db));
   const statusIdByName = new Map(statusDictService.list(db).map((s) => [s.name, s.id]));
   const typeIdByName = new Map(dictService.list(db, 'order_type').map((d) => [d.name, d.id]));
-  const currencyByName = new Map(dictService.list(db, 'currency').map((d) => [d.name, d.id]));
-  const rateById = new Map(
-    dictService.list(db, 'currency').map((d) => [d.id, getRate(db, d.id)?.rate ?? 1]),
-  );
   const noConfig = getOrderNoConfig(db);
   const report: ImportReport = { successCount: 0, failCount: 0, failures: [] };
 
@@ -274,14 +236,13 @@ export async function importOrders(db: DatabaseSync, buf: Buffer): Promise<Impor
   try {
     const ins = db.prepare(
       'INSERT INTO orders (order_no, customer_id, order_date, type_id, status_id, expected_delivery_date, ' +
-        'currency_id, exchange_rate, total_amount, amount_manual, owner, is_key, remark) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'total_amount, amount_manual, is_key, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
     const templates = db
       .prepare('SELECT id, name FROM node_template WHERE enabled = 1 ORDER BY sort_order')
       .all() as { id: number; name: string }[];
     const nodeStmt = db.prepare(
-      'INSERT INTO order_node (order_id, template_id, name, status, owner, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO order_node (order_id, template_id, name, status, sort_order) VALUES (?, ?, ?, ?, ?)',
     );
     for (const r of rows) {
       const { error, customerId } = validateOrderRow(r, dicts, customerIndex, seenNos);
@@ -290,10 +251,8 @@ export async function importOrders(db: DatabaseSync, buf: Buffer): Promise<Impor
         report.failures.push({ row: r.row, reason: error ?? '客户不存在' });
         continue;
       }
-      const statusId = statusIdByName.get(r.status!)!;
-      const typeId = typeIdByName.get(r.type!) ?? null;
-      const currencyId = r.currency ? (currencyByName.get(r.currency) ?? null) : null;
-      const exchangeRate = currencyId != null ? (rateById.get(currencyId) ?? 1) : null;
+      const statusId = r.status ? (statusIdByName.get(r.status) ?? null) : null;
+      const typeId = r.type ? (typeIdByName.get(r.type) ?? null) : null;
       const amountManual = r.amount != null;
       const totalAmount = amountManual ? round2(Number(r.amount)) : 0;
 
@@ -308,20 +267,17 @@ export async function importOrders(db: DatabaseSync, buf: Buffer): Promise<Impor
       const res = ins.run(
         orderNo,
         customerId,
-        r.orderDate!,
+        r.orderDate,
         typeId,
         statusId,
         r.expectedDeliveryDate,
-        currencyId,
-        exchangeRate,
         totalAmount,
         amountManual ? 1 : 0,
-        r.owner,
         parseBool(r.isKey) ? 1 : 0,
         r.remark,
       );
       const orderId = Number(res.lastInsertRowid);
-      templates.forEach((t, i) => nodeStmt.run(orderId, t.id, t.name, 'pending', r.owner, i + 1));
+      templates.forEach((t, i) => nodeStmt.run(orderId, t.id, t.name, 'pending', i + 1));
       report.successCount += 1;
     }
     db.exec('COMMIT');
@@ -332,7 +288,7 @@ export async function importOrders(db: DatabaseSync, buf: Buffer): Promise<Impor
   return report;
 }
 
-/* ---------------- 导出（PRD 4.5.1） ---------------- */
+/* ---------------- 导出（PRD 4.5.1 / V1.2） ---------------- */
 
 function timeTag(): string {
   const d = new Date();
@@ -347,16 +303,19 @@ export function exportFileName(kind: string): string {
 export async function exportCustomers(db: DatabaseSync): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('客户列表');
-  const headers = [
-    '客户全称', '客户简称', '客户类型', '联系人', '联系电话',
-    '邮箱', '地址', '订单总数', '跟进中订单数', '重点客户',
-  ];
+  const headers = ['客户全称', '客户简称', '客户类型', '地址', '微信群数', '订单总数', '跟进中订单数', '重点客户'];
   ws.addRow(headers);
   const page = customerService.list(db, { page: 1, pageSize: 100000 });
   page.rows.forEach((c) => {
     ws.addRow([
-      c.name, c.shortName ?? '', c.typeName ?? '', c.contact, c.phone,
-      c.email ?? '', c.address ?? '', c.orderCount, c.activeOrderCount, c.isKey ? '是' : '否',
+      c.name,
+      c.shortName ?? '',
+      c.typeName ?? '',
+      c.address ?? '',
+      c.wechatGroupCount,
+      c.orderCount,
+      c.activeOrderCount,
+      c.isKey ? '是' : '否',
     ]);
   });
   ws.columns.forEach((col, i) => (col.width = Math.max(10, (headers[i] ?? '').length + 8)));
@@ -367,20 +326,24 @@ export async function exportCustomers(db: DatabaseSync): Promise<Buffer> {
 export async function exportOrders(db: DatabaseSync, filter: OrderFilter): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('订单列表');
-  const headers = [
-    '订单编号', '客户名称', '订单类型', '订单状态', '金额', '折人民币',
-    '订单日期', '预计交期', '负责人', '重点跟进', '逾期天数',
-  ];
+  const headers = ['订单编号', '客户名称', '订单类型', '订单状态', '订单金额', '订单日期', '预计交期', '重点跟进', '逾期天数', '沟通微信群'];
   ws.addRow(headers);
   const page = listOrders(db, { ...filter, page: 1, pageSize: 100000 });
   page.rows.forEach((o) => {
+    const groups = listGroupsByOrder(db, o.id)
+      .map((g) => g.name)
+      .join('、');
     ws.addRow([
       o.orderNo,
       o.customerName + (o.customerDeleted ? '（已删除客户）' : ''),
-      o.typeName ?? '', o.statusName, o.totalAmount ?? 0,
-      round2((o.totalAmount ?? 0) * (o.exchangeRate ?? 1)),
-      o.orderDate, o.expectedDeliveryDate ?? '', o.owner ?? '',
-      o.isKey ? '是' : '否', o.daysOverdue,
+      o.typeName ?? '',
+      o.statusName,
+      o.totalAmount ?? 0,
+      o.orderDate ?? '',
+      o.expectedDeliveryDate ?? '',
+      o.isKey ? '是' : '否',
+      o.daysOverdue,
+      groups,
     ]);
   });
   ws.columns.forEach((col, i) => (col.width = Math.max(10, (headers[i] ?? '').length + 8)));
@@ -428,18 +391,22 @@ export async function exportOrderDetail(db: DatabaseSync, id: number): Promise<B
 
   const wsInfo = wb.addWorksheet('订单信息');
   const c = db.prepare('SELECT name FROM customer WHERE id = ?').get(detail.customerId) as { name: string };
-  const status = db.prepare('SELECT name FROM order_status WHERE id = ?').get(detail.statusId) as { name: string };
+  const status =
+    detail.statusId != null
+      ? (db.prepare('SELECT name FROM order_status WHERE id = ?').get(detail.statusId) as { name: string })
+      : null;
+  const text = (v: string | null): string => (v && v.trim() !== '' ? v : '未填写');
   const info: [string, unknown][] = [
     ['订单编号', detail.orderNo],
     ['客户名称', c.name],
-    ['订单状态', status.name],
-    ['订单日期', detail.orderDate],
-    ['预计交货日期', detail.expectedDeliveryDate ?? ''],
-    ['实际交货日期', detail.actualDeliveryDate ?? ''],
+    ['订单状态', status?.name ?? '未填写'],
+    ['订单日期', text(detail.orderDate)],
+    ['预计交货日期', text(detail.expectedDeliveryDate)],
+    ['实际交货日期', text(detail.actualDeliveryDate)],
     ['订单总金额', detail.totalAmount ?? 0],
-    ['负责人', detail.owner ?? ''],
     ['重点跟进', detail.isKey ? '是' : '否'],
-    ['备注', detail.remark ?? ''],
+    ['沟通微信群', detail.wechatGroups.map((g) => g.name).join('、')],
+    ['备注', text(detail.remark)],
   ];
   info.forEach(([k, v]) => wsInfo.addRow([k, v]));
   wsInfo.getColumn(2).width = 40;
@@ -454,7 +421,7 @@ export async function exportOrderDetail(db: DatabaseSync, id: number): Promise<B
   styleHeaderRow(wsItems);
 
   const wsNodes = wb.addWorksheet('进度节点');
-  const nodeHeaders = ['节点名称', '状态', '计划完成时间', '实际完成时间', '负责人'];
+  const nodeHeaders = ['节点名称', '状态', '计划完成时间', '实际完成时间'];
   wsNodes.addRow(nodeHeaders);
   const labels: Record<string, string> = {
     pending: '未开始',
@@ -463,10 +430,25 @@ export async function exportOrderDetail(db: DatabaseSync, id: number): Promise<B
     delayed: '异常延误',
   };
   detail.nodes.forEach((n) =>
-    wsNodes.addRow([n.name, labels[n.status] ?? n.status, n.planTime ?? '', n.actualTime ?? '', n.owner ?? '']),
+    wsNodes.addRow([n.name, labels[n.status] ?? n.status, n.planTime ?? '', n.actualTime ?? '']),
   );
   wsNodes.columns.forEach((col, i) => (col.width = Math.max(10, (nodeHeaders[i] ?? '').length + 8)));
   styleHeaderRow(wsNodes);
+
+  const wsGroups = wb.addWorksheet('沟通微信群');
+  const groupHeaders = ['微信群', '群备注', '微信号', '真实姓名', '岗位'];
+  wsGroups.addRow(groupHeaders);
+  for (const g of detail.wechatGroups) {
+    const members = listMembers(db, g.id);
+    if (members.length === 0) {
+      wsGroups.addRow([g.name, g.remark ?? '', '', '', '']);
+    }
+    members.forEach((m) => {
+      wsGroups.addRow([g.name, g.remark ?? '', m.wechatId, m.realName ?? '', m.position ?? '']);
+    });
+  }
+  wsGroups.columns.forEach((col, i) => (col.width = Math.max(10, (groupHeaders[i] ?? '').length + 8)));
+  styleHeaderRow(wsGroups);
 
   return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
 }

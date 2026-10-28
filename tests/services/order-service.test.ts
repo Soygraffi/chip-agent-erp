@@ -1,18 +1,17 @@
 import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { orderService, customerService } from '@erp/db';
+import { orderService, orderAttachmentService, customerService } from '@erp/db';
 import { createTestDb, statusByName, dictIdByName } from '../db/helpers.ts';
 
 function baseInput(db: DatabaseSync) {
-  const cid = customerService.create(db, { name: '华强半导体', contact: '张三', phone: '13800000000' });
+  const cid = customerService.create(db, { name: '华强半导体' });
   return {
     customerId: cid,
     orderDate: '2026-10-28',
     typeId: dictIdByName(db, 'order_type', '批量订单'),
     statusId: statusByName(db, '进行中'),
     expectedDeliveryDate: '2026-11-15',
-    currencyId: dictIdByName(db, 'currency', '人民币 CNY'),
     items: [
       { chipModel: 'STM32F103', brand: 'ST', packageSpec: 'LQFP48', qty: 100, unitPrice: 9.5, subtotal: 950, customerPn: null, remark: null },
       { chipModel: 'AMS1117-3.3', brand: null, packageSpec: 'SOT-223', qty: 300, unitPrice: 0.35, subtotal: 105, customerPn: null, remark: null },
@@ -20,13 +19,13 @@ function baseInput(db: DatabaseSync) {
   };
 }
 
-describe('订单服务', () => {
+describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', () => {
   let db: DatabaseSync;
   beforeEach(() => {
     db = createTestDb();
   });
 
-  it('创建订单：自动编号、明细小计与总金额、汇率快照、自动生成 10 个节点', () => {
+  it('创建订单：自动编号、明细小计与总金额、自动生成 10 个节点', () => {
     const input = baseInput(db);
     const id = orderService.create(db, input);
     const detail = orderService.get(db, id);
@@ -37,7 +36,6 @@ describe('订单服务', () => {
     expect(detail.items[1].subtotal).toBe(105);
     expect(detail.totalAmount).toBe(1055);
     expect(detail.amountManual).toBe(false);
-    expect(detail.exchangeRate).toBe(1);
     // 自动生成 10 个标准节点，顺序 = 模板顺序，全部未开始
     expect(detail.nodes).toHaveLength(10);
     expect(detail.nodes[0].name).toBe('需求沟通');
@@ -46,16 +44,23 @@ describe('订单服务', () => {
     expect(detail.nodes.every((n) => n.planTime === null)).toBe(true);
   });
 
+  it('日期/类型/状态均可留空：创建成功，详情显示未填写', () => {
+    const input = baseInput(db);
+    const id = orderService.create(db, { ...input, orderDate: null, typeId: null, statusId: null });
+    const detail = orderService.get(db, id);
+    expect(detail.orderDate).toBeNull();
+    expect(detail.typeId).toBeNull();
+    expect(detail.statusId).toBeNull();
+  });
+
   it('手录编号唯一性；编号留空自动生成（当日递增）', () => {
     const input = baseInput(db);
     orderService.create(db, { ...input, orderNo: 'XH-001' });
     expect(() => orderService.create(db, { ...input, orderNo: 'XH-001' })).toThrowError(/订单编号已存在/);
     const a = orderService.create(db, { ...input, orderNo: null });
     const b = orderService.create(db, { ...input, orderNo: null });
-    const d1 = orderService.get(db, a);
-    const d2 = orderService.get(db, b);
-    expect(d1.orderNo).toBe('XS202610280001');
-    expect(d2.orderNo).toBe('XS202610280002');
+    expect(orderService.get(db, a).orderNo).toBe('XS202610280001');
+    expect(orderService.get(db, b).orderNo).toBe('XS202610280002');
   });
 
   it('手改总金额：标记 amountManual，恢复自动汇总', () => {
@@ -69,25 +74,20 @@ describe('订单服务', () => {
     expect(d.amountManual).toBe(false);
   });
 
-  it('美元订单快照汇率', () => {
-    const input = baseInput(db);
-    const usd = dictIdByName(db, 'currency', '美元 USD');
-    const id = orderService.create(db, { ...input, currencyId: usd });
-    expect(orderService.get(db, id).exchangeRate).toBe(7.2);
-  });
-
-  it('编辑订单：改明细重算金额、改汇率快照、改客户', () => {
+  it('编辑订单：改明细重算金额、改客户、清空日期', () => {
     const input = baseInput(db);
     const id = orderService.create(db, input);
-    const c2 = customerService.create(db, { name: '深科微电子', contact: '李四', phone: '13900000000' });
+    const c2 = customerService.create(db, { name: '深科微电子' });
     orderService.update(db, id, {
       customerId: c2,
+      orderDate: null,
       items: [{ chipModel: 'LM358', brand: null, packageSpec: 'SOP-8', qty: 10, unitPrice: 0.5, subtotal: 5, customerPn: null, remark: null }],
     });
     const d = orderService.get(db, id);
     expect(d.items).toHaveLength(1);
     expect(d.totalAmount).toBe(5);
     expect(d.customerId).toBe(c2);
+    expect(d.orderDate).toBeNull();
     // 编辑不动节点
     expect(d.nodes).toHaveLength(10);
   });
@@ -107,7 +107,7 @@ describe('订单服务', () => {
     expect(() => orderService.create(db, { ...input, orderDate: '2026-13-40' })).toThrowError(/订单日期格式不正确/);
     expect(() => orderService.create(db, { ...input, expectedDeliveryDate: 'bad' })).toThrowError(/预计交货日期格式不正确/);
     // 软删除客户的订单创建被拒
-    const deleted = customerService.create(db, { name: '将被删除', contact: '张三', phone: '138' });
+    const deleted = customerService.create(db, { name: '将被删除' });
     customerService.softDelete(db, deleted, '2026-10-28');
     expect(() => orderService.create(db, { ...input, customerId: deleted })).toThrowError(/客户已删除/);
   });
@@ -115,11 +115,11 @@ describe('订单服务', () => {
   it('删除订单：返回附件路径、级联删除明细与节点', () => {
     const input = baseInput(db);
     const id = orderService.create(db, input);
-    // 挂一个附件记录
     const nodeId = orderService.get(db, id).nodes[0].id;
     db.prepare(
       'INSERT INTO node_attachment (node_id, original_name, stored_path, size) VALUES (?, ?, ?, ?)',
     ).run(nodeId, 'a.pdf', 'attachments/x/a.pdf', 10);
+    orderAttachmentService.add(db, id, { originalName: '合同.pdf', storedPath: 'attachments/1/order/c.pdf', size: 5 });
     const r = orderService.delete(db, id);
     expect(r.attachmentPaths).toEqual(['attachments/x/a.pdf']);
     expect(() => orderService.get(db, id)).toThrowError(/订单不存在/);
@@ -127,5 +127,34 @@ describe('订单服务', () => {
     const nodes = db.prepare('SELECT COUNT(*) AS c FROM order_node WHERE order_id = ?').get(id) as { c: number };
     expect(items.c).toBe(0);
     expect(nodes.c).toBe(0);
+  });
+
+  it('isTerminal：状态为空视为未结束', () => {
+    const input = baseInput(db);
+    const id = orderService.create(db, { ...input, statusId: null });
+    expect(orderService.isTerminal(db, id)).toBe(false);
+    const doneId = statusByName(db, '已完结');
+    orderService.update(db, id, { statusId: doneId });
+    expect(orderService.isTerminal(db, id)).toBe(true);
+  });
+});
+
+describe('订单文档服务（V1.2）', () => {
+  let db: DatabaseSync;
+  beforeEach(() => {
+    db = createTestDb();
+  });
+
+  it('添加/列出/删除订单文档', () => {
+    const cid = customerService.create(db, { name: '文档客户' });
+    const oid = orderService.create(db, { customerId: cid, items: [] });
+    const id = orderAttachmentService.add(db, oid, { originalName: '报价单.pdf', storedPath: 'attachments/1/order/a.pdf', size: 9 });
+    const docs = orderAttachmentService.list(db, oid);
+    expect(docs).toHaveLength(1);
+    expect(docs[0].originalName).toBe('报价单.pdf');
+    const removed = orderAttachmentService.remove(db, id);
+    expect(removed.storedPath).toBe('attachments/1/order/a.pdf');
+    expect(orderAttachmentService.list(db, oid)).toHaveLength(0);
+    expect(() => orderAttachmentService.remove(db, id)).toThrowError(/订单文档不存在/);
   });
 });

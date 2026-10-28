@@ -73,6 +73,25 @@ export const api = {
     pickAndAdd: (nodeId: number): Promise<unknown> => call('attachments:pickAndAdd', nodeId),
   },
 
+  /* 客户微信群 */
+  wechat: {
+    listGroups: (customerId: number): Promise<unknown> => call('wechat:listGroups', customerId),
+    createGroup: (customerId: number, input: unknown): Promise<number> => call('wechat:createGroup', customerId, input),
+    updateGroup: (id: number, input: unknown): Promise<void> => call('wechat:updateGroup', id, input),
+    deleteGroup: (id: number): Promise<void> => call('wechat:deleteGroup', id),
+    listMembers: (groupId: number): Promise<unknown> => call('wechat:listMembers', groupId),
+    createMember: (groupId: number, input: unknown): Promise<number> => call('wechat:createMember', groupId, input),
+    updateMember: (id: number, input: unknown): Promise<void> => call('wechat:updateMember', id, input),
+    deleteMember: (id: number): Promise<void> => call('wechat:deleteMember', id),
+  },
+
+  /* 订单文档 */
+  orderDocs: {
+    list: (orderId: number): Promise<unknown> => call('orderDocs:list', orderId),
+    pickAndAdd: (orderId: number): Promise<unknown> => call('orderDocs:pickAndAdd', orderId),
+    remove: (id: number): Promise<void> => call('orderDocs:delete', id),
+  },
+
   /* 看板与提醒 */
   stats: {
     dashboard: (): Promise<unknown> => call('stats:dashboard'),

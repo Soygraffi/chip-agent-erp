@@ -48,8 +48,6 @@ describe('性能验收（1000 条数据规模）', () => {
       cids.push(
         customerService.create(db, {
           name: `性能客户${String(i).padStart(4, '0')}`,
-          contact: `联系人${i}`,
-          phone: `138${String(i).padStart(8, '0')}`,
         }),
       );
     }

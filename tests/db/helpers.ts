@@ -31,8 +31,6 @@ export function templateIdByCode(db: DatabaseSync, code: string): number {
 
 export interface CustomerSeed {
   name?: string;
-  contact?: string;
-  phone?: string;
   typeId?: number | null;
   isKey?: boolean;
   deletedAt?: string | null;
@@ -42,29 +40,45 @@ export function seedCustomer(db: DatabaseSync, s: CustomerSeed = {}): number {
   const name = s.name ?? '华强半导体';
   const r = db
     .prepare(
-      'INSERT INTO customer (name, name_norm, type_id, contact, phone, is_key, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO customer (name, name_norm, type_id, is_key, deleted_at) VALUES (?, ?, ?, ?, ?)',
     )
     .run(
       name,
       name.trim().normalize('NFKC').toLowerCase(),
       s.typeId ?? null,
-      s.contact ?? '张三',
-      s.phone ?? '13800000000',
       s.isKey ? 1 : 0,
       s.deletedAt ?? null,
     );
   return Number(r.lastInsertRowid);
 }
 
+export function seedWechatGroup(db: DatabaseSync, customerId: number, name = '商务交流群'): number {
+  const r = db
+    .prepare('INSERT INTO customer_wechat_group (customer_id, name) VALUES (?, ?)')
+    .run(customerId, name);
+  return Number(r.lastInsertRowid);
+}
+
+export function seedWechatMember(
+  db: DatabaseSync,
+  groupId: number,
+  m: { wechatId?: string; realName?: string | null; position?: string | null } = {},
+): number {
+  const r = db
+    .prepare(
+      'INSERT INTO wechat_member (group_id, wechat_id, real_name, position) VALUES (?, ?, ?, ?)',
+    )
+    .run(groupId, m.wechatId ?? 'wx_zhangsan', m.realName ?? '张三', m.position ?? '采购经理');
+  return Number(r.lastInsertRowid);
+}
+
 export interface OrderSeed {
   orderNo?: string;
   customerId?: number;
-  orderDate?: string;
+  orderDate?: string | null;
   typeId?: number | null;
-  statusId?: number;
+  statusId?: number | null;
   expectedDeliveryDate?: string | null;
-  currencyId?: number | null;
-  exchangeRate?: number | null;
   totalAmount?: number | null;
   amountManual?: boolean;
   isKey?: boolean;
@@ -77,17 +91,15 @@ export function seedOrder(db: DatabaseSync, s: OrderSeed = {}): number {
   const r = db
     .prepare(
       'INSERT INTO orders (order_no, customer_id, order_date, type_id, status_id, expected_delivery_date, ' +
-        'currency_id, exchange_rate, total_amount, amount_manual, is_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'total_amount, amount_manual, is_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       s.orderNo ?? `T${String(orderNoSeq).padStart(6, '0')}`,
       s.customerId ?? 1,
-      s.orderDate ?? '2026-10-28',
+      s.orderDate === undefined ? '2026-10-28' : s.orderDate,
       s.typeId ?? null,
-      s.statusId ?? 1,
+      s.statusId === undefined ? 1 : s.statusId,
       s.expectedDeliveryDate ?? null,
-      s.currencyId ?? null,
-      s.exchangeRate ?? null,
       s.totalAmount ?? null,
       s.amountManual ? 1 : 0,
       s.isKey ? 1 : 0,

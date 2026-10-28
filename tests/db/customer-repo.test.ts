@@ -11,7 +11,7 @@ import {
   findActiveCustomerIdByNorm,
   customerOrderCounts,
 } from '@erp/db';
-import { createTestDb, seedCustomer, seedOrder, statusByName } from './helpers.ts';
+import { createTestDb, seedCustomer, seedOrder, statusByName, seedWechatGroup } from './helpers.ts';
 
 describe('客户仓储', () => {
   let db: DatabaseSync;
@@ -19,12 +19,10 @@ describe('客户仓储', () => {
     db = createTestDb();
   });
 
-  it('新增与读取', () => {
+  it('新增与读取（保留原始写法、重点客户）', () => {
     const id = insertCustomer(db, {
       name: ' ＡＢＣ 电子 ',
       nameNorm: 'abc 电子',
-      contact: '张三',
-      phone: '13800000000',
       isKey: true,
     });
     const c = getCustomer(db, id)!;
@@ -40,8 +38,6 @@ describe('客户仓储', () => {
       insertCustomer(db, {
         name: ' 华强半导体 ',
         nameNorm: ' 华强半导体 '.trim().normalize('NFKC').toLowerCase(),
-        contact: '李四',
-        phone: '13900000000',
       }),
     ).toThrow(/UNIQUE/);
   });
@@ -52,8 +48,6 @@ describe('客户仓储', () => {
     const id2 = insertCustomer(db, {
       name: '华强半导体',
       nameNorm: '华强半导体',
-      contact: '王五',
-      phone: '13900000000',
     });
     expect(id2).toBeGreaterThan(id1);
     expect(getCustomer(db, id1)!.deletedAt).toBe('2026-10-28');
@@ -62,7 +56,7 @@ describe('客户仓储', () => {
   it('编辑客户：历史关联订单不受影响', () => {
     const id = seedCustomer(db);
     seedOrder(db, { customerId: id, statusId: statusByName(db, '进行中') });
-    expect(updateCustomer(db, id, { contact: '新联系人' })).toBe(true);
+    expect(updateCustomer(db, id, { remark: '新备注' })).toBe(true);
     const o = db.prepare('SELECT customer_id FROM orders').get() as { customer_id: number };
     expect(o.customer_id).toBe(id);
   });
@@ -78,11 +72,13 @@ describe('客户仓储', () => {
     expect(findActiveCustomerIdByNorm(db, '客户a')).toBe(id1);
   });
 
-  it('列表检索：搜索/类型/重点筛选 + 订单数统计', () => {
+  it('列表检索：搜索/类型/重点筛选 + 订单数、微信群数统计', () => {
     const active = statusByName(db, '进行中');
     const done = statusByName(db, '已完结');
-    const t1 = seedCustomer(db, { name: '华强半导体', contact: '张三', isKey: true });
-    const t2 = seedCustomer(db, { name: '深科微电子', contact: '李四' });
+    const t1 = seedCustomer(db, { name: '华强半导体', isKey: true });
+    const t2 = seedCustomer(db, { name: '深科微电子' });
+    seedWechatGroup(db, t1, '商务交流群');
+    seedWechatGroup(db, t1, '研发交流群');
     seedOrder(db, { customerId: t1, statusId: active });
     seedOrder(db, { customerId: t1, statusId: active });
     seedOrder(db, { customerId: t1, statusId: done });
@@ -92,12 +88,13 @@ describe('客户仓储', () => {
     expect(byName.total).toBe(1);
     expect(byName.rows[0].orderCount).toBe(3);
     expect(byName.rows[0].activeOrderCount).toBe(2);
+    expect(byName.rows[0].wechatGroupCount).toBe(2);
 
     const byKey = listCustomers(db, { isKey: true, page: 1, pageSize: 10 });
     expect(byKey.total).toBe(1);
 
-    const byContact = listCustomers(db, { search: '李四', page: 1, pageSize: 10 });
-    expect(byContact.total).toBe(1);
+    const byShort = listCustomers(db, { search: '深科', page: 1, pageSize: 10 });
+    expect(byShort.total).toBe(1);
   });
 
   it('customerOrderCounts 统计正确', () => {
@@ -106,6 +103,15 @@ describe('客户仓储', () => {
     const done = statusByName(db, '已完结');
     seedOrder(db, { customerId: id, statusId: active });
     seedOrder(db, { customerId: id, statusId: done });
+    const r = customerOrderCounts(db, id);
+    expect(r.orderCount).toBe(2);
+    expect(r.activeOrderCount).toBe(1);
+  });
+
+  it('状态未填写的订单计入跟进中订单数', () => {
+    const id = seedCustomer(db);
+    seedOrder(db, { customerId: id, statusId: null });
+    seedOrder(db, { customerId: id, statusId: statusByName(db, '已完结') });
     const r = customerOrderCounts(db, id);
     expect(r.orderCount).toBe(2);
     expect(r.activeOrderCount).toBe(1);

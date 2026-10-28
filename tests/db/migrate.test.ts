@@ -1,13 +1,13 @@
 import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
-import { migrate, SCHEMA_VERSION, currentSchemaVersion } from '@erp/db';
+import { migrate, SCHEMA_VERSION, currentSchemaVersion, MIGRATIONS, openDatabase } from '@erp/db';
 import { createTestDb } from './helpers.ts';
 
 describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(2);
+    expect(SCHEMA_VERSION).toBe(3);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -19,7 +19,7 @@ describe('数据库迁移与种子', () => {
     expect(templates.c).toBe(10);
   });
 
-  it('全部 12 张表存在', () => {
+  it('全部 16 张表存在', () => {
     const db = createTestDb();
     const rows = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
@@ -29,18 +29,70 @@ describe('数据库迁移与种子', () => {
       [
         'currency_rate',
         'customer',
+        'customer_wechat_group',
         'dict_item',
         'node_attachment',
         'node_follow_up',
         'node_template',
+        'order_attachment',
         'order_item',
         'order_node',
         'order_status',
+        'order_wechat_group',
         'orders',
         'schema_meta',
         'setting',
+        'wechat_member',
       ].sort(),
     );
+  });
+
+  it('V1.2 迁移：旧库数据保留、客户联系方式字段被移除、订单日期/状态可空', () => {
+    // 只执行 v1/v2，模拟旧版数据库
+    const db = openDatabase(':memory:');
+    db.exec('CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT)');
+    for (const m of MIGRATIONS.filter((x) => x.version <= 2)) {
+      db.exec(m.sql);
+      db.prepare(
+        "INSERT INTO schema_meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).run(String(m.version));
+    }
+    db.prepare(
+      "INSERT INTO customer (name, name_norm, contact, phone, is_key) VALUES ('旧客户', '旧客户', '张三', '138', 1)",
+    ).run();
+    db.prepare(
+      "INSERT INTO orders (order_no, customer_id, order_date, status_id, total_amount) VALUES ('OLD-1', 1, '2026-01-02', 1, 88)",
+    ).run();
+    db.prepare(
+      "INSERT INTO order_node (order_id, name, status, owner) VALUES (1, '旧节点', 'pending', '老王')",
+    ).run();
+
+    migrate(db); // 执行 v3
+
+    const cust = db.prepare('SELECT name, is_key FROM customer').get() as { name: string; is_key: number };
+    expect(cust.name).toBe('旧客户');
+    expect(cust.is_key).toBe(1);
+    const order = db.prepare('SELECT order_no, order_date, total_amount FROM orders').get() as {
+      order_no: string;
+      order_date: string;
+      total_amount: number;
+    };
+    expect(order).toEqual({ order_no: 'OLD-1', order_date: '2026-01-02', total_amount: 88 });
+    // 新字段允许为空
+    db.prepare(
+      "INSERT INTO orders (order_no, customer_id) VALUES ('NULLABLE-1', 1)",
+    ).run();
+    const nullable = db.prepare("SELECT order_date, status_id FROM orders WHERE order_no = 'NULLABLE-1'").get() as {
+      order_date: string | null;
+      status_id: number | null;
+    };
+    expect(nullable.order_date).toBeNull();
+    expect(nullable.status_id).toBeNull();
+    // 旧字段列已不存在
+    const cols = db.prepare("SELECT name FROM pragma_table_info('customer')").all() as { name: string }[];
+    expect(cols.some((c) => c.name === 'contact')).toBe(false);
+    expect(cols.some((c) => c.name === 'phone')).toBe(false);
+    db.close();
   });
 
   it('种子数据：5 个内置状态语义正确（终态/结果/默认完成）', () => {

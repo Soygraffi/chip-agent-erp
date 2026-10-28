@@ -28,7 +28,6 @@ export interface NodeUpdateInput {
   status?: NodeStatus;
   planTime?: string | null;
   actualTime?: string | null;
-  owner?: string | null;
 }
 
 export interface NodeDoneOutcome {
@@ -45,7 +44,7 @@ export const nodeService = {
   create(
     db: DatabaseSync,
     orderId: number,
-    input: { name: string; owner?: string | null; planTime?: string | null },
+    input: { name: string; planTime?: string | null },
   ): number {
     if (!getOrder(db, orderId)) throw bizError('ORDER_NOT_FOUND');
     if (!input.name || !input.name.trim()) throw bizError('VALIDATION', '节点名称不能为空');
@@ -58,7 +57,6 @@ export const nodeService = {
       status: 'pending',
       planTime: input.planTime ?? null,
       actualTime: null,
-      owner: input.owner ?? null,
       sortOrder: maxNodeSort(db, orderId) + 1,
     });
   },
@@ -84,7 +82,6 @@ export const nodeService = {
           name: input.name ?? done.name,
           planTime: input.planTime ?? done.planTime,
           actualTime: input.actualTime ?? done.actualTime,
-          owner: input.owner ?? done.owner,
           status: 'done',
         });
         if (result.promotedNodeId != null) {
@@ -94,9 +91,9 @@ export const nodeService = {
         outcome.autoCompleted = result.autoCompleted;
         if (result.autoCompleted) {
           const order = getOrder(db, node.orderId);
-          const current = order ? getStatus(db, order.statusId) : null;
-          // 单向联动：仅订单当前非终态时自动置完成态
-          if (current && !current.isTerminal) {
+          const current = order && order.statusId != null ? getStatus(db, order.statusId) : null;
+          // 单向联动：订单当前非终态（含未填写）时自动置完成态
+          if (order && (!current || !current.isTerminal)) {
             const target = defaultCompletedStatus(listStatuses(db, true));
             if (target) {
               setStatus(db, node.orderId, target.id);

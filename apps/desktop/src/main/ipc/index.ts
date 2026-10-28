@@ -8,6 +8,8 @@ import {
   dictService,
   nodeService,
   orderService,
+  orderAttachmentService,
+  wechatService,
   rateService,
   statsService,
   statusDictService,
@@ -20,6 +22,7 @@ import type { AppContext } from '../bootstrap';
 import { migrateDataDir, effectiveBackupsDir, dataDirSize } from '../migrate-dir';
 import {
   storeAttachment,
+  storeOrderAttachment,
   removeStoredFile,
   removeStoredFiles,
   attachmentAbsolutePath,
@@ -139,7 +142,87 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   ipcMain.handle('orders:delete', (_e, id: number) => {
     const r = wrap(() => {
       const { attachmentPaths } = orderService.delete(db(), id);
-      removeStoredFiles(ctxRef.ctx.dataDir, attachmentPaths);
+      const orderDocPaths = orderAttachmentService.pathsByOrder(db(), id);
+      removeStoredFiles(ctxRef.ctx.dataDir, [...attachmentPaths, ...orderDocPaths]);
+      return { id };
+    });
+    if (r.ok) changed();
+    return r;
+  });
+
+  /* ---------------- 客户微信群 ---------------- */
+  ipcMain.handle('wechat:listGroups', (_e, customerId: number) =>
+    wrap(() => wechatService.listGroups(db(), customerId)),
+  );
+  ipcMain.handle('wechat:createGroup', (_e, customerId: number, input: { name: string; remark?: string | null }) => {
+    const r = wrap(() => wechatService.createGroup(db(), customerId, input));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('wechat:updateGroup', (_e, id: number, input) => {
+    const r = wrap(() => wechatService.updateGroup(db(), id, input));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('wechat:deleteGroup', (_e, id: number) => {
+    const r = wrap(() => wechatService.deleteGroup(db(), id));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('wechat:listMembers', (_e, groupId: number) =>
+    wrap(() => wechatService.listMembers(db(), groupId)),
+  );
+  ipcMain.handle('wechat:createMember', (_e, groupId: number, input) => {
+    const r = wrap(() => wechatService.createMember(db(), groupId, input));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('wechat:updateMember', (_e, id: number, input) => {
+    const r = wrap(() => wechatService.updateMember(db(), id, input));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('wechat:deleteMember', (_e, id: number) => {
+    const r = wrap(() => wechatService.deleteMember(db(), id));
+    if (r.ok) changed();
+    return r;
+  });
+
+  /* ---------------- 订单文档（PDF/Word/图片） ---------------- */
+  ipcMain.handle('orderDocs:list', (_e, orderId: number) =>
+    wrap(() => orderAttachmentService.list(db(), orderId)),
+  );
+  ipcMain.handle('orderDocs:pickAndAdd', (_e, orderId: number) =>
+    wrapAsync(async () => {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      if (!win) throw new BizError('IO_ERROR', '没有可用窗口');
+      const r = await dialog.showOpenDialog(win, {
+        title: '上传订单文档（PDF / Word / 图片）',
+        filters: [
+          { name: '文档', extensions: ['pdf', 'doc', 'docx'] },
+          { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] },
+          { name: '所有文件', extensions: ['*'] },
+        ],
+        properties: ['openFile'],
+      });
+      if (r.canceled || r.filePaths.length === 0) return null;
+      const sourcePath = r.filePaths[0];
+      const { size } = statSync(sourcePath);
+      const { storedPath, originalName } = storeOrderAttachment(
+        ctxRef.ctx.attachmentsDir,
+        orderId,
+        sourcePath,
+        size,
+      );
+      const id = orderAttachmentService.add(db(), orderId, { originalName, storedPath, size });
+      changed();
+      return { id, originalName, storedPath, size };
+    }),
+  );
+  ipcMain.handle('orderDocs:delete', (_e, id: number) => {
+    const r = wrap(() => {
+      const { storedPath } = orderAttachmentService.remove(db(), id);
+      removeStoredFile(ctxRef.ctx.dataDir, storedPath);
       return { id };
     });
     if (r.ok) changed();
@@ -155,7 +238,7 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
-  ipcMain.handle('nodes:update', (_e, id: number, input: { name?: string; status?: NodeStatus; planTime?: string | null; actualTime?: string | null; owner?: string | null }) => {
+  ipcMain.handle('nodes:update', (_e, id: number, input: { name?: string; status?: NodeStatus; planTime?: string | null; actualTime?: string | null }) => {
     const r = wrap(() => nodeService.update(db(), id, input));
     if (r.ok) changed();
     return r;

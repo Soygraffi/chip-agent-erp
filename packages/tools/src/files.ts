@@ -10,7 +10,7 @@ import { bizError } from '@erp/shared';
 
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024; // 50MB（PRD 4.4.2）
 
-/** 附件复制进托管目录（PRD 4.4.2 / data-model 五章），返回相对路径 */
+/** 节点附件复制进托管目录（PRD 4.4.2 / data-model 五章），返回相对路径 */
 export function storeAttachment(
   attachmentsDir: string,
   orderId: number,
@@ -24,6 +24,27 @@ export function storeAttachment(
   const originalName = basename(sourcePath);
   const ext = extname(originalName).slice(0, 20);
   const relDir = join('attachments', String(orderId), String(nodeId));
+  const absDir = join(dirname(attachmentsDir), relDir);
+  mkdirSync(absDir, { recursive: true });
+  const storedName = `${randomUUID()}${ext}`;
+  const relPath = join(relDir, storedName);
+  copyFileSync(sourcePath, join(dirname(attachmentsDir), relPath));
+  return { storedPath: relPath, originalName };
+}
+
+/** 订单文档（PDF/Word/图片）复制进托管目录：attachments/{orderId}/order/ */
+export function storeOrderAttachment(
+  attachmentsDir: string,
+  orderId: number,
+  sourcePath: string,
+  size: number,
+): { storedPath: string; originalName: string } {
+  if (size > MAX_ATTACHMENT_BYTES) {
+    throw bizError('VALIDATION', '单个文件不能超过 50MB');
+  }
+  const originalName = basename(sourcePath);
+  const ext = extname(originalName).slice(0, 20);
+  const relDir = join('attachments', String(orderId), 'order');
   const absDir = join(dirname(attachmentsDir), relDir);
   mkdirSync(absDir, { recursive: true });
   const storedName = `${randomUUID()}${ext}`;

@@ -537,15 +537,11 @@ export function SettingsPage(): JSX.Element {
     <Card title="系统设置">
       <Tabs
         items={[
-          { key: 'dict', label: '基础字典', children: <DictTab category="customer_type" /> },
-          ...['order_type', 'payment_method', 'currency'].map((c) => ({
-            key: c,
-            label: CATEGORY_LABELS[c],
-            children: <DictTab category={c} />,
-          })),
+          { key: 'dict', label: '客户类型', children: <DictTab category="customer_type" /> },
+          { key: 'order_type', label: '订单类型', children: <DictTab category="order_type" /> },
+          { key: 'payment_method', label: '付款方式', children: <DictTab category="payment_method" /> },
           { key: 'status', label: '订单状态（语义）', children: <StatusTab /> },
           { key: 'template', label: '节点模板', children: <TemplateTab /> },
-          { key: 'rate', label: '汇率', children: <RateTab /> },
           { key: 'numbering', label: '编号规则', children: <NumberingTab /> },
           { key: 'storage', label: '存储设置', children: <StorageTab /> },
         ]}

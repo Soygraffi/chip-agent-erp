@@ -3,17 +3,21 @@ import { MIGRATIONS } from './migrations.js';
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
-/** schema_version 驱动的迁移器：顺序执行未应用脚本，整体事务，失败回滚 */
+/**
+ * schema_version 驱动的迁移器：顺序执行未应用脚本，整体事务，失败回滚。
+ * 迁移期间关闭外键（表重建时需要），完成后恢复。
+ */
 export function migrate(db: DatabaseSync): void {
   db.exec(
     'CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT)',
   );
+  db.exec('PRAGMA foreign_keys = OFF');
   db.exec('BEGIN');
   try {
     const row = db
       .prepare("SELECT value FROM schema_meta WHERE key = 'schema_version'")
       .get() as { value?: string } | undefined;
-    let current = Number(row?.value ?? 0);
+    const current = Number(row?.value ?? 0);
     for (const m of MIGRATIONS) {
       if (m.version <= current) continue;
       db.exec(m.sql);
@@ -30,6 +34,8 @@ export function migrate(db: DatabaseSync): void {
       /* ignore */
     }
     throw e;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
   }
 }
 

@@ -15,8 +15,6 @@ import {
   Table,
   Tag,
   Timeline,
-  Tooltip,
-  Upload,
   message,
 } from 'antd';
 import {
@@ -24,12 +22,13 @@ import {
   CheckCircleOutlined,
   DeleteOutlined,
   EditOutlined,
+  FileAddOutlined,
   PaperClipOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
-import type { NodeAttachment, NodeFollowUp, OrderDetail, OrderNode, Customer } from '../models';
+import type { Customer, NodeAttachment, NodeFollowUp, OrderAttachment, OrderDetail, OrderNode } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 
 interface StatusItem {
@@ -43,9 +42,11 @@ interface TypeItem {
   id: number;
   name: string;
 }
-interface CurrencyItem {
-  id: number;
-  name: string;
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function OrderDetailPage(): JSX.Element {
@@ -56,7 +57,7 @@ export function OrderDetailPage(): JSX.Element {
   const [customerName, setCustomerName] = useState('');
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [types, setTypes] = useState<TypeItem[]>([]);
-  const [currencies, setCurrencies] = useState<CurrencyItem[]>([]);
+  const [docs, setDocs] = useState<OrderAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [nodeModal, setNodeModal] = useState<{ mode: 'edit' | 'create'; node: OrderNode | null } | null>(null);
   const [followModal, setFollowModal] = useState<{ nodeId: number; records: NodeFollowUp[] } | null>(null);
@@ -71,9 +72,9 @@ export function OrderDetailPage(): JSX.Element {
       setDetail(d);
       setStatuses((await api.statuses.list()) as StatusItem[]);
       setTypes((await api.dicts.list('order_type')) as TypeItem[]);
-      setCurrencies((await api.dicts.list('currency')) as CurrencyItem[]);
       const c = (await api.customers.get(d.customerId)) as Customer;
       setCustomerName(c.deletedAt ? `${c.name}（已删除客户）` : c.name);
+      setDocs((await api.orderDocs.list(orderId)) as OrderAttachment[]);
     } catch (e) {
       void message.error(errorMessage(e));
     } finally {
@@ -90,10 +91,9 @@ export function OrderDetailPage(): JSX.Element {
   }
 
   const status = statuses.find((s) => s.id === detail.statusId);
-  const cny = (detail.totalAmount ?? 0) * (detail.exchangeRate ?? 1);
   const today = dayjs().format('YYYY-MM-DD');
   const daysOverdue =
-    status && !status.isTerminal && detail.expectedDeliveryDate && detail.expectedDeliveryDate < today
+    !status?.isTerminal && detail.expectedDeliveryDate && detail.expectedDeliveryDate < today
       ? dayjs(today).diff(dayjs(detail.expectedDeliveryDate), 'day')
       : 0;
 
@@ -105,7 +105,6 @@ export function OrderDetailPage(): JSX.Element {
         status: node.status,
         planTime: node.planTime ? dayjs(node.planTime) : null,
         actualTime: node.actualTime ? dayjs(node.actualTime) : null,
-        owner: node.owner,
       });
     } else {
       form.resetFields();
@@ -119,13 +118,12 @@ export function OrderDetailPage(): JSX.Element {
       status: values.status,
       planTime: values.planTime ? (values.planTime as dayjs.Dayjs).format('YYYY-MM-DD') : null,
       actualTime: values.actualTime ? (values.actualTime as dayjs.Dayjs).format('YYYY-MM-DD') : null,
-      owner: values.owner ?? null,
     };
     try {
       if (nodeModal?.mode === 'edit' && nodeModal.node) {
         await api.nodes.update(nodeModal.node.id, payload);
       } else {
-        await api.nodes.create(orderId, { name: payload.name, owner: payload.owner });
+        await api.nodes.create(orderId, { name: payload.name });
       }
       setNodeModal(null);
       void load();
@@ -212,6 +210,24 @@ export function OrderDetailPage(): JSX.Element {
     }
   };
 
+  const uploadDoc = async (): Promise<void> => {
+    try {
+      await api.orderDocs.pickAndAdd(orderId);
+      setDocs((await api.orderDocs.list(orderId)) as OrderAttachment[]);
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
+
+  const deleteDoc = async (doc: OrderAttachment): Promise<void> => {
+    try {
+      await api.orderDocs.remove(doc.id);
+      setDocs((await api.orderDocs.list(orderId)) as OrderAttachment[]);
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
+
   const doDeleteOrder = async (): Promise<void> => {
     try {
       await api.orders.remove(orderId);
@@ -231,7 +247,7 @@ export function OrderDetailPage(): JSX.Element {
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/orders')} />
           <span>{detail.orderNo}</span>
-          {status && <Tag color={status.color}>{status.name}</Tag>}
+          {status ? <Tag color={status.color}>{status.name}</Tag> : <Tag color="#BFBFBF">未填写</Tag>}
           {daysOverdue > 0 && <Tag color="red">逾期 {daysOverdue} 天</Tag>}
           {detail.isKey && <Tag color="gold">重点跟进</Tag>}
         </Space>
@@ -248,7 +264,7 @@ export function OrderDetailPage(): JSX.Element {
           </Button>
           <Popconfirm
             title={`删除订单「${detail.orderNo}」`}
-            description="删除后物料明细、进度节点、附件将一并删除，不可恢复。"
+            description="删除后物料明细、进度节点、订单文档、附件将一并删除，不可恢复。"
             okText="确认删除"
             cancelText="取消"
             okButtonProps={{ danger: true }}
@@ -261,24 +277,55 @@ export function OrderDetailPage(): JSX.Element {
     >
       <Descriptions bordered size="small" column={4} style={{ marginBottom: 16 }}>
         <Descriptions.Item label="客户">{customerName}</Descriptions.Item>
-        <Descriptions.Item label="订单类型">{types.find((t) => t.id === detail.typeId)?.name ?? '-'}</Descriptions.Item>
-        <Descriptions.Item label="订单日期">{detail.orderDate}</Descriptions.Item>
-        <Descriptions.Item label="预计交货日期">{detail.expectedDeliveryDate ?? '-'}</Descriptions.Item>
-        <Descriptions.Item label="实际交货日期">{detail.actualDeliveryDate ?? '-'}</Descriptions.Item>
-        <Descriptions.Item label="币种">{currencies.find((c) => c.id === detail.currencyId)?.name ?? '-'}</Descriptions.Item>
-        <Descriptions.Item label="汇率快照">{detail.exchangeRate ?? '-'}</Descriptions.Item>
-        <Descriptions.Item label="负责人">{detail.owner ?? '-'}</Descriptions.Item>
-        <Descriptions.Item label="订单总金额">
-          {detail.totalAmount ?? 0}
-          {detail.amountManual && <Tag style={{ marginLeft: 8 }}>已手改</Tag>}
-          <Tooltip title={`折人民币 ${cny.toFixed(2)}`}>
-            <Tag style={{ marginLeft: 8 }}>≈ ¥{cny.toFixed(2)}</Tag>
-          </Tooltip>
+        <Descriptions.Item label="订单类型">{types.find((t) => t.id === detail.typeId)?.name ?? '未填写'}</Descriptions.Item>
+        <Descriptions.Item label="订单日期">{detail.orderDate ?? '未填写'}</Descriptions.Item>
+        <Descriptions.Item label="预计交货日期">{detail.expectedDeliveryDate ?? '未填写'}</Descriptions.Item>
+        <Descriptions.Item label="实际交货日期">{detail.actualDeliveryDate ?? '未填写'}</Descriptions.Item>
+        <Descriptions.Item label="订单总金额">{(detail.totalAmount ?? 0).toFixed(2)}{detail.amountManual && <Tag style={{ marginLeft: 8 }}>已手改</Tag>}</Descriptions.Item>
+        <Descriptions.Item label="沟通微信群">
+          {detail.wechatGroups.length > 0
+            ? detail.wechatGroups.map((g) => <Tag key={g.id}>{g.name}</Tag>)
+            : '未填写'}
         </Descriptions.Item>
-        <Descriptions.Item label="备注" span={3}>
-          {detail.remark ?? '-'}
+        <Descriptions.Item label="备注" span={4}>
+          {detail.remark ?? '未填写'}
         </Descriptions.Item>
       </Descriptions>
+
+      <Card
+        size="small"
+        title={`订单文档（${docs.length}）`}
+        extra={
+          <Button size="small" icon={<FileAddOutlined />} onClick={() => void uploadDoc()}>
+            上传 PDF / Word / 图片
+          </Button>
+        }
+        style={{ marginBottom: 16 }}
+      >
+        <List
+          size="small"
+          dataSource={docs}
+          locale={{ emptyText: '暂无订单文档，可上传 PDF、Word 或图片' }}
+          renderItem={(doc) => (
+            <List.Item
+              actions={[
+                <a key="open" onClick={() => void api.attachments.open(doc.storedPath)}>打开</a>,
+                <a key="folder" onClick={() => void api.attachments.openFolder(doc.storedPath)}>所在目录</a>,
+                <Popconfirm key="del" title="删除该文档" onConfirm={() => void deleteDoc(doc)}>
+                  <a style={{ color: '#ff4d4f' }}>删除</a>
+                </Popconfirm>,
+              ]}
+            >
+              <Space>
+                <PaperClipOutlined />
+                <span>{doc.originalName}</span>
+                <span style={{ color: '#999' }}>{fmtSize(doc.size)}</span>
+                <span style={{ color: '#999' }}>{doc.createdAt.replace('T', ' ').slice(0, 19)}</span>
+              </Space>
+            </List.Item>
+          )}
+        />
+      </Card>
 
       <Divider orientation="left">物料明细</Divider>
       <Table
@@ -331,7 +378,7 @@ export function OrderDetailPage(): JSX.Element {
               <Descriptions size="small" column={3}>
                 <Descriptions.Item label="计划完成">{n.planTime ?? '-'}</Descriptions.Item>
                 <Descriptions.Item label="实际完成">{n.actualTime ?? '-'}</Descriptions.Item>
-                <Descriptions.Item label="负责人">{n.owner ?? '-'}</Descriptions.Item>
+                <Descriptions.Item label="负责人">{'-'}</Descriptions.Item>
               </Descriptions>
               <Space>
                 <Button size="small" onClick={() => void openFollow(n)}>跟进记录</Button>
@@ -344,7 +391,6 @@ export function OrderDetailPage(): JSX.Element {
         }))}
       />
 
-      {/* 节点编辑 */}
       <Modal
         title={nodeModal?.mode === 'edit' ? '编辑节点' : '新增节点'}
         open={!!nodeModal}
@@ -367,13 +413,9 @@ export function OrderDetailPage(): JSX.Element {
           <Form.Item name="actualTime" label="实际完成时间">
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="owner" label="负责人">
-            <Input />
-          </Form.Item>
         </Form>
       </Modal>
 
-      {/* 跟进记录 */}
       <Modal
         title="跟进记录"
         open={!!followModal}
@@ -406,7 +448,6 @@ export function OrderDetailPage(): JSX.Element {
         </Space.Compact>
       </Modal>
 
-      {/* 附件 */}
       <Modal
         title="附件"
         open={!!attModal}

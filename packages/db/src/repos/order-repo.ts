@@ -3,20 +3,21 @@ import type { Order, OrderItem, OrderListRow, Page } from '@erp/shared';
 import { dateDiffDays } from '@erp/shared';
 import { escapeLike } from './customer-repo.js';
 
+/** 状态未填写时的展示值（PRD V1.2：订单状态可选） */
+export const UNFILLED_STATUS_NAME = '未填写';
+export const UNFILLED_STATUS_COLOR = '#BFBFBF';
+
 export interface OrderInput {
   orderNo: string;
   customerId: number;
-  orderDate: string;
+  orderDate: string | null;
   typeId: number | null;
-  statusId: number;
+  statusId: number | null;
   expectedDeliveryDate: string | null;
   actualDeliveryDate: string | null;
-  currencyId: number | null;
-  exchangeRate: number | null;
   totalAmount: number | null;
   amountManual: boolean;
   paymentMethodId: number | null;
-  owner: string | null;
   isKey: boolean;
   remark: string | null;
 }
@@ -25,23 +26,20 @@ export function insertOrder(db: DatabaseSync, o: OrderInput): number {
   const r = db
     .prepare(
       'INSERT INTO orders (order_no, customer_id, order_date, type_id, status_id, expected_delivery_date, ' +
-        'actual_delivery_date, currency_id, exchange_rate, total_amount, amount_manual, payment_method_id, ' +
-        'owner, is_key, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'actual_delivery_date, total_amount, amount_manual, payment_method_id, is_key, remark) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       o.orderNo,
       o.customerId,
-      o.orderDate,
+      o.orderDate ?? null,
       o.typeId ?? null,
-      o.statusId,
+      o.statusId ?? null,
       o.expectedDeliveryDate ?? null,
       o.actualDeliveryDate ?? null,
-      o.currencyId ?? null,
-      o.exchangeRate ?? null,
       o.totalAmount ?? null,
       o.amountManual ? 1 : 0,
       o.paymentMethodId ?? null,
-      o.owner ?? null,
       o.isKey ? 1 : 0,
       o.remark ?? null,
     );
@@ -57,11 +55,8 @@ export function updateOrder(db: DatabaseSync, id: number, patch: Partial<OrderIn
     statusId: 'status_id',
     expectedDeliveryDate: 'expected_delivery_date',
     actualDeliveryDate: 'actual_delivery_date',
-    currencyId: 'currency_id',
-    exchangeRate: 'exchange_rate',
     totalAmount: 'total_amount',
     paymentMethodId: 'payment_method_id',
-    owner: 'owner',
     remark: 'remark',
   };
   const fields: string[] = [];
@@ -99,10 +94,9 @@ export function setStatus(db: DatabaseSync, id: number, statusId: number): boole
 
 const ORDER_COLS = `o.id, o.order_no AS orderNo, o.customer_id AS customerId, o.order_date AS orderDate,
   o.type_id AS typeId, o.status_id AS statusId, o.expected_delivery_date AS expectedDeliveryDate,
-  o.actual_delivery_date AS actualDeliveryDate, o.currency_id AS currencyId,
-  o.exchange_rate AS exchangeRate, o.total_amount AS totalAmount, o.amount_manual AS amountManual,
-  o.payment_method_id AS paymentMethodId, o.owner, o.is_key AS isKey, o.remark,
-  o.created_at AS createdAt, o.updated_at AS updatedAt`;
+  o.actual_delivery_date AS actualDeliveryDate, o.total_amount AS totalAmount,
+  o.amount_manual AS amountManual, o.payment_method_id AS paymentMethodId, o.is_key AS isKey,
+  o.remark, o.created_at AS createdAt, o.updated_at AS updatedAt`;
 
 export function getOrder(db: DatabaseSync, id: number): Order | null {
   const r = db
@@ -178,18 +172,20 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
     args.push(filter.deliveryTo);
   }
   if (filter.onlyOverdue) {
-    where.push('s.is_terminal = 0 AND o.expected_delivery_date IS NOT NULL AND o.expected_delivery_date < ?');
+    where.push(
+      '(s.is_terminal = 0 OR o.status_id IS NULL) AND o.expected_delivery_date IS NOT NULL AND o.expected_delivery_date < ?',
+    );
     args.push(filter.today);
   }
   if (filter.onlyKey) {
-    where.push('o.is_key = 1 AND s.is_terminal = 0');
+    where.push('o.is_key = 1 AND (s.is_terminal = 0 OR o.status_id IS NULL)');
   }
   const whereSql = where.join(' AND ');
 
   const total = (
     db
       .prepare(
-        `SELECT COUNT(*) AS c FROM orders o JOIN order_status s ON s.id = o.status_id WHERE ${whereSql}`,
+        `SELECT COUNT(*) AS c FROM orders o LEFT JOIN order_status s ON s.id = o.status_id WHERE ${whereSql}`,
       )
       .get(...args) as { c: number }
   ).c;
@@ -208,12 +204,11 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
       `SELECT ${ORDER_COLS},
         c.name AS customerName, c.deleted_at AS customerDeleted,
         t.name AS typeName, s.name AS statusName, s.color AS statusColor,
-        s.is_terminal AS statusIsTerminal, cur.name AS currencyName
+        s.is_terminal AS statusIsTerminal
        FROM orders o
        JOIN customer c ON c.id = o.customer_id
-       JOIN order_status s ON s.id = o.status_id
+       LEFT JOIN order_status s ON s.id = o.status_id
        LEFT JOIN dict_item t ON t.id = o.type_id
-       LEFT JOIN dict_item cur ON cur.id = o.currency_id
        WHERE ${whereSql}
        ORDER BY ${orderBy}
        LIMIT ? OFFSET ?`,
@@ -226,8 +221,9 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
         isKey: !!r.isKey,
         statusIsTerminal: !!r.statusIsTerminal,
         customerDeleted: !!r.customerDeleted,
+        statusName: (r.statusName as string | null) ?? UNFILLED_STATUS_NAME,
+        statusColor: (r.statusColor as string | null) ?? UNFILLED_STATUS_COLOR,
         typeName: (r.typeName as string | null) ?? null,
-        currencyName: (r.currencyName as string | null) ?? null,
       } as OrderListRow;
       row.daysOverdue = computeOverdueDays(row, filter.today);
       return row;

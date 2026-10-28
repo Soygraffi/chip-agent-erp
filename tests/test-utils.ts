@@ -31,6 +31,7 @@ export function expect(actual: unknown): {
   toBeLessThan: (n: number) => void;
   toContain: (s: string) => void;
   toMatch: (re: RegExp) => void;
+  toMatchObject: (expected: Record<string, unknown>) => void;
   toThrowError: (re: RegExp | string) => void;
   toThrow: (re: RegExp | string) => void;
   not: { toBe: (expected: unknown) => void; toContain: (s: string) => void };
@@ -74,6 +75,12 @@ export function expect(actual: unknown): {
     },
     toMatch(re: RegExp): void {
       assert.match(String(actual), re);
+    },
+    toMatchObject(expected: Record<string, unknown>): void {
+      const plain = toPlain(actual) as Record<string, unknown>;
+      for (const [k, v] of Object.entries(expected)) {
+        assert.deepStrictEqual(plain[k], toPlain(v));
+      }
     },
     toThrowError(re: RegExp | string): void {
       assert.throws(() => (actual as () => unknown)(), re);

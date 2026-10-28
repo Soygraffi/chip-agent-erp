@@ -6,12 +6,7 @@ export interface CustomerInput {
   nameNorm: string;
   shortName?: string | null;
   typeId?: number | null;
-  contact: string;
-  phone: string;
-  email?: string | null;
   address?: string | null;
-  salesOwner?: string | null;
-  cooperationStart?: string | null;
   isKey?: boolean;
   remark?: string | null;
 }
@@ -19,20 +14,15 @@ export interface CustomerInput {
 export function insertCustomer(db: DatabaseSync, c: CustomerInput): number {
   const r = db
     .prepare(
-      'INSERT INTO customer (name, name_norm, short_name, type_id, contact, phone, email, address, ' +
-        'sales_owner, cooperation_start, is_key, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO customer (name, name_norm, short_name, type_id, address, is_key, remark) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       c.name,
       c.nameNorm,
       c.shortName ?? null,
       c.typeId ?? null,
-      c.contact,
-      c.phone,
-      c.email ?? null,
       c.address ?? null,
-      c.salesOwner ?? null,
-      c.cooperationStart ?? null,
       c.isKey ? 1 : 0,
       c.remark ?? null,
     );
@@ -49,12 +39,7 @@ export function updateCustomer(
     nameNorm: 'name_norm',
     shortName: 'short_name',
     typeId: 'type_id',
-    contact: 'contact',
-    phone: 'phone',
-    email: 'email',
     address: 'address',
-    salesOwner: 'sales_owner',
-    cooperationStart: 'cooperation_start',
     remark: 'remark',
   };
   const fields: string[] = [];
@@ -65,7 +50,7 @@ export function updateCustomer(
       fields.push(`${col} = ?`);
       args.push(
         v === null || v === ''
-          ? k === 'name' || k === 'contact' || k === 'phone' || k === 'nameNorm'
+          ? k === 'name' || k === 'nameNorm'
             ? (v as string)
             : null
           : (v as string | number | null),
@@ -84,8 +69,7 @@ export function updateCustomer(
 }
 
 const CUSTOMER_COLS = `c.id, c.name, c.name_norm AS nameNorm, c.short_name AS shortName, c.type_id AS typeId,
-  c.contact, c.phone, c.email, c.address, c.sales_owner AS salesOwner,
-  c.cooperation_start AS cooperationStart, c.is_key AS isKey, c.remark, c.deleted_at AS deletedAt,
+  c.address, c.is_key AS isKey, c.remark, c.deleted_at AS deletedAt,
   c.created_at AS createdAt, c.updated_at AS updatedAt`;
 
 export function getCustomer(db: DatabaseSync, id: number): Customer | null {
@@ -149,9 +133,9 @@ export function listCustomers(
   const where: string[] = ['c.deleted_at IS NULL'];
   const args: (string | number | null)[] = [];
   if (filter.search) {
-    where.push('(c.name LIKE ? ESCAPE \'\\\' OR c.short_name LIKE ? ESCAPE \'\\\' OR c.contact LIKE ? ESCAPE \'\\\')');
+    where.push("(c.name LIKE ? ESCAPE '\\' OR c.short_name LIKE ? ESCAPE '\\')");
     const like = `%${escapeLike(filter.search)}%`;
-    args.push(like, like, like);
+    args.push(like, like);
   }
   if (filter.typeId != null) {
     where.push('c.type_id = ?');
@@ -168,8 +152,9 @@ export function listCustomers(
     .prepare(
       `SELECT ${CUSTOMER_COLS}, d.name AS typeName,
         (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) AS orderCount,
-        (SELECT COUNT(*) FROM orders o JOIN order_status s ON o.status_id = s.id
-          WHERE o.customer_id = c.id AND s.is_terminal = 0) AS activeOrderCount
+        (SELECT COUNT(*) FROM orders o LEFT JOIN order_status s ON o.status_id = s.id
+          WHERE o.customer_id = c.id AND (s.is_terminal = 0 OR o.status_id IS NULL)) AS activeOrderCount,
+        (SELECT COUNT(*) FROM customer_wechat_group w WHERE w.customer_id = c.id) AS wechatGroupCount
        FROM customer c LEFT JOIN dict_item d ON d.id = c.type_id
        WHERE ${whereSql}
        ORDER BY c.name
@@ -193,8 +178,8 @@ export function customerOrderCounts(
   const r = db
     .prepare(
       'SELECT (SELECT COUNT(*) FROM orders WHERE customer_id = ?) AS orderCount, ' +
-        '(SELECT COUNT(*) FROM orders o JOIN order_status s ON o.status_id = s.id ' +
-        ' WHERE o.customer_id = ? AND s.is_terminal = 0) AS activeOrderCount',
+        '(SELECT COUNT(*) FROM orders o LEFT JOIN order_status s ON o.status_id = s.id ' +
+        ' WHERE o.customer_id = ? AND (s.is_terminal = 0 OR o.status_id IS NULL)) AS activeOrderCount',
     )
     .get(id, id) as { orderCount: number; activeOrderCount: number };
   return r;

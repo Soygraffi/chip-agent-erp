@@ -4,3 +4,5 @@ export * from './order-repo.js';
 export * from './node-repo.js';
 export * from './setting-repo.js';
 export * from './stats-repo.js';
+export * from './wechat-repo.js';
+export * from './attachment-repo.js';

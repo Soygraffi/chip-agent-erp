@@ -1,8 +1,8 @@
-import type { DatabaseSync } from 'node:sqlite';
+﻿import type { DatabaseSync } from 'node:sqlite';
 import type { NodeAttachment, NodeFollowUp, NodeStatus, OrderNode } from '@erp/shared';
 
 const NODE_COLS = `n.id, n.order_id AS orderId, n.template_id AS templateId, t.code AS templateCode,
-  n.name, n.status, n.plan_time AS planTime, n.actual_time AS actualTime, n.owner,
+  n.name, n.status, n.plan_time AS planTime, n.actual_time AS actualTime,
   n.sort_order AS sortOrder, n.created_at AS createdAt, n.updated_at AS updatedAt`;
 
 export function listNodesByOrder(db: DatabaseSync, orderId: number): OrderNode[] {
@@ -17,7 +17,6 @@ export function listNodesByOrder(db: DatabaseSync, orderId: number): OrderNode[]
       templateCode: (r.templateCode as string | null) ?? null,
       planTime: (r.planTime as string | null) ?? null,
       actualTime: (r.actualTime as string | null) ?? null,
-      owner: (r.owner as string | null) ?? null,
       status: r.status as NodeStatus,
     })) as OrderNode[];
 }
@@ -32,7 +31,6 @@ export function getNode(db: DatabaseSync, id: number): OrderNode | null {
     templateCode: (r.templateCode as string | null) ?? null,
     planTime: (r.planTime as string | null) ?? null,
     actualTime: (r.actualTime as string | null) ?? null,
-    owner: (r.owner as string | null) ?? null,
     status: r.status as NodeStatus,
   } as OrderNode;
 }
@@ -44,17 +42,16 @@ export interface NodeInput {
   status: NodeStatus;
   planTime: string | null;
   actualTime: string | null;
-  owner: string | null;
   sortOrder: number;
 }
 
 export function insertNode(db: DatabaseSync, n: NodeInput): number {
   const r = db
     .prepare(
-      'INSERT INTO order_node (order_id, template_id, name, status, plan_time, actual_time, owner, sort_order) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO order_node (order_id, template_id, name, status, plan_time, actual_time, sort_order) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(n.orderId, n.templateId, n.name, n.status, n.planTime, n.actualTime, n.owner, n.sortOrder);
+    .run(n.orderId, n.templateId, n.name, n.status, n.planTime, n.actualTime, n.sortOrder);
   return Number(r.lastInsertRowid);
 }
 
@@ -66,7 +63,6 @@ export function updateNode(
     status?: NodeStatus;
     planTime?: string | null;
     actualTime?: string | null;
-    owner?: string | null;
   },
 ): boolean {
   const map: Record<string, string> = {
@@ -74,7 +70,6 @@ export function updateNode(
     status: 'status',
     planTime: 'plan_time',
     actualTime: 'actual_time',
-    owner: 'owner',
   };
   const fields: string[] = [];
   const args: (string | number | null)[] = [];
@@ -163,7 +158,7 @@ export function deleteAttachment(db: DatabaseSync, id: number): boolean {
   return db.prepare('DELETE FROM node_attachment WHERE id = ?').run(id).changes > 0;
 }
 
-/** 删除节点前收集其附件路径（用于文件清理） */
+/** 鍒犻櫎鑺傜偣鍓嶆敹闆嗗叾闄勪欢璺緞锛堢敤浜庢枃浠舵竻鐞嗭級 */
 export function attachmentPathsByNode(db: DatabaseSync, nodeId: number): string[] {
   return (
     db.prepare('SELECT stored_path FROM node_attachment WHERE node_id = ?').all(nodeId) as {
@@ -172,7 +167,7 @@ export function attachmentPathsByNode(db: DatabaseSync, nodeId: number): string[
   ).map((r) => r.stored_path);
 }
 
-/** 删除订单前收集全部附件路径（用于文件清理） */
+/** 鍒犻櫎璁㈠崟鍓嶆敹闆嗗叏閮ㄩ檮浠惰矾寰勶紙鐢ㄤ簬鏂囦欢娓呯悊锛?*/
 export function attachmentPathsByOrder(db: DatabaseSync, orderId: number): string[] {
   return (
     db

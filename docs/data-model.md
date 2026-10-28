@@ -1,28 +1,36 @@
-# 数据模型设计（V1.0 · 本地桌面版）
+# 数据模型设计（V1.2 · 本地桌面版）
 
-> 本文档是《PRD v1.1》（`docs/PRD-v1.1.md`）的技术配套文档，定义 SQLite 数据库的完整表结构、字典语义、种子数据、目录结构与关键算法。
+> 本文档是《PRD v1.1》与《PRD V1.2 变更说明》（`docs/PRD-v1.2-delta.md`）的技术配套文档，定义 SQLite 数据库的完整表结构、字典语义、种子数据、目录结构与关键算法。
+>
+> **V1.2 变更**：移除客户联系人/电话/邮箱/负责业务员/合作起始日期；新增客户微信群与成员、订单文档、订单-微信群关联；订单日期/类型/状态可空；移除订单币种/汇率/负责人与节点负责人。迁移脚本见 `packages/db/src/migrations.ts`（version 3）。
 
 ## 一、实体关系（ER）
 
 ```
 customer (客户) 1 ──── N orders (订单) 1 ──── N order_item (订单明细)
-                          │
-                          ├──── N order_node (进度节点) 1 ──── N node_follow_up (跟进记录)
-                          │                                    └─── N node_attachment (附件)
-                          │
-                          ├──── dict_item: order_type / payment_method / currency
-                          ├──── order_status (订单状态字典, 带终态语义)
-                          └──── node_template (节点模板, 带语义码) ←─ order_node.template_id
+  │                       │
+  │                       ├──── N order_node (进度节点) 1 ──── N node_follow_up (跟进记录)
+  │                       │                                    └─── N node_attachment (附件)
+  │                       │
+  │                       ├──── N order_attachment (订单文档: PDF/Word/图片)
+  │                       ├──── N order_wechat_group (沟通群关联) N ──── 1 customer_wechat_group
+  │                       ├──── dict_item: order_type / payment_method
+  │                       ├──── order_status (订单状态字典, 带终态语义；可为空)
+  │                       └──── node_template (节点模板, 带语义码) ←─ order_node.template_id
+  │
+  └──── N customer_wechat_group (客户微信群) 1 ──── N wechat_member (群成员)
 
-currency_rate (汇率表) 1 ──── 1 dict_item (category=currency)
+currency_rate (汇率表，V1.2 起 UI 不再使用) 1 ──── 1 dict_item (category=currency)
 ```
 
 关系要点：
 
 - 客户软删除（`deleted_at`），订单保留引用，不使用外键级联删除客户
-- 订单删除级联删除：明细、节点、跟进记录、附件
+- 删除客户微信群级联删除群成员；删除订单级联删除明细、节点、跟进记录、节点附件、
+  订单文档记录、订单-微信群关联（文件实体同步清理）
 - 节点删除级联删除：跟进记录、附件（附件实体文件同步删除）
 - 订单状态是可配置字典；节点状态是代码内固定枚举
+- 订单状态为空表示“未填写”：统计上视为非终态，界面/导出示“未填写”
 
 ## 二、建表 DDL
 
@@ -77,19 +85,14 @@ CREATE TABLE currency_rate (
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
--- 客户
+-- 客户（V1.2：移除联系人/电话/邮箱/负责业务员/合作起始日期）
 CREATE TABLE customer (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   name              TEXT    NOT NULL,       -- 客户全称（保留原始写法）
   name_norm         TEXT    NOT NULL,       -- 归一化名称，唯一性判重依据（见 4.3）
   short_name        TEXT,
   type_id           INTEGER REFERENCES dict_item(id),
-  contact           TEXT    NOT NULL,
-  phone             TEXT    NOT NULL,
-  email             TEXT,
   address           TEXT,
-  sales_owner       TEXT,
-  cooperation_start TEXT,                   -- YYYY-MM-DD
   is_key            INTEGER NOT NULL DEFAULT 0,  -- 重点客户
   remark            TEXT,
   deleted_at        TEXT,                   -- 软删除时间；NULL=未删除
@@ -101,22 +104,43 @@ CREATE UNIQUE INDEX ux_customer_name ON customer(name_norm) WHERE deleted_at IS 
 CREATE INDEX idx_customer_type    ON customer(type_id);
 CREATE INDEX idx_customer_deleted ON customer(deleted_at);
 
--- 订单
+-- 客户微信群（V1.2：一个客户可有多群，如商务交流群/研发交流群）
+CREATE TABLE customer_wechat_group (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id INTEGER NOT NULL REFERENCES customer(id) ON DELETE CASCADE,
+  name        TEXT    NOT NULL,              -- 群名称（必填）
+  remark      TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_wechat_group_customer ON customer_wechat_group(customer_id);
+
+-- 微信群成员：群内微信号 → 真实姓名 / 岗位
+CREATE TABLE wechat_member (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id   INTEGER NOT NULL REFERENCES customer_wechat_group(id) ON DELETE CASCADE,
+  wechat_id  TEXT    NOT NULL,               -- 群内微信号/ID（必填）
+  real_name  TEXT,                           -- 真实姓名
+  position   TEXT,                           -- 岗位
+  remark     TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_wechat_member_group ON wechat_member(group_id);
+
+-- 订单（V1.2：日期/类型/状态可空；移除币种/汇率/负责人）
 CREATE TABLE orders (
   id                     INTEGER PRIMARY KEY AUTOINCREMENT,
   order_no               TEXT    NOT NULL UNIQUE,
   customer_id            INTEGER NOT NULL REFERENCES customer(id),
-  order_date             TEXT    NOT NULL,  -- YYYY-MM-DD
+  order_date             TEXT,               -- YYYY-MM-DD（可空 = 未填写）
   type_id                INTEGER REFERENCES dict_item(id),
-  status_id              INTEGER NOT NULL REFERENCES order_status(id),
-  expected_delivery_date TEXT,              -- YYYY-MM-DD（逾期口径依据）
+  status_id              INTEGER REFERENCES order_status(id),  -- 可空 = 未填写（统计视为非终态）
+  expected_delivery_date TEXT,               -- YYYY-MM-DD（逾期口径依据）
   actual_delivery_date   TEXT,
-  currency_id            INTEGER REFERENCES dict_item(id),
-  exchange_rate          REAL,              -- 下单时的汇率快照，修改汇率设置不影响历史订单
-  total_amount           REAL,              -- 有效总金额（自动汇总或手改后的值）
+  total_amount           REAL,               -- 有效总金额（自动汇总或手改后的值）
   amount_manual          INTEGER NOT NULL DEFAULT 0,  -- 1=已手改，不再随明细变化
   payment_method_id      INTEGER REFERENCES dict_item(id),
-  owner                  TEXT,
   is_key                 INTEGER NOT NULL DEFAULT 0,  -- 重点跟进
   remark                 TEXT,
   created_at             TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
@@ -126,6 +150,24 @@ CREATE INDEX idx_orders_customer ON orders(customer_id);
 CREATE INDEX idx_orders_status   ON orders(status_id);
 CREATE INDEX idx_orders_date     ON orders(order_date);
 CREATE INDEX idx_orders_delivery ON orders(expected_delivery_date);
+
+-- 订单文档（V1.2：PDF/Word/图片，文件托管，库内只存相对路径）
+CREATE TABLE order_attachment (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id      INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  original_name TEXT    NOT NULL,            -- 上传时的原文件名
+  stored_path   TEXT    NOT NULL,            -- 相对数据目录：attachments/{orderId}/order/{uuid}.ext
+  size          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_order_attachment_order ON order_attachment(order_id);
+
+-- 订单 ↔ 沟通微信群（多对多，群必须属于订单客户）
+CREATE TABLE order_wechat_group (
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  group_id INTEGER NOT NULL REFERENCES customer_wechat_group(id) ON DELETE CASCADE,
+  PRIMARY KEY (order_id, group_id)
+);
 
 -- 订单物料明细
 CREATE TABLE order_item (
@@ -144,7 +186,7 @@ CREATE TABLE order_item (
 CREATE INDEX idx_item_order ON order_item(order_id);
 CREATE INDEX idx_item_model ON order_item(chip_model);
 
--- 进度节点
+-- 进度节点（V1.2：移除 owner）
 CREATE TABLE order_node (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id    INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -154,7 +196,6 @@ CREATE TABLE order_node (
               CHECK (status IN ('pending','in_progress','done','delayed')),
   plan_time   TEXT,                          -- 计划完成时间 YYYY-MM-DD（可空，空则不参与提醒）
   actual_time TEXT,                          -- 实际完成时间 YYYY-MM-DD
-  owner       TEXT,
   sort_order  INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
@@ -301,8 +342,10 @@ INSERT INTO schema_meta (key, value) VALUES ('schema_version', '1');
 ├── erp.db                          -- SQLite 主库（WAL 模式，附 -wal/-shm 文件）
 ├── attachments/
 │   └── {order_id}/
+│       ├── order/                  -- V1.2 订单文档（PDF/Word/图片）
+│       │   └── {uuid}.{扩展名}
 │       └── {node_id}/
-│           └── {uuid}.{扩展名}      -- 上传时复制；原文件名存数据库 original_name
+│           └── {uuid}.{扩展名}      -- 节点附件；上传时复制；原文件名存数据库 original_name
 └── backups/
     ├── backup_20261028_153000.zip  -- 手动备份
     └── pre_restore_*.zip           -- 恢复前自动备份
@@ -340,13 +383,12 @@ name_norm = lower(压缩内部连续空白(NFKC(trim(name))))
 唯一性由 order_no 唯一索引最终兜底。
 ```
 
-### 6.3 金额计算
+### 6.3 金额计算（V1.2：单币种，无汇率折算）
 
 ```
 明细小计 subtotal = round(qty × unit_price, 2)          -- 数量整数、单价 4 位小数
 自动总金额 auto_total = round(SUM(subtotal), 2)         -- 无明细时为 0
 有效总金额 total_amount = amount_manual ? 手改值 : auto_total
-折人民币 = round(total_amount × exchange_rate, 2)        -- 汇率 6 位小数
 ```
 
 ### 6.4 订单自动完结（单向联动）
@@ -366,30 +408,31 @@ name_norm = lower(压缩内部连续空白(NFKC(trim(name))))
 标记 done 时 actual_time 为空则自动填当天日期。
 ```
 
-### 6.6 首页指标 SQL 口径
+### 6.6 首页指标 SQL 口径（V1.2：单币种、状态可空）
 
 ```sql
 -- 客户总数
 SELECT COUNT(*) FROM customer WHERE deleted_at IS NULL;
 
--- 跟进中订单数（非终态）
-SELECT COUNT(*) FROM orders o JOIN order_status s ON o.status_id = s.id WHERE s.is_terminal = 0;
+-- 跟进中订单数（非终态；状态为空视为非终态）
+SELECT COUNT(*) FROM orders o LEFT JOIN order_status s ON o.status_id = s.id
+WHERE (s.is_terminal = 0 OR o.status_id IS NULL);
 
--- 本月新增订单数 / 本月订单总金额（折人民币，取消不计）
-SELECT COUNT(*),
-       ROUND(COALESCE(SUM(o.total_amount * COALESCE(o.exchange_rate, 1)), 0), 2)
-FROM orders o JOIN order_status s ON o.status_id = s.id
+-- 本月新增订单数 / 本月订单总金额（V1.2 无币种兑换，取消不计、状态为空计入）
+SELECT COUNT(*), ROUND(COALESCE(SUM(o.total_amount), 0), 2)
+FROM orders o LEFT JOIN order_status s ON o.status_id = s.id
 WHERE o.order_date >= :月初 AND o.order_date <= :月末
-  AND NOT (s.is_terminal = 1 AND s.terminal_result = 'cancelled');
+  AND NOT (COALESCE(s.is_terminal, 0) = 1 AND s.terminal_result = 'cancelled');
 
--- 逾期订单数（交期已过且非终态）
-SELECT COUNT(*) FROM orders o JOIN order_status s ON o.status_id = s.id
-WHERE s.is_terminal = 0 AND o.expected_delivery_date IS NOT NULL
+-- 逾期订单数（交期已过且非终态，状态为空也计入）
+SELECT COUNT(*) FROM orders o LEFT JOIN order_status s ON o.status_id = s.id
+WHERE (s.is_terminal = 0 OR o.status_id IS NULL)
+  AND o.expected_delivery_date IS NOT NULL
   AND o.expected_delivery_date < date('now','localtime');
 
 -- 待发货订单数（到货入库已完成 且 发货中未完成）
-SELECT COUNT(DISTINCT o.id) FROM orders o JOIN order_status s ON o.status_id = s.id
-WHERE s.is_terminal = 0
+SELECT COUNT(DISTINCT o.id) FROM orders o LEFT JOIN order_status s ON o.status_id = s.id
+WHERE (s.is_terminal = 0 OR o.status_id IS NULL)
   AND EXISTS (SELECT 1 FROM order_node n JOIN node_template t ON n.template_id = t.id
               WHERE n.order_id = o.id AND t.code = 'arrival' AND n.status = 'done')
   AND EXISTS (SELECT 1 FROM order_node n JOIN node_template t ON n.template_id = t.id
@@ -397,22 +440,27 @@ WHERE s.is_terminal = 0
                 AND n.status IN ('pending','in_progress','delayed'));
 
 -- 重点跟进订单数
-SELECT COUNT(*) FROM orders o JOIN order_status s ON o.status_id = s.id
-WHERE o.is_key = 1 AND s.is_terminal = 0;
+SELECT COUNT(*) FROM orders o LEFT JOIN order_status s ON o.status_id = s.id
+WHERE o.is_key = 1 AND (s.is_terminal = 0 OR o.status_id IS NULL);
+
+-- 状态分布（各状态计数 + 状态为空的“未填写”扇区）
+SELECT s.id, s.name, s.color, COUNT(o.id) FROM order_status s
+LEFT JOIN orders o ON o.status_id = s.id GROUP BY s.id ORDER BY s.sort_order;
+SELECT COUNT(*) FROM orders WHERE status_id IS NULL;  -- 前端合成“未填写”扇区（灰色）
 ```
 
 ### 6.7 到期/逾期节点提醒
 
 ```sql
--- 提醒对象: 非终态订单 + 节点状态∈{未开始,进行中,异常延误} + 已填计划时间
+-- 提醒对象: 非终态订单（含状态为空） + 节点状态∈{未开始,进行中,异常延误} + 已填计划时间
 -- 逾期:      plan_time < 今天
 -- 即将到期:  今天 ≤ plan_time ≤ 今天+3天（含今天）
 SELECT n.*, o.order_no, c.name AS customer_name
 FROM order_node n
 JOIN orders o ON n.order_id = o.id
-JOIN order_status s ON o.status_id = s.id
+LEFT JOIN order_status s ON o.status_id = s.id
 JOIN customer c ON o.customer_id = c.id
-WHERE s.is_terminal = 0
+WHERE (s.is_terminal = 0 OR o.status_id IS NULL)
   AND n.status IN ('pending','in_progress','delayed')
   AND n.plan_time IS NOT NULL
   AND date(n.plan_time) < date('now','localtime','+3 days');  -- 两类的并集，前端分组

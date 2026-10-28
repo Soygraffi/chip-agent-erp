@@ -6,10 +6,13 @@ import type {
   NodeAttachment,
   NodeFollowUp,
   Order,
+  OrderAttachment,
   OrderItem,
   OrderListRow,
   OrderNode,
   ReminderItem,
+  WechatGroup,
+  WechatMember,
 } from '@erp/shared';
 
 export type {
@@ -19,10 +22,13 @@ export type {
   NodeAttachment,
   NodeFollowUp,
   Order,
+  OrderAttachment,
   OrderItem,
   OrderListRow,
   OrderNode,
   ReminderItem,
+  WechatGroup,
+  WechatMember,
 };
 
 export type Page<T> = { rows: T[]; total: number };
@@ -30,6 +36,7 @@ export type Page<T> = { rows: T[]; total: number };
 export interface OrderDetail extends Order {
   items: OrderItem[];
   nodes: OrderNode[];
+  wechatGroups: WechatGroup[];
 }
 
 export const NODE_STATUS_LABELS: Record<string, string> = {

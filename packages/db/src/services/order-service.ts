@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { Order, OrderItem, OrderListRow, OrderNode, Page } from '@erp/shared';
+import type { Order, OrderItem, OrderListRow, OrderNode, Page, WechatGroup } from '@erp/shared';
 import { bizError, isValidDateStr, round2 } from '@erp/shared';
 import {
   attachmentPathsByOrder,
@@ -8,66 +8,72 @@ import {
   getCustomer,
   getOrder,
   getOrderNoConfig,
-  getRate,
   getStatus,
   insertOrder,
+  listGroupsByOrder,
   listItems,
   listNodesByOrder,
   listOrders,
   listTemplates,
   replaceItems,
+  setOrderGroups,
   updateOrder,
   type ItemInput,
   type OrderFilter,
   type OrderInput,
 } from '../repos/index.js';
 import { withTransaction } from '../connection.js';
-import {
-  autoTotal,
-  effectiveTotal,
-  itemSubtotal,
-  nextOrderNo,
-} from '@erp/domain';
+import { autoTotal, effectiveTotal, itemSubtotal, nextOrderNo } from '@erp/domain';
 
 export interface OrderCreateInput {
   customerId: number;
-  orderDate: string;
-  typeId: number | null;
-  statusId: number;
+  orderDate?: string | null;
+  typeId?: number | null;
+  statusId?: number | null;
   expectedDeliveryDate?: string | null;
   actualDeliveryDate?: string | null;
-  currencyId?: number | null;
   totalAmount?: number | null;
   amountManual?: boolean;
   paymentMethodId?: number | null;
-  owner?: string | null;
   isKey?: boolean;
   remark?: string | null;
   orderNo?: string | null; // 空则自动生成
+  wechatGroupIds?: number[];
   items: ItemInput[];
 }
 
 export interface OrderDetail extends Order {
   items: OrderItem[];
   nodes: OrderNode[];
+  wechatGroups: WechatGroup[];
 }
 
 /** 新建订单时按启用模板顺序生成节点（PRD 4.4.1） */
-export function generateTemplateNodes(
-  db: DatabaseSync,
-  orderId: number,
-  owner: string | null,
-): number[] {
+export function generateTemplateNodes(db: DatabaseSync, orderId: number): number[] {
   const templates = listTemplates(db, true);
   const stmt = db.prepare(
-    'INSERT INTO order_node (order_id, template_id, name, status, owner, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO order_node (order_id, template_id, name, status, sort_order) VALUES (?, ?, ?, ?, ?)',
   );
   const ids: number[] = [];
   templates.forEach((t, i) => {
-    const r = stmt.run(orderId, t.id, t.name, 'pending', owner, i + 1);
+    const r = stmt.run(orderId, t.id, t.name, 'pending', i + 1);
     ids.push(Number(r.lastInsertRowid));
   });
   return ids;
+}
+
+function validateGroupIds(db: DatabaseSync, customerId: number, groupIds: number[]): void {
+  if (groupIds.length === 0) return;
+  const rows = db
+    .prepare(
+      `SELECT id FROM customer_wechat_group WHERE customer_id = ? AND id IN (${groupIds
+        .map(() => '?')
+        .join(',')})`,
+    )
+    .all(customerId, ...groupIds) as { id: number }[];
+  if (rows.length !== groupIds.length) {
+    throw bizError('VALIDATION', '沟通微信群必须属于该订单的客户');
+  }
 }
 
 export const orderService = {
@@ -75,16 +81,20 @@ export const orderService = {
     const customer = getCustomer(db, input.customerId);
     if (!customer) throw bizError('CUSTOMER_NOT_FOUND');
     if (customer.deletedAt) throw bizError('CUSTOMER_DELETED');
-    if (!isValidDateStr(input.orderDate)) throw bizError('VALIDATION', '订单日期格式不正确');
+    if (input.orderDate && !isValidDateStr(input.orderDate))
+      throw bizError('VALIDATION', '订单日期格式不正确');
     if (input.expectedDeliveryDate && !isValidDateStr(input.expectedDeliveryDate))
       throw bizError('VALIDATION', '预计交货日期格式不正确');
-    if (!getStatus(db, input.statusId)) throw bizError('VALIDATION', '订单状态不存在');
+    if (input.statusId != null && !getStatus(db, input.statusId))
+      throw bizError('VALIDATION', '订单状态不存在');
     if (input.items.length > 50) throw bizError('VALIDATION', '单订单最多 50 条物料明细');
     for (const it of input.items) {
       if (!it.chipModel || !it.chipModel.trim()) throw bizError('VALIDATION', '芯片型号不能为空');
       if (!Number.isInteger(it.qty) || it.qty < 0)
         throw bizError('VALIDATION', '需求数量必须为非负整数');
     }
+    const groupIds = input.wechatGroupIds ?? [];
+    validateGroupIds(db, input.customerId, groupIds);
 
     const existingNos = getAllOrderNos(db);
     let orderNo: string;
@@ -103,28 +113,25 @@ export const orderService = {
     const auto = autoTotal(items);
     const amountManual = !!input.amountManual;
     const totalAmount = effectiveTotal(amountManual, input.totalAmount, auto);
-    const exchangeRate = input.currencyId != null ? (getRate(db, input.currencyId)?.rate ?? 1) : null;
 
     return withTransaction(db, () => {
       const orderId = insertOrder(db, {
         orderNo,
         customerId: input.customerId,
-        orderDate: input.orderDate,
+        orderDate: input.orderDate ?? null,
         typeId: input.typeId ?? null,
-        statusId: input.statusId,
+        statusId: input.statusId ?? null,
         expectedDeliveryDate: input.expectedDeliveryDate ?? null,
         actualDeliveryDate: input.actualDeliveryDate ?? null,
-        currencyId: input.currencyId ?? null,
-        exchangeRate,
         totalAmount,
         amountManual,
         paymentMethodId: input.paymentMethodId ?? null,
-        owner: input.owner ?? null,
         isKey: !!input.isKey,
         remark: input.remark ?? null,
       });
       if (items.length > 0) replaceItems(db, orderId, items);
-      generateTemplateNodes(db, orderId, input.owner ?? null);
+      generateTemplateNodes(db, orderId);
+      if (groupIds.length > 0) setOrderGroups(db, orderId, groupIds);
       return orderId;
     });
   },
@@ -140,8 +147,9 @@ export const orderService = {
       patch.customerId = input.customerId;
     }
     if (input.orderDate !== undefined) {
-      if (!isValidDateStr(input.orderDate)) throw bizError('VALIDATION', '订单日期格式不正确');
-      patch.orderDate = input.orderDate;
+      if (input.orderDate && !isValidDateStr(input.orderDate))
+        throw bizError('VALIDATION', '订单日期格式不正确');
+      patch.orderDate = input.orderDate ?? null;
     }
     if (input.expectedDeliveryDate !== undefined) {
       if (input.expectedDeliveryDate && !isValidDateStr(input.expectedDeliveryDate))
@@ -150,16 +158,12 @@ export const orderService = {
     }
     if (input.actualDeliveryDate !== undefined) patch.actualDeliveryDate = input.actualDeliveryDate ?? null;
     if (input.statusId !== undefined) {
-      if (!getStatus(db, input.statusId)) throw bizError('VALIDATION', '订单状态不存在');
-      patch.statusId = input.statusId;
+      if (input.statusId != null && !getStatus(db, input.statusId))
+        throw bizError('VALIDATION', '订单状态不存在');
+      patch.statusId = input.statusId ?? null;
     }
     if (input.typeId !== undefined) patch.typeId = input.typeId;
     if (input.paymentMethodId !== undefined) patch.paymentMethodId = input.paymentMethodId;
-    if (input.currencyId !== undefined) {
-      patch.currencyId = input.currencyId ?? null;
-      patch.exchangeRate = input.currencyId != null ? (getRate(db, input.currencyId)?.rate ?? 1) : null;
-    }
-    if (input.owner !== undefined) patch.owner = input.owner;
     if (input.isKey !== undefined) patch.isKey = input.isKey;
     if (input.remark !== undefined) patch.remark = input.remark;
     if (input.orderNo !== undefined && input.orderNo && input.orderNo.trim()) {
@@ -169,6 +173,10 @@ export const orderService = {
         .get(no, id) as { id: number } | undefined;
       if (dup) throw bizError('ORDER_NO_DUPLICATE');
       patch.orderNo = no;
+    }
+    if (input.wechatGroupIds !== undefined) {
+      const cid = input.customerId ?? existing.customerId;
+      validateGroupIds(db, cid, input.wechatGroupIds);
     }
 
     withTransaction(db, () => {
@@ -195,6 +203,9 @@ export const orderService = {
         patch.amountManual = amountManual;
       }
       updateOrder(db, id, patch);
+      if (input.wechatGroupIds !== undefined) {
+        setOrderGroups(db, id, input.wechatGroupIds);
+      }
     });
   },
 
@@ -206,7 +217,7 @@ export const orderService = {
     updateOrder(db, id, { totalAmount: auto, amountManual: false });
   },
 
-  /** 删除订单：级联明细/节点/跟进/附件记录；返回附件文件路径由上层清理 */
+  /** 删除订单：级联明细/节点/跟进/附件/微信群关联；返回附件文件路径由上层清理 */
   delete(db: DatabaseSync, id: number): { attachmentPaths: string[] } {
     if (!getOrder(db, id)) throw bizError('ORDER_NOT_FOUND');
     const paths = attachmentPathsByOrder(db, id);
@@ -219,17 +230,22 @@ export const orderService = {
   get(db: DatabaseSync, id: number): OrderDetail {
     const o = getOrder(db, id);
     if (!o) throw bizError('ORDER_NOT_FOUND');
-    return { ...o, items: listItems(db, id), nodes: listNodesByOrder(db, id) };
+    return {
+      ...o,
+      items: listItems(db, id),
+      nodes: listNodesByOrder(db, id),
+      wechatGroups: listGroupsByOrder(db, id),
+    };
   },
 
   list(db: DatabaseSync, filter: OrderFilter): Page<OrderListRow> {
     return listOrders(db, filter);
   },
 
-  /** 订单详情用：状态是否终态（自动完结联动判断） */
+  /** 订单详情用：状态是否终态（未填写视为未结束） */
   isTerminal(db: DatabaseSync, id: number): boolean {
     const o = getOrder(db, id);
     if (!o) throw bizError('ORDER_NOT_FOUND');
-    return !!getStatus(db, o.statusId)?.isTerminal;
+    return o.statusId != null ? !!getStatus(db, o.statusId)?.isTerminal : false;
   },
 };

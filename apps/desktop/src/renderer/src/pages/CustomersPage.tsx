@@ -78,12 +78,7 @@ export function CustomersPage(): JSX.Element {
       name: row.name,
       shortName: row.shortName,
       typeId: row.typeId,
-      contact: row.contact,
-      phone: row.phone,
-      email: row.email,
       address: row.address,
-      salesOwner: row.salesOwner,
-      cooperationStart: row.cooperationStart,
       isKey: row.isKey,
       remark: row.remark,
     });
@@ -186,8 +181,7 @@ export function CustomersPage(): JSX.Element {
             ),
           },
           { title: '客户类型', dataIndex: 'typeName', width: 100 },
-          { title: '联系人', dataIndex: 'contact', width: 100 },
-          { title: '联系电话', dataIndex: 'phone', width: 130 },
+          { title: '微信群数', dataIndex: 'wechatGroupCount', width: 90, align: 'center' as const },
           { title: '订单总数', dataIndex: 'orderCount', width: 90, align: 'center' as const },
           { title: '跟进中订单数', dataIndex: 'activeOrderCount', width: 120, align: 'center' as const },
           {
@@ -225,25 +219,10 @@ export function CustomersPage(): JSX.Element {
           <Form.Item name="shortName" label="客户简称">
             <Input />
           </Form.Item>
-          <Form.Item name="typeId" label="客户类型" rules={[{ required: true, message: '请选择客户类型' }]}>
-            <Select options={types.map((t) => ({ value: t.id, label: t.name }))} />
-          </Form.Item>
-          <Form.Item name="contact" label="联系人" rules={[{ required: true, message: '请输入联系人' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="phone" label="联系电话" rules={[{ required: true, message: '请输入联系电话' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="email" label="邮箱">
-            <Input />
+          <Form.Item name="typeId" label="客户类型">
+            <Select allowClear options={types.map((t) => ({ value: t.id, label: t.name }))} />
           </Form.Item>
           <Form.Item name="address" label="地址">
-            <Input />
-          </Form.Item>
-          <Form.Item name="salesOwner" label="负责业务员">
-            <Input />
-          </Form.Item>
-          <Form.Item name="cooperationStart" label="合作起始日期" extra="格式 YYYY-MM-DD">
             <Input />
           </Form.Item>
           <Form.Item name="isKey" label="重点客户" valuePropName="checked">
@@ -252,6 +231,7 @@ export function CustomersPage(): JSX.Element {
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} />
           </Form.Item>
+          <div style={{ color: '#999' }}>微信群及群成员请在客户详情页维护。</div>
         </Form>
       </Modal>
     </Card>

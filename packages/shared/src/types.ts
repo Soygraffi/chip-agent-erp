@@ -5,7 +5,6 @@ export const DICT_CATEGORIES: DictCategory[] = [
   'customer_type',
   'order_type',
   'payment_method',
-  'currency',
 ];
 
 /** 节点状态（代码内固定枚举，不可配置） */
@@ -75,18 +74,14 @@ export interface NodeTemplate {
   remark: string | null;
 }
 
+/** 客户（V1.2：移除联系人/电话/邮箱/负责业务员/合作起始日期） */
 export interface Customer {
   id: number;
   name: string;
   nameNorm: string;
   shortName: string | null;
   typeId: number | null;
-  contact: string;
-  phone: string;
-  email: string | null;
   address: string | null;
-  salesOwner: string | null;
-  cooperationStart: string | null;
   isKey: boolean;
   remark: string | null;
   deletedAt: string | null;
@@ -94,21 +89,41 @@ export interface Customer {
   updatedAt: string;
 }
 
+/** 客户微信群（同一客户可有多个群：商务交流群、研发交流群…） */
+export interface WechatGroup {
+  id: number;
+  customerId: number;
+  name: string;
+  remark: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
+/** 微信群成员：群内微信号 → 真实姓名 / 岗位 */
+export interface WechatMember {
+  id: number;
+  groupId: number;
+  wechatId: string;
+  realName: string | null;
+  position: string | null;
+  remark: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
+/** 订单（V1.2：日期/类型/状态可选；移除币种/汇率/负责人） */
 export interface Order {
   id: number;
   orderNo: string;
   customerId: number;
-  orderDate: string;
+  orderDate: string | null;
   typeId: number | null;
-  statusId: number;
+  statusId: number | null;
   expectedDeliveryDate: string | null;
   actualDeliveryDate: string | null;
-  currencyId: number | null;
-  exchangeRate: number | null;
   totalAmount: number | null;
   amountManual: boolean;
   paymentMethodId: number | null;
-  owner: string | null;
   isKey: boolean;
   remark: string | null;
   createdAt: string;
@@ -138,7 +153,6 @@ export interface OrderNode {
   status: NodeStatus;
   planTime: string | null;
   actualTime: string | null;
-  owner: string | null;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -160,13 +174,23 @@ export interface NodeAttachment {
   createdAt: string;
 }
 
+/** 订单文档（PDF / Word / 图片） */
+export interface OrderAttachment {
+  id: number;
+  orderId: number;
+  originalName: string;
+  storedPath: string;
+  size: number;
+  createdAt: string;
+}
+
 export interface CurrencyRate {
   currencyId: number;
   rate: number;
   updatedAt: string;
 }
 
-/** 列表视图的订单行（含关联展示字段） */
+/** 列表视图的订单行（含关联展示字段；状态为空时显示“未填写”） */
 export interface OrderListRow extends Order {
   customerName: string;
   customerDeleted: boolean;
@@ -174,7 +198,6 @@ export interface OrderListRow extends Order {
   statusName: string;
   statusColor: string;
   statusIsTerminal: boolean;
-  currencyName: string | null;
   daysOverdue: number; // 0=未逾期
 }
 
@@ -182,6 +205,7 @@ export interface CustomerListRow extends Customer {
   typeName: string | null;
   orderCount: number;
   activeOrderCount: number;
+  wechatGroupCount: number;
 }
 
 export interface ReminderItem {
@@ -206,7 +230,7 @@ export interface DashboardStats {
   customerCount: number;
   activeOrderCount: number;
   monthNewOrderCount: number;
-  monthTotalCny: number;
+  monthTotalAmount: number;
   pendingShipCount: number;
   overdueOrderCount: number;
   keyOrderCount: number;

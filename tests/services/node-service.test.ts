@@ -72,10 +72,9 @@ describe('节点服务与状态机（PRD 4.4.2 / 5.2）', () => {
   it('计划时间格式校验与字段更新', () => {
     const n = orderService.get(db, orderId).nodes[0];
     expect(() => nodeService.updateFields(db, n.id, { planTime: '2026/10/30' })).toThrowError(/计划完成时间格式不正确/);
-    nodeService.updateFields(db, n.id, { planTime: '2026-10-30', owner: '王五' });
+    nodeService.updateFields(db, n.id, { planTime: '2026-10-30' });
     const after = orderService.get(db, orderId).nodes[0];
     expect(after.planTime).toBe('2026-10-30');
-    expect(after.owner).toBe('王五');
     expect(after.status).toBe('pending'); // updateFields 不触发状态机
   });
 

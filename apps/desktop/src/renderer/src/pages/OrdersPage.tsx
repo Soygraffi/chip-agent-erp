@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -9,7 +9,6 @@ import {
   Space,
   Table,
   Tag,
-  Tooltip,
   message,
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
@@ -197,15 +196,16 @@ export function OrdersPage(): JSX.Element {
             width: 130,
             align: 'right',
             sorter: true,
-            render: (v: number | null, r) => (
-              <Tooltip title={`折人民币 ${((v ?? 0) * (r.exchangeRate ?? 1)).toFixed(2)}`}>
-                <span>{v ?? 0}</span>
-              </Tooltip>
-            ),
+            render: (v: number | null) => (v ?? 0).toFixed(2),
           },
-          { title: '订单日期', dataIndex: 'orderDate', width: 110, sorter: true },
+          {
+            title: '订单日期',
+            dataIndex: 'orderDate',
+            width: 110,
+            sorter: true,
+            render: (v: string | null) => v ?? '未填写',
+          },
           { title: '预计交期', dataIndex: 'expectedDeliveryDate', width: 110, sorter: true },
-          { title: '负责人', dataIndex: 'owner', width: 100 },
           {
             title: '操作',
             width: 150,

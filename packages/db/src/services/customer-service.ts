@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Customer, CustomerListRow, Page } from '@erp/shared';
-import { bizError, isValidDateStr, todayStr } from '@erp/shared';
+import { bizError, todayStr } from '@erp/shared';
 import {
   activeNameNorms,
   customerOrderCounts,
@@ -12,41 +12,23 @@ import {
   softDeleteCustomer,
   updateCustomer,
 } from '../repos/customer-repo.js';
+import { listGroups } from '../repos/wechat-repo.js';
 import { normalizeName } from '@erp/domain';
 
 export interface CustomerCreateInput {
   name: string;
   shortName?: string | null;
   typeId?: number | null;
-  contact: string;
-  phone: string;
-  email?: string | null;
   address?: string | null;
-  salesOwner?: string | null;
-  cooperationStart?: string | null;
   isKey?: boolean;
   remark?: string | null;
 }
 
 export type CustomerUpdateInput = Partial<CustomerCreateInput>;
 
-function validate(input: CustomerCreateInput): string | null {
-  if (!input.name || !input.name.trim()) return '客户全称不能为空';
-  if (!input.contact || !input.contact.trim()) return '联系人不能为空';
-  if (!input.phone || !input.phone.trim()) return '联系电话不能为空';
-  if (
-    input.cooperationStart != null &&
-    input.cooperationStart !== '' &&
-    !isValidDateStr(input.cooperationStart)
-  )
-    return '合作起始日期格式不正确';
-  return null;
-}
-
 export const customerService = {
   create(db: DatabaseSync, input: CustomerCreateInput): number {
-    const err = validate(input);
-    if (err) throw bizError('VALIDATION', err);
+    if (!input.name || !input.name.trim()) throw bizError('VALIDATION', '客户全称不能为空');
     const name = input.name.trim();
     const norm = normalizeName(name);
     if (findActiveCustomerIdByNorm(db, norm) != null) throw bizError('CUSTOMER_DUPLICATE');
@@ -56,14 +38,8 @@ export const customerService = {
   update(db: DatabaseSync, id: number, input: CustomerUpdateInput): void {
     const existing = getCustomer(db, id);
     if (!existing) throw bizError('CUSTOMER_NOT_FOUND');
-    const merged: CustomerCreateInput = {
-      name: existing.name,
-      contact: existing.contact,
-      phone: existing.phone,
-      ...input,
-    };
-    const err = validate(merged);
-    if (err) throw bizError('VALIDATION', err);
+    if (input.name !== undefined && (!input.name || !input.name.trim()))
+      throw bizError('VALIDATION', '客户全称不能为空');
     const patch: Record<string, unknown> = { ...input };
     if (input.name !== undefined) {
       const norm = normalizeName(input.name.trim());
@@ -110,5 +86,10 @@ export const customerService = {
 
   existingNorms(db: DatabaseSync): Set<string> {
     return activeNameNorms(db);
+  },
+
+  /** 客户的微信群 */
+  wechatGroups(db: DatabaseSync, customerId: number) {
+    return listGroups(db, customerId);
   },
 };

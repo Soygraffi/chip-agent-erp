@@ -209,7 +209,120 @@ INSERT INTO setting (key, value) VALUES
   ('backup_dir', '');
 `;
 
+/**
+ * V1.2：客户精简（去掉联系人/电话/邮箱/负责业务员/合作起始日期）；
+ * 客户微信群 + 成员；订单文档；订单日期/状态可选；去掉币种/汇率/负责人。
+ */
+const V12 = `
+CREATE TABLE customer_wechat_group (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id INTEGER NOT NULL REFERENCES customer(id) ON DELETE CASCADE,
+  name        TEXT    NOT NULL,
+  remark      TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_wechat_group_customer ON customer_wechat_group(customer_id);
+
+CREATE TABLE wechat_member (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id   INTEGER NOT NULL REFERENCES customer_wechat_group(id) ON DELETE CASCADE,
+  wechat_id  TEXT    NOT NULL,
+  real_name  TEXT,
+  position   TEXT,
+  remark     TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_wechat_member_group ON wechat_member(group_id);
+
+CREATE TABLE order_attachment (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id      INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  original_name TEXT    NOT NULL,
+  stored_path   TEXT    NOT NULL,
+  size          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_order_attachment_order ON order_attachment(order_id);
+
+CREATE TABLE order_wechat_group (
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  group_id INTEGER NOT NULL REFERENCES customer_wechat_group(id) ON DELETE CASCADE,
+  PRIMARY KEY (order_id, group_id)
+);
+
+CREATE TABLE customer_new (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT    NOT NULL,
+  name_norm   TEXT    NOT NULL,
+  short_name  TEXT,
+  type_id     INTEGER REFERENCES dict_item(id),
+  address     TEXT,
+  is_key      INTEGER NOT NULL DEFAULT 0,
+  remark      TEXT,
+  deleted_at  TEXT,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT INTO customer_new (id, name, name_norm, short_name, type_id, address, is_key, remark, deleted_at, created_at, updated_at)
+  SELECT id, name, name_norm, short_name, type_id, address, is_key, remark, deleted_at, created_at, updated_at FROM customer;
+DROP TABLE customer;
+ALTER TABLE customer_new RENAME TO customer;
+CREATE UNIQUE INDEX ux_customer_name ON customer(name_norm) WHERE deleted_at IS NULL;
+CREATE INDEX idx_customer_type    ON customer(type_id);
+CREATE INDEX idx_customer_deleted ON customer(deleted_at);
+
+CREATE TABLE orders_new (
+  id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_no               TEXT    NOT NULL UNIQUE,
+  customer_id            INTEGER NOT NULL REFERENCES customer(id),
+  order_date             TEXT,
+  type_id                INTEGER REFERENCES dict_item(id),
+  status_id              INTEGER REFERENCES order_status(id),
+  expected_delivery_date TEXT,
+  actual_delivery_date   TEXT,
+  total_amount           REAL,
+  amount_manual          INTEGER NOT NULL DEFAULT 0,
+  payment_method_id      INTEGER REFERENCES dict_item(id),
+  is_key                 INTEGER NOT NULL DEFAULT 0,
+  remark                 TEXT,
+  created_at             TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at             TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT INTO orders_new (id, order_no, customer_id, order_date, type_id, status_id, expected_delivery_date, actual_delivery_date, total_amount, amount_manual, payment_method_id, is_key, remark, created_at, updated_at)
+  SELECT id, order_no, customer_id, order_date, type_id, status_id, expected_delivery_date, actual_delivery_date, total_amount, amount_manual, payment_method_id, is_key, remark, created_at, updated_at FROM orders;
+DROP TABLE orders;
+ALTER TABLE orders_new RENAME TO orders;
+CREATE INDEX idx_orders_customer ON orders(customer_id);
+CREATE INDEX idx_orders_status   ON orders(status_id);
+CREATE INDEX idx_orders_date     ON orders(order_date);
+CREATE INDEX idx_orders_delivery ON orders(expected_delivery_date);
+
+CREATE TABLE order_node_new (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id    INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  template_id INTEGER REFERENCES node_template(id),
+  name        TEXT    NOT NULL,
+  status      TEXT    NOT NULL DEFAULT 'pending'
+              CHECK (status IN ('pending','in_progress','done','delayed')),
+  plan_time   TEXT,
+  actual_time TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT INTO order_node_new (id, order_id, template_id, name, status, plan_time, actual_time, sort_order, created_at, updated_at)
+  SELECT id, order_id, template_id, name, status, plan_time, actual_time, sort_order, created_at, updated_at FROM order_node;
+DROP TABLE order_node;
+ALTER TABLE order_node_new RENAME TO order_node;
+CREATE INDEX idx_node_order ON order_node(order_id, sort_order);
+CREATE INDEX idx_node_plan  ON order_node(plan_time) WHERE status IN ('pending','in_progress','delayed');
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
+  { version: 3, name: 'v1.2 customer wechat & optional order fields', sql: V12 },
 ];
+

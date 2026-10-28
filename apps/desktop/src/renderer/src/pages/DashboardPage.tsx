@@ -86,7 +86,7 @@ export function DashboardPage(): JSX.Element {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="本月订单总金额（¥）" value={stats?.monthTotalCny ?? 0} precision={2} loading={loading} />
+            <Statistic title="本月订单总金额（¥）" value={stats?.monthTotalAmount ?? 0} precision={2} loading={loading} />
           </Card>
         </Col>
         <Col span={6}>

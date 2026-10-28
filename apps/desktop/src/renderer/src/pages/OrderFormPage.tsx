@@ -11,13 +11,14 @@ import {
   Select,
   Space,
   Table,
+  Tag,
   message,
 } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
-import type { OrderDetail } from '../models';
+import type { OrderDetail, WechatGroup } from '../models';
 
 interface OptionItem {
   id: number;
@@ -47,7 +48,8 @@ export function OrderFormPage(): JSX.Element {
   const [customers, setCustomers] = useState<OptionItem[]>([]);
   const [statuses, setStatuses] = useState<OptionItem[]>([]);
   const [types, setTypes] = useState<OptionItem[]>([]);
-  const [currencies, setCurrencies] = useState<OptionItem[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<OptionItem[]>([]);
+  const [groups, setGroups] = useState<WechatGroup[]>([]);
   const [items, setItems] = useState<ItemRow[]>([{ key: 0, chipModel: '', brand: null, packageSpec: null, qty: 1, unitPrice: null, customerPn: null, remark: null }]);
   const [manual, setManual] = useState(false);
   const [manualAmount, setManualAmount] = useState<number | null>(null);
@@ -58,7 +60,7 @@ export function OrderFormPage(): JSX.Element {
     void api.customers.options().then((r) => setCustomers(r as OptionItem[]));
     void api.statuses.list().then((r) => setStatuses(r as OptionItem[]));
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
-    void api.dicts.list('currency').then((r) => setCurrencies(r as OptionItem[]));
+    void api.dicts.list('payment_method').then((r) => setPaymentMethods(r as OptionItem[]));
   }, []);
 
   useEffect(() => {
@@ -68,16 +70,15 @@ export function OrderFormPage(): JSX.Element {
         form.setFieldsValue({
           orderNo: detail.orderNo,
           customerId: detail.customerId,
-          orderDate: dayjs(detail.orderDate),
+          orderDate: detail.orderDate ? dayjs(detail.orderDate) : null,
           typeId: detail.typeId,
           statusId: detail.statusId,
           expectedDeliveryDate: detail.expectedDeliveryDate ? dayjs(detail.expectedDeliveryDate) : null,
           actualDeliveryDate: detail.actualDeliveryDate ? dayjs(detail.actualDeliveryDate) : null,
-          currencyId: detail.currencyId,
           paymentMethodId: detail.paymentMethodId,
-          owner: detail.owner,
           isKey: detail.isKey,
           remark: detail.remark,
+          wechatGroupIds: detail.wechatGroups.map((g) => g.id),
         });
         setItems(
           detail.items.map((it, i) => ({
@@ -93,11 +94,19 @@ export function OrderFormPage(): JSX.Element {
         );
         setManual(detail.amountManual);
         setManualAmount(detail.totalAmount);
+        void api.wechat.listGroups(detail.customerId).then((r) => setGroups(r as WechatGroup[]));
       });
     } else if (params.get('customerId')) {
-      form.setFieldsValue({ customerId: Number(params.get('customerId')) });
+      const cid = Number(params.get('customerId'));
+      form.setFieldsValue({ customerId: cid });
+      void api.wechat.listGroups(cid).then((r) => setGroups(r as WechatGroup[]));
     }
   }, [id, isEdit, form, params]);
+
+  const onCustomerChange = (cid: number): void => {
+    form.setFieldsValue({ wechatGroupIds: undefined });
+    void api.wechat.listGroups(cid).then((r) => setGroups(r as WechatGroup[]));
+  };
 
   const autoTotal = useMemo(
     () => round2(items.reduce((acc, it) => acc + it.qty * (it.unitPrice ?? 0), 0)),
@@ -114,19 +123,18 @@ export function OrderFormPage(): JSX.Element {
     try {
       const payload = {
         customerId: values.customerId,
-        orderDate: (values.orderDate as dayjs.Dayjs).format('YYYY-MM-DD'),
+        orderDate: values.orderDate ? (values.orderDate as dayjs.Dayjs).format('YYYY-MM-DD') : null,
         typeId: values.typeId ?? null,
-        statusId: values.statusId,
+        statusId: values.statusId ?? null,
         expectedDeliveryDate: values.expectedDeliveryDate ? (values.expectedDeliveryDate as dayjs.Dayjs).format('YYYY-MM-DD') : null,
         actualDeliveryDate: values.actualDeliveryDate ? (values.actualDeliveryDate as dayjs.Dayjs).format('YYYY-MM-DD') : null,
-        currencyId: values.currencyId ?? null,
         paymentMethodId: values.paymentMethodId ?? null,
-        owner: values.owner ?? null,
         isKey: !!values.isKey,
         remark: values.remark ?? null,
         orderNo: values.orderNo || null,
         amountManual: manual,
         totalAmount: manual ? manualAmount : null,
+        wechatGroupIds: (values.wechatGroupIds as number[] | undefined) ?? [],
         items: items
           .filter((it) => it.chipModel.trim() !== '')
           .map((it) => ({
@@ -215,19 +223,19 @@ export function OrderFormPage(): JSX.Element {
       <Form form={form} layout="vertical">
         <Space size={24} align="start" wrap style={{ display: 'flex' }}>
           <Form.Item name="customerId" label="所属客户" rules={[{ required: true, message: '请选择客户' }]}>
-            <Select showSearch optionFilterProp="label" style={{ width: 260 }} placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+            <Select showSearch optionFilterProp="label" style={{ width: 260 }} placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} onChange={(v) => onCustomerChange(v)} />
           </Form.Item>
           <Form.Item name="orderNo" label="订单编号" extra="留空自动生成（如 XS202610280001）">
             <Input style={{ width: 200 }} placeholder="留空自动生成" />
           </Form.Item>
-          <Form.Item name="orderDate" label="订单日期" rules={[{ required: true, message: '请选择订单日期' }]}>
+          <Form.Item name="orderDate" label="订单日期" extra="可不填">
             <DatePicker style={{ width: 160 }} />
           </Form.Item>
-          <Form.Item name="typeId" label="订单类型" rules={[{ required: true, message: '请选择订单类型' }]}>
-            <Select style={{ width: 140 }} options={types.map((t) => ({ value: t.id, label: t.name }))} />
+          <Form.Item name="typeId" label="订单类型" extra="可不填">
+            <Select allowClear style={{ width: 140 }} options={types.map((t) => ({ value: t.id, label: t.name }))} />
           </Form.Item>
-          <Form.Item name="statusId" label="订单状态" rules={[{ required: true, message: '请选择订单状态' }]}>
-            <Select style={{ width: 130 }} options={statuses.map((s) => ({ value: s.id, label: s.name }))} />
+          <Form.Item name="statusId" label="订单状态" extra="可不填">
+            <Select allowClear style={{ width: 130 }} options={statuses.map((s) => ({ value: s.id, label: s.name }))} />
           </Form.Item>
           <Form.Item name="expectedDeliveryDate" label="预计交货日期">
             <DatePicker style={{ width: 160 }} />
@@ -235,14 +243,19 @@ export function OrderFormPage(): JSX.Element {
           <Form.Item name="actualDeliveryDate" label="实际交货日期">
             <DatePicker style={{ width: 160 }} />
           </Form.Item>
-          <Form.Item name="currencyId" label="币种">
-            <Select style={{ width: 140 }} options={currencies.map((c) => ({ value: c.id, label: c.name }))} />
-          </Form.Item>
-          <Form.Item name="owner" label="负责人">
-            <Input style={{ width: 140 }} />
+          <Form.Item name="paymentMethodId" label="付款方式">
+            <Select allowClear style={{ width: 140 }} options={paymentMethods.map((p) => ({ value: p.id, label: p.name }))} />
           </Form.Item>
           <Form.Item name="isKey" label="重点跟进" valuePropName="checked">
             <Checkbox />
+          </Form.Item>
+          <Form.Item name="wechatGroupIds" label="沟通微信群" style={{ width: 320 }} extra="从该客户的微信群中选择，可多选">
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder={groups.length === 0 ? '该客户还没有微信群' : '选择沟通的微信群'}
+              options={groups.map((g) => ({ value: g.id, label: g.name }))}
+            />
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input style={{ width: 220 }} />

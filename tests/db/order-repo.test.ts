@@ -11,11 +11,17 @@ import {
   listItems,
   replaceItems,
   getAllOrderNos,
+  listGroupsByOrder,
+  setOrderGroups,
+  listOrderAttachments,
+  addOrderAttachment,
+  orderAttachmentPaths,
 } from '@erp/db';
 import {
   createTestDb,
   seedCustomer,
   seedOrder,
+  seedWechatGroup,
   statusByName,
   dictIdByName,
 } from './helpers.ts';
@@ -28,29 +34,26 @@ describe('订单仓储', () => {
     db = createTestDb();
   });
 
-  it('新增与读取（汇率快照、手改标记）', () => {
+  it('新增与读取（日期/状态可空、金额、手改标记）', () => {
     const cid = seedCustomer(db);
-    const usd = dictIdByName(db, 'currency', '美元 USD');
     const id = insertOrder(db, {
       orderNo: 'XS202610280001',
       customerId: cid,
-      orderDate: '2026-10-28',
+      orderDate: null,
       typeId: dictIdByName(db, 'order_type', '批量订单'),
-      statusId: statusByName(db, '进行中'),
+      statusId: null,
       expectedDeliveryDate: '2026-11-10',
       actualDeliveryDate: null,
-      currencyId: usd,
-      exchangeRate: 7.2,
       totalAmount: 100,
       amountManual: true,
       paymentMethodId: null,
-      owner: 'pengh',
       isKey: true,
       remark: null,
     });
     const o = getOrder(db, id)!;
     expect(o.orderNo).toBe('XS202610280001');
-    expect(o.exchangeRate).toBe(7.2);
+    expect(o.orderDate).toBeNull();
+    expect(o.statusId).toBeNull();
     expect(o.amountManual).toBe(true);
     expect(o.isKey).toBe(true);
   });
@@ -116,6 +119,19 @@ describe('订单仓储', () => {
     expect(days[0]).toBe(27);
   });
 
+  it('状态未填写：显示“未填写”且视为非终态', () => {
+    const cid = seedCustomer(db);
+    const oid = seedOrder(db, { customerId: cid, statusId: null, expectedDeliveryDate: '2026-10-01' });
+    const rows = listOrders(db, { page: 1, pageSize: 10, today: TODAY }).rows;
+    const row = rows.find((r) => r.id === oid)!;
+    expect(row.statusName).toBe('未填写');
+    expect(row.statusColor).toBe('#BFBFBF');
+    expect(row.statusIsTerminal).toBe(false);
+    expect(row.daysOverdue).toBe(27); // 未填写状态仍参与逾期判断
+    const overdue = listOrders(db, { onlyOverdue: true, page: 1, pageSize: 10, today: TODAY });
+    expect(overdue.total).toBe(1);
+  });
+
   it('排序：按订单日期、金额、预计交期升降序', () => {
     const cid = seedCustomer(db);
     seedOrder(db, { customerId: cid, orderNo: 'A1', orderDate: '2026-10-01', totalAmount: 100, expectedDeliveryDate: '2026-11-01' });
@@ -175,9 +191,38 @@ describe('订单仓储', () => {
     expect(getAllOrderNos(db).sort()).toEqual(['NO1', 'NO2']);
     expect(setStatus(db, oid, statusByName(db, '已发货'))).toBe(true);
     expect(getOrder(db, oid)!.statusId).toBe(statusByName(db, '已发货'));
-    expect(updateOrder(db, oid, { owner: '张三', isKey: true })).toBe(true);
+    expect(updateOrder(db, oid, { remark: '新备注', isKey: true })).toBe(true);
     const o = getOrder(db, oid)!;
-    expect(o.owner).toBe('张三');
+    expect(o.remark).toBe('新备注');
     expect(o.isKey).toBe(true);
+  });
+
+  it('订单关联微信群（设置/读取/删除级联）', () => {
+    const cid = seedCustomer(db);
+    const g1 = seedWechatGroup(db, cid, '商务交流群');
+    const g2 = seedWechatGroup(db, cid, '研发交流群');
+    const oid = seedOrder(db, { customerId: cid });
+    setOrderGroups(db, oid, [g1, g2]);
+    const groups = listGroupsByOrder(db, oid);
+    expect(groups.map((g) => g.name)).toEqual(['商务交流群', '研发交流群']);
+    // 覆盖式设置
+    setOrderGroups(db, oid, [g2]);
+    expect(listGroupsByOrder(db, oid)).toHaveLength(1);
+    // 删除订单后关联清空
+    deleteOrder(db, oid);
+    expect(listGroupsByOrder(db, oid)).toHaveLength(0);
+  });
+
+  it('订单文档：添加/读取/路径收集/删除级联', () => {
+    const cid = seedCustomer(db);
+    const oid = seedOrder(db, { customerId: cid });
+    addOrderAttachment(db, { orderId: oid, originalName: '合同.pdf', storedPath: 'attachments/1/order/a.pdf', size: 10 });
+    addOrderAttachment(db, { orderId: oid, originalName: '图片.png', storedPath: 'attachments/1/order/b.png', size: 20 });
+    const docs = listOrderAttachments(db, oid);
+    expect(docs).toHaveLength(2);
+    expect(docs[0].originalName).toBe('合同.pdf');
+    expect(orderAttachmentPaths(db, oid).sort()).toEqual(['attachments/1/order/a.pdf', 'attachments/1/order/b.png']);
+    deleteOrder(db, oid);
+    expect(listOrderAttachments(db, oid)).toHaveLength(0);
   });
 });

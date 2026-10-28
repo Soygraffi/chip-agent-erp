@@ -99,7 +99,6 @@ describe('进度节点仓储', () => {
       status: 'pending',
       planTime: null,
       actualTime: null,
-      owner: null,
       sortOrder: 99,
     });
     const nodes = listNodesByOrder(db, orderId);
