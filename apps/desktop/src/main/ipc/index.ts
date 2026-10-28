@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
+﻿import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -23,6 +23,7 @@ import {
   type OrderFilter,
 } from '@erp/db';
 import type { AppContext } from '../bootstrap';
+import { logRendererError } from '../logger';
 import { migrateDataDir, effectiveBackupsDir, dataDirSize } from '../migrate-dir';
 import {
   storeAttachment,
@@ -97,6 +98,11 @@ const changed = (): void => notifyDataChanged();
 
 export function registerIpc(ctxRef: { ctx: AppContext }): void {
   const db = (): AppContext['db'] => ctxRef.ctx.db;
+
+  ipcMain.handle('system:logError', (_e, message: string) => {
+    logRendererError(String(message ?? ''));
+    return { ok: true };
+  });
 
   ipcMain.handle('health', () => ({
     ok: true,

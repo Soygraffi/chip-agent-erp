@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from 'electron';
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { initApp, type AppContext } from './bootstrap';
 import { registerIpc } from './ipc/index';
@@ -7,9 +8,35 @@ import { registerIpc } from './ipc/index';
 //（0x80000003 / LiveKernelEvent 141）导致整个应用退出，改用软件渲染稳定可靠。
 app.disableHardwareAcceleration();
 
-// 启动诊断日志（写入 stdout/stderr，启动脚本会捕获）
+// 启动诊断日志（stdout + 文件，便于用户回报问题）
+function logFile(): string {
+  const dir = join(app.getPath('userData'), 'logs');
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    /* ignore */
+  }
+  return join(dir, 'main.log');
+}
+
 function log(...args: unknown[]): void {
-  console.log('[main]', new Date().toISOString().slice(11, 19), ...args);
+  const line = `[main] ${new Date().toISOString()} ${args
+    .map((a) => (typeof a === 'string' ? a : safeJson(a)))
+    .join(' ')}`;
+  console.log(line);
+  try {
+    appendFileSync(logFile(), `${line}\n`);
+  } catch {
+    /* ignore */
+  }
+}
+
+function safeJson(v: unknown): string {
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
 }
 
 const ctxRef: { ctx: AppContext | null } = { ctx: null };
@@ -41,6 +68,9 @@ function createWindow(): void {
   win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
     log('renderer-console', level, message, `${sourceId}:${line}`);
   });
+  // 渲染层主动上报的未捕获异常（配合 renderer ErrorBoundary）
+  win.webContents.on('unresponsive', () => log('renderer-unresponsive'));
+  win.webContents.on('devtools-opened', () => log('devtools-opened'));
   win.once('ready-to-show', () => {
     log('ready-to-show -> show window');
     win.show();

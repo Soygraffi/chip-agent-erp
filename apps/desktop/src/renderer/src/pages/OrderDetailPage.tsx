@@ -81,6 +81,18 @@ export function OrderDetailPage(): JSX.Element {
     void load();
   }, [load]);
 
+  // 注意：所有 Hook 必须在提前 return 之前调用，否则 Hook 数量变化会导致整页崩溃（V1.6.1 修复）
+  useEffect(() => {
+    if (!nodeModal) return;
+    if (nodeModal.mode === 'edit' && nodeModal.node) {
+      form.setFieldsValue({ name: nodeModal.node.name });
+      setStatusValue(nodeModal.node.status);
+    } else {
+      form.resetFields();
+      setStatusValue('pending');
+    }
+  }, [nodeModal, form]);
+
   if (!detail) {
     return <Card loading={loading} />;
   }
@@ -97,18 +109,6 @@ export function OrderDetailPage(): JSX.Element {
   const openNodeModal = (mode: 'edit' | 'create', node: OrderNode | null): void => {
     setNodeModal({ mode, node });
   };
-
-  // 弹窗内容挂载后再写入表单值，避免 destroyOnClose 时设置无效（V1.6 修复“第一个节点选不了状态”）
-  useEffect(() => {
-    if (!nodeModal) return;
-    if (nodeModal.mode === 'edit' && nodeModal.node) {
-      form.setFieldsValue({ name: nodeModal.node.name });
-      setStatusValue(nodeModal.node.status);
-    } else {
-      form.resetFields();
-      setStatusValue('pending');
-    }
-  }, [nodeModal, form]);
 
   /** 订单状态与时间轴联动：当前（第一个未完成）节点 */
   const deriveStatus = (): { label: string; color: string } => {

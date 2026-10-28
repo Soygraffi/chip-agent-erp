@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd';
 import type { MenuProps } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
@@ -15,6 +15,7 @@ import { WechatGroupsPage } from './pages/WechatGroupsPage';
 import { ToolsPage } from './pages/ToolsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReminderBell, StartupReminderModal } from './components/Reminders';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { applyMenuOrder, MENU_ITEMS } from './menu';
 import { api } from './api';
 
@@ -85,12 +86,26 @@ export function App(): JSX.Element {
     void window.api.health().then((h) => {
       console.log('[app] health:', h);
     });
+    const onError = (e: ErrorEvent): void => {
+      void window.api.invoke('system:logError', `[window.error] ${e.message}\n${e.error?.stack ?? ''}`);
+    };
+    const onRejection = (e: PromiseRejectionEvent): void => {
+      void window.api.invoke('system:logError', `[unhandledrejection] ${String(e.reason)}`);
+    };
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
   }, []);
   return (
     <ConfigProvider locale={zhCN} theme={{ algorithm: theme.defaultAlgorithm }}>
-      <HashRouter>
-        <Shell />
-      </HashRouter>
+      <ErrorBoundary>
+        <HashRouter>
+          <Shell />
+        </HashRouter>
+      </ErrorBoundary>
     </ConfigProvider>
   );
 }
