@@ -9,4 +9,5 @@ export * from './repos/setting-repo.js';
 export * from './repos/stats-repo.js';
 export * from './repos/wechat-repo.js';
 export * from './repos/attachment-repo.js';
+export * from './repos/material-repo.js';
 export * from './services/index.js';

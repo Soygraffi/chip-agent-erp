@@ -1,8 +1,9 @@
-# 数据模型设计（V1.2 · 本地桌面版）
+# 数据模型设计（V1.3 · 本地桌面版）
 
-> 本文档是《PRD v1.1》与《PRD V1.2 变更说明》（`docs/PRD-v1.2-delta.md`）的技术配套文档，定义 SQLite 数据库的完整表结构、字典语义、种子数据、目录结构与关键算法。
+> 本文档是《PRD v1.1》与增量说明（`docs/PRD-v1.2-delta.md`、`docs/PRD-v1.3-delta.md`）的技术配套文档，定义 SQLite 数据库的完整表结构、字典语义、种子数据、目录结构与关键算法。
 >
-> **V1.2 变更**：移除客户联系人/电话/邮箱/负责业务员/合作起始日期；新增客户微信群与成员、订单文档、订单-微信群关联；订单日期/类型/状态可空；移除订单币种/汇率/负责人与节点负责人。迁移脚本见 `packages/db/src/migrations.ts`（version 3）。
+> **V1.2 变更**：移除客户联系人/电话/邮箱/负责业务员/合作起始日期；新增客户微信群与成员、订单文档、订单-微信群关联；订单日期/类型/状态可空；移除订单币种/汇率/负责人与节点负责人。
+> **V1.3 变更**：新增物料库（进货价/出货价/含税口径/税率）；订单明细增加物料编码/名称/进货价/含税口径；客户增加 Logo；新增报价单导出。迁移脚本见 `packages/db/src/migrations.ts`（version 3、4）。
 
 ## 一、实体关系（ER）
 
@@ -14,11 +15,14 @@ customer (客户) 1 ──── N orders (订单) 1 ──── N order_item (
   │                       │
   │                       ├──── N order_attachment (订单文档: PDF/Word/图片)
   │                       ├──── N order_wechat_group (沟通群关联) N ──── 1 customer_wechat_group
+  │                       ├──── N order_item.material_id ──── 1 material (物料库)
   │                       ├──── dict_item: order_type / payment_method
   │                       ├──── order_status (订单状态字典, 带终态语义；可为空)
   │                       └──── node_template (节点模板, 带语义码) ←─ order_node.template_id
   │
   └──── N customer_wechat_group (客户微信群) 1 ──── N wechat_member (群成员)
+
+material (物料库) 1 ──── N order_item (订单明细)
 
 currency_rate (汇率表，V1.2 起 UI 不再使用) 1 ──── 1 dict_item (category=currency)
 ```
@@ -95,6 +99,7 @@ CREATE TABLE customer (
   address           TEXT,
   is_key            INTEGER NOT NULL DEFAULT 0,  -- 重点客户
   remark            TEXT,
+  logo_path         TEXT,                   -- V1.3 客户 Logo 相对路径
   deleted_at        TEXT,                   -- 软删除时间；NULL=未删除
   created_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
@@ -169,22 +174,49 @@ CREATE TABLE order_wechat_group (
   PRIMARY KEY (order_id, group_id)
 );
 
--- 订单物料明细
+-- 物料库（V1.3）
+CREATE TABLE material (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  code               TEXT    NOT NULL,        -- 物料编码（唯一）
+  code_norm          TEXT    NOT NULL,        -- 归一化编码（判重依据）
+  name               TEXT    NOT NULL,        -- 物料名称
+  spec               TEXT,                    -- 料号规格
+  brand              TEXT,
+  purchase_price     REAL,                    -- 进货价
+  sale_price         REAL,                    -- 出货价（默认报价）
+  price_tax_included INTEGER NOT NULL DEFAULT 1, -- 1=价格含税
+  tax_rate           REAL    NOT NULL DEFAULT 13,
+  remark             TEXT,
+  is_active          INTEGER NOT NULL DEFAULT 1,
+  created_at         TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at         TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX ux_material_code ON material(code_norm);
+CREATE INDEX idx_material_active ON material(is_active);
+
+-- 订单物料明细（V1.3：物料库关联、进货价/出货价、含税口径）
 CREATE TABLE order_item (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id     INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  chip_model   TEXT    NOT NULL,           -- 芯片型号（必填）
-  brand        TEXT,
-  package_spec TEXT,                       -- 封装规格
-  qty          INTEGER NOT NULL DEFAULT 0, -- 需求数量（整数）
-  unit_price   REAL,                       -- 单价（4 位小数）
-  subtotal     REAL,                       -- 小计 = 数量×单价（2 位小数）
-  customer_pn  TEXT,                       -- 客户料号
-  remark       TEXT,
-  sort_order   INTEGER NOT NULL DEFAULT 0
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id           INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  material_id        INTEGER REFERENCES material(id),  -- 物料库关联（可空=手工录入）
+  material_code      TEXT,                   -- 物料编码（快照）
+  material_name      TEXT,                   -- 物料名称（快照）
+  chip_model         TEXT    NOT NULL,       -- 料号规格（如 GD32F407ZGT6）
+  brand              TEXT,
+  package_spec       TEXT,                   -- 封装规格（选填补充）
+  qty                INTEGER NOT NULL DEFAULT 0,
+  unit_price         REAL,                   -- 出货价（4 位小数）
+  purchase_price     REAL,                   -- 进货价（4 位小数）
+  price_tax_included INTEGER NOT NULL DEFAULT 1, -- 1=单价含税
+  tax_rate           REAL    NOT NULL DEFAULT 13, -- 税率 %
+  subtotal           REAL,                   -- 含税金额 = 数量 × 含税单价（2 位小数）
+  customer_pn        TEXT,
+  remark             TEXT,
+  sort_order         INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_item_order ON order_item(order_id);
 CREATE INDEX idx_item_model ON order_item(chip_model);
+CREATE INDEX idx_item_material ON order_item(material_id);
 
 -- 进度节点（V1.2：移除 owner）
 CREATE TABLE order_node (
@@ -341,6 +373,9 @@ INSERT INTO schema_meta (key, value) VALUES ('schema_version', '1');
 <数据目录>                          -- 默认 %APPDATA%\ChipAgentERP\data，可在设置中迁移
 ├── erp.db                          -- SQLite 主库（WAL 模式，附 -wal/-shm 文件）
 ├── attachments/
+│   ├── customer-logos/             -- V1.3 客户 Logo
+│   │   └── {customer_id}/
+│   │       └── {uuid}.png
 │   └── {order_id}/
 │       ├── order/                  -- V1.2 订单文档（PDF/Word/图片）
 │       │   └── {uuid}.{扩展名}
@@ -383,12 +418,14 @@ name_norm = lower(压缩内部连续空白(NFKC(trim(name))))
 唯一性由 order_no 唯一索引最终兜底。
 ```
 
-### 6.3 金额计算（V1.2：单币种，无汇率折算）
+### 6.3 金额计算（V1.3：含税/不含税口径）
 
 ```
-明细小计 subtotal = round(qty × unit_price, 2)          -- 数量整数、单价 4 位小数
-自动总金额 auto_total = round(SUM(subtotal), 2)         -- 无明细时为 0
+含税单价 = price_tax_included ? unit_price : round4(unit_price × (1 + tax_rate/100))
+明细金额 subtotal = round(qty × 含税单价, 2)              -- 数量整数、含税单价 4 位小数
+自动总金额 auto_total = round(SUM(subtotal), 2)           -- 无明细时为 0
 有效总金额 total_amount = amount_manual ? 手改值 : auto_total
+毛利 = round(qty × (含税出货价 − 含税进货价), 2)          -- 仅展示/导出，不落库
 ```
 
 ### 6.4 订单自动完结（单向联动）

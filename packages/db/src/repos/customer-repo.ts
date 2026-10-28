@@ -9,13 +9,14 @@ export interface CustomerInput {
   address?: string | null;
   isKey?: boolean;
   remark?: string | null;
+  logoPath?: string | null;
 }
 
 export function insertCustomer(db: DatabaseSync, c: CustomerInput): number {
   const r = db
     .prepare(
-      'INSERT INTO customer (name, name_norm, short_name, type_id, address, is_key, remark) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO customer (name, name_norm, short_name, type_id, address, is_key, remark, logo_path) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       c.name,
@@ -25,6 +26,7 @@ export function insertCustomer(db: DatabaseSync, c: CustomerInput): number {
       c.address ?? null,
       c.isKey ? 1 : 0,
       c.remark ?? null,
+      c.logoPath ?? null,
     );
   return Number(r.lastInsertRowid);
 }
@@ -41,6 +43,7 @@ export function updateCustomer(
     typeId: 'type_id',
     address: 'address',
     remark: 'remark',
+    logoPath: 'logo_path',
   };
   const fields: string[] = [];
   const args: (string | number | null)[] = [];
@@ -69,7 +72,7 @@ export function updateCustomer(
 }
 
 const CUSTOMER_COLS = `c.id, c.name, c.name_norm AS nameNorm, c.short_name AS shortName, c.type_id AS typeId,
-  c.address, c.is_key AS isKey, c.remark, c.deleted_at AS deletedAt,
+  c.address, c.is_key AS isKey, c.remark, c.logo_path AS logoPath, c.deleted_at AS deletedAt,
   c.created_at AS createdAt, c.updated_at AS updatedAt`;
 
 export function getCustomer(db: DatabaseSync, id: number): Customer | null {
@@ -81,6 +84,7 @@ export function getCustomer(db: DatabaseSync, id: number): Customer | null {
     ...r,
     isKey: !!r.isKey,
     shortName: (r.shortName as string | null) ?? null,
+    logoPath: (r.logoPath as string | null) ?? null,
     deletedAt: (r.deletedAt as string | null) ?? null,
   } as Customer;
 }
@@ -166,6 +170,7 @@ export function listCustomers(
       isKey: !!r.isKey,
       typeName: (r.typeName as string | null) ?? null,
       shortName: (r.shortName as string | null) ?? null,
+      logoPath: (r.logoPath as string | null) ?? null,
       deletedAt: (r.deletedAt as string | null) ?? null,
     })) as CustomerListRow[];
   return { rows, total };

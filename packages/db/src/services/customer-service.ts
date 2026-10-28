@@ -22,6 +22,7 @@ export interface CustomerCreateInput {
   address?: string | null;
   isKey?: boolean;
   remark?: string | null;
+  logoPath?: string | null;
 }
 
 export type CustomerUpdateInput = Partial<CustomerCreateInput>;

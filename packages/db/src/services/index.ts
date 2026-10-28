@@ -5,3 +5,4 @@ export * from './stats-service.js';
 export * from './dict-service.js';
 export * from './wechat-service.js';
 export * from './order-attachment-service.js';
+export * from './material-service.js';

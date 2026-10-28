@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { BizError, todayStr } from '@erp/shared';
 import type { NodeStatus, DictCategory } from '@erp/shared';
 import {
@@ -10,11 +11,13 @@ import {
   orderService,
   orderAttachmentService,
   wechatService,
+  materialService,
   rateService,
   statsService,
   statusDictService,
   templateService,
   getOrderNoConfig,
+  getSetting,
   setSetting,
   type OrderFilter,
 } from '@erp/db';
@@ -23,6 +26,7 @@ import { migrateDataDir, effectiveBackupsDir, dataDirSize } from '../migrate-dir
 import {
   storeAttachment,
   storeOrderAttachment,
+  storeCustomerLogo,
   removeStoredFile,
   removeStoredFiles,
   attachmentAbsolutePath,
@@ -32,6 +36,8 @@ import {
   exportItems,
   exportOrderDetail,
   exportOrders,
+  exportQuote,
+  quoteFileName,
   importCustomers,
   importOrders,
   orderTemplate,
@@ -115,6 +121,36 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   });
   ipcMain.handle('customers:softDelete', (_e, id: number) => {
     const r = wrap(() => customerService.softDelete(db(), id, todayStr()));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('customers:uploadLogo', (_e, id: number) =>
+    wrapAsync(async () => {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      if (!win) throw new BizError('IO_ERROR', '没有可用窗口');
+      const r = await dialog.showOpenDialog(win, {
+        title: '选择客户 Logo',
+        filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+        properties: ['openFile'],
+      });
+      if (r.canceled || r.filePaths.length === 0) return null;
+      const sourcePath = r.filePaths[0];
+      const { size } = statSync(sourcePath);
+      const { storedPath } = storeCustomerLogo(ctxRef.ctx.attachmentsDir, id, sourcePath, size);
+      const old = customerService.get(db(), id).logoPath;
+      customerService.update(db(), id, { logoPath: storedPath });
+      if (old && old !== storedPath) removeStoredFile(ctxRef.ctx.dataDir, old);
+      changed();
+      return { storedPath };
+    }),
+  );
+  ipcMain.handle('customers:clearLogo', (_e, id: number) => {
+    const r = wrap(() => {
+      const old = customerService.get(db(), id).logoPath;
+      customerService.update(db(), id, { logoPath: null });
+      if (old) removeStoredFile(ctxRef.ctx.dataDir, old);
+      return { ok: true };
+    });
     if (r.ok) changed();
     return r;
   });
@@ -343,6 +379,11 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
       return true;
     }),
   );
+  ipcMain.handle('attachments:url', (_e, storedPath: string) =>
+    wrap(() => ({
+      url: pathToFileURL(attachmentAbsolutePath(ctxRef.ctx.dataDir, storedPath)).href,
+    })),
+  );
 
   /* ---------------- 看板与提醒 ---------------- */
   ipcMain.handle('stats:dashboard', () => wrap(() => statsService.dashboard(db(), todayStr())));
@@ -410,8 +451,52 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     return r;
   });
 
+  /* ---------------- 物料库 ---------------- */
+  ipcMain.handle('materials:list', (_e, filter) => wrap(() => materialService.list(db(), filter)));
+  ipcMain.handle('materials:options', () => wrap(() => materialService.options(db())));
+  ipcMain.handle('materials:get', (_e, id: number) => wrap(() => materialService.get(db(), id)));
+  ipcMain.handle('materials:create', (_e, input) => {
+    const r = wrap(() => materialService.create(db(), input));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('materials:update', (_e, id: number, input) => {
+    const r = wrap(() => materialService.update(db(), id, input));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('materials:delete', (_e, id: number) => {
+    const r = wrap(() => materialService.delete(db(), id));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('materials:orders', (_e, id: number) =>
+    wrap(() => materialService.ordersUsing(db(), id)),
+  );
+
   /* ---------------- 设置 ---------------- */
   ipcMain.handle('settings:getOrderNoConfig', () => wrap(() => getOrderNoConfig(db())));
+  ipcMain.handle('settings:getQuoteConfig', () =>
+    wrap(() => ({
+      companyName: getSetting(db(), 'company_name') ?? '',
+      quoteTerms: getSetting(db(), 'quote_terms') ?? '',
+      quoteFooter: getSetting(db(), 'quote_footer') ?? '',
+    })),
+  );
+  ipcMain.handle('settings:setQuoteConfig', (_e, cfg: { companyName: string; quoteTerms: string; quoteFooter: string }) => {
+    const r = wrap(() => {
+      setSetting(db(), 'company_name', cfg.companyName.trim());
+      setSetting(db(), 'quote_terms', cfg.quoteTerms);
+      setSetting(db(), 'quote_footer', cfg.quoteFooter.trim());
+      return {
+        companyName: cfg.companyName.trim(),
+        quoteTerms: cfg.quoteTerms,
+        quoteFooter: cfg.quoteFooter.trim(),
+      };
+    });
+    if (r.ok) changed();
+    return r;
+  });
   ipcMain.handle('settings:setOrderNoConfig', (_e, cfg: { prefix: string; dateFormat: string; seqWidth: number }) => {
     const r = wrap(() => {
       if (!cfg.prefix || cfg.prefix.trim() === '') throw new BizError('VALIDATION', '编号前缀不能为空');
@@ -475,6 +560,16 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     wrapAsync(async () => {
       const buf = await exportOrderDetail(db(), id);
       return saveBufferWithDialog(`订单详情_${exportFileName('order-detail')}`, buf);
+    }),
+  );
+  ipcMain.handle('export:quote', (_e, orderId: number) =>
+    wrapAsync(async () => {
+      const order = db()
+        .prepare('SELECT order_no AS orderNo FROM orders WHERE id = ?')
+        .get(orderId) as { orderNo: string } | undefined;
+      if (!order) throw new BizError('ORDER_NOT_FOUND', '订单不存在');
+      const buf = await exportQuote(db(), orderId);
+      return saveBufferWithDialog(quoteFileName(order.orderNo), buf);
     }),
   );
   ipcMain.handle('import:customerTemplate', () =>

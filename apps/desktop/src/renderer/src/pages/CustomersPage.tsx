@@ -1,19 +1,31 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Avatar,
   Button,
   Card,
+  Col,
+  Empty,
   Form,
   Input,
   Modal,
+  Pagination,
   Popconfirm,
+  Row,
   Select,
   Space,
   Switch,
-  Table,
   Tag,
+  Tooltip,
   message,
 } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import {
+  AppstoreAddOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PictureOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { CustomerListRow, Page } from '../models';
@@ -28,7 +40,7 @@ export function CustomersPage(): JSX.Element {
   const [rows, setRows] = useState<CustomerListRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(12);
   const [search, setSearch] = useState('');
   const [typeId, setTypeId] = useState<number | null>(null);
   const [isKey, setIsKey] = useState<boolean | null>(null);
@@ -36,6 +48,7 @@ export function CustomersPage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<CustomerListRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [logoUrls, setLogoUrls] = useState<Record<number, string>>({});
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -50,6 +63,20 @@ export function CustomersPage(): JSX.Element {
       })) as Page<CustomerListRow>;
       setRows(r.rows);
       setTotal(r.total);
+      // 解析 logo 的本地文件 URL
+      const entries = await Promise.all(
+        r.rows
+          .filter((c) => !!c.logoPath)
+          .map(async (c) => {
+            try {
+              const u = await api.attachments.url(c.logoPath as string);
+              return [c.id, u.url] as const;
+            } catch {
+              return [c.id, ''] as const;
+            }
+          }),
+      );
+      setLogoUrls(Object.fromEntries(entries.filter(([, u]) => u)));
     } catch (e) {
       void message.error(errorMessage(e));
     } finally {
@@ -67,13 +94,12 @@ export function CustomersPage(): JSX.Element {
 
   const openCreate = (): void => {
     setEditing(null);
-    setCreating(true);
     form.resetFields();
+    setCreating(true);
   };
 
   const openEdit = (row: CustomerListRow): void => {
     setEditing(row);
-    setCreating(true);
     form.setFieldsValue({
       name: row.name,
       shortName: row.shortName,
@@ -82,6 +108,7 @@ export function CustomersPage(): JSX.Element {
       isKey: row.isKey,
       remark: row.remark,
     });
+    setCreating(true);
   };
 
   const submit = async (): Promise<void> => {
@@ -111,18 +138,44 @@ export function CustomersPage(): JSX.Element {
     }
   };
 
+  const uploadLogo = async (row: CustomerListRow): Promise<void> => {
+    try {
+      const r = await api.customers.uploadLogo(row.id);
+      if (r) {
+        void message.success('Logo 已更新');
+        void load();
+      }
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
+
+  const clearLogo = async (row: CustomerListRow): Promise<void> => {
+    try {
+      await api.customers.clearLogo(row.id);
+      void load();
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
+
   return (
     <Card
       title="客户管理"
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-          新建客户
-        </Button>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => void load()}>
+            刷新
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            新建客户
+          </Button>
+        </Space>
       }
     >
       <Space style={{ marginBottom: 16 }} wrap>
         <Input.Search
-          placeholder="搜索客户全称/简称/联系人"
+          placeholder="搜索客户全称 / 简称"
           allowClear
           style={{ width: 260 }}
           onSearch={(v) => {
@@ -154,57 +207,113 @@ export function CustomersPage(): JSX.Element {
           }}
         />
       </Space>
-      <Table<CustomerListRow>
-        rowKey="id"
-        loading={loading}
-        dataSource={rows}
-        rowClassName={(r) => (r.isKey ? 'row-key-customer' : '')}
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          showSizeChanger: true,
-          onChange: (p, ps) => {
+
+      {rows.length === 0 && !loading ? (
+        <Empty description="还没有客户，点击右上角「新建客户」开始" />
+      ) : (
+        <Row gutter={[16, 16]}>
+          {rows.map((c) => (
+            <Col key={c.id} xs={24} sm={12} md={8} xl={6}>
+              <Card
+                hoverable
+                loading={loading}
+                className={c.isKey ? 'customer-card customer-card-key' : 'customer-card'}
+                onClick={() => navigate(`/customers/${c.id}`)}
+                bodyStyle={{ padding: 16 }}
+              >
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <Avatar
+                    shape="square"
+                    size={56}
+                    src={logoUrls[c.id] || undefined}
+                    icon={<PictureOutlined />}
+                    style={{ flexShrink: 0, background: '#f0f5ff', color: '#1677ff' }}
+                  >
+                    {!logoUrls[c.id] ? c.name.slice(0, 2) : null}
+                  </Avatar>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 15,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={c.name}
+                    >
+                      {c.name}
+                    </div>
+                    <div style={{ color: '#888', fontSize: 12, marginBottom: 6 }}>
+                      {c.shortName ? `简称：${c.shortName}` : '　'}
+                    </div>
+                    <Space size={4} wrap>
+                      {c.isKey && <Tag color="gold">重点</Tag>}
+                      <Tag>{c.typeName ?? '未分类'}</Tag>
+                    </Space>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12, color: '#666', fontSize: 12, lineHeight: 1.8 }}>
+                  <div>微信群：{c.wechatGroupCount} 个</div>
+                  <div>
+                    订单：{c.orderCount} 个（跟进中 {c.activeOrderCount}）
+                  </div>
+                  <div>地址：{c.address || '未填写'}</div>
+                </div>
+
+                <div
+                  style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Space size={4}>
+                    <Tooltip title="上传/更换 Logo">
+                      <Button size="small" icon={<PictureOutlined />} onClick={() => void uploadLogo(c)} />
+                    </Tooltip>
+                    {c.logoPath && (
+                      <Popconfirm title="移除 Logo" onConfirm={() => void clearLogo(c)}>
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    )}
+                    <Button size="small" onClick={() => navigate(`/customers/${c.id}`)}>
+                      查看
+                    </Button>
+                  </Space>
+                  <Space size={4}>
+                    <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(c)} />
+                    <Popconfirm
+                      title={`删除客户「${c.name}」`}
+                      description={`该客户下存在 ${c.orderCount} 个订单，删除后订单数据将保留。`}
+                      okText="确认删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => void doDelete(c)}
+                    >
+                      <Button size="small" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                  </Space>
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      )}
+
+      <div style={{ marginTop: 16, textAlign: 'right' }}>
+        <Pagination
+          current={page}
+          pageSize={pageSize}
+          total={total}
+          showSizeChanger
+          pageSizeOptions={[12, 24, 48]}
+          showTotal={(t) => `共 ${t} 个客户`}
+          onChange={(p, ps) => {
             setPage(p);
             setPageSize(ps);
-          },
-        }}
-        columns={[
-          {
-            title: '客户名称',
-            dataIndex: 'name',
-            render: (v: string, r) => (
-              <Space>
-                <a onClick={() => navigate(`/customers/${r.id}`)}>{v}</a>
-                {r.isKey && <Tag color="gold">重点</Tag>}
-              </Space>
-            ),
-          },
-          { title: '客户类型', dataIndex: 'typeName', width: 100 },
-          { title: '微信群数', dataIndex: 'wechatGroupCount', width: 90, align: 'center' as const },
-          { title: '订单总数', dataIndex: 'orderCount', width: 90, align: 'center' as const },
-          { title: '跟进中订单数', dataIndex: 'activeOrderCount', width: 120, align: 'center' as const },
-          {
-            title: '操作',
-            width: 130,
-            render: (_, r) => (
-              <Space>
-                <a onClick={() => openEdit(r)}>编辑</a>
-                <Popconfirm
-                  title={`删除客户「${r.name}」`}
-                  description={`该客户下存在 ${r.orderCount} 个订单，删除后订单数据将保留。此操作即时生效。`}
-                  okText="确认删除"
-                  cancelText="取消"
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => void doDelete(r)}
-                >
-                  <a style={{ color: '#ff4d4f' }}>删除</a>
-                </Popconfirm>
-              </Space>
-            ),
-          },
-        ]}
-      />
+          }}
+        />
+      </div>
+
       <Modal
         title={editing ? '编辑客户' : '新建客户'}
         open={creating}
@@ -214,7 +323,7 @@ export function CustomersPage(): JSX.Element {
       >
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="客户全称" rules={[{ required: true, message: '请输入客户全称' }]}>
-            <Input />
+            <Input autoFocus />
           </Form.Item>
           <Form.Item name="shortName" label="客户简称">
             <Input />
@@ -231,7 +340,7 @@ export function CustomersPage(): JSX.Element {
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} />
           </Form.Item>
-          <div style={{ color: '#999' }}>微信群及群成员请在客户详情页维护。</div>
+          <div style={{ color: '#999' }}>Logo、微信群及群成员请在客户卡片/详情页维护。</div>
         </Form>
       </Modal>
     </Card>

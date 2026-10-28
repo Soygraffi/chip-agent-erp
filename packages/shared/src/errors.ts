@@ -23,6 +23,9 @@ export type BizErrorCode =
   | 'TEMPLATE_CODE_DUPLICATE'
   | 'STATUS_DEFAULT_DUPLICATE'
   | 'CURRENCY_NOT_FOUND'
+  | 'MATERIAL_DUPLICATE'
+  | 'MATERIAL_NOT_FOUND'
+  | 'MATERIAL_IN_USE'
   | 'VALIDATION'
   | 'NOT_FOUND'
   | 'BACKUP_INVALID'
@@ -42,6 +45,9 @@ export const BIZ_ERROR_MESSAGES: Record<BizErrorCode, string> = {
   TEMPLATE_CODE_DUPLICATE: '语义码已被其他模板占用',
   STATUS_DEFAULT_DUPLICATE: '默认完成状态只能有一个',
   CURRENCY_NOT_FOUND: '币种不存在',
+  MATERIAL_DUPLICATE: '物料编码已存在',
+  MATERIAL_NOT_FOUND: '物料不存在',
+  MATERIAL_IN_USE: '该物料已被订单明细引用，无法删除',
   VALIDATION: '数据校验失败',
   NOT_FOUND: '记录不存在',
   BACKUP_INVALID: '备份文件无效或已损坏',

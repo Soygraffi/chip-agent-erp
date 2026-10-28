@@ -74,7 +74,7 @@ export interface NodeTemplate {
   remark: string | null;
 }
 
-/** 客户（V1.2：移除联系人/电话/邮箱/负责业务员/合作起始日期） */
+/** 客户（V1.2：移除联系人/电话/邮箱/负责业务员/合作起始日期；V1.3：客户 logo） */
 export interface Customer {
   id: number;
   name: string;
@@ -84,9 +84,34 @@ export interface Customer {
   address: string | null;
   isKey: boolean;
   remark: string | null;
+  logoPath: string | null;
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 物料库（V1.3）：报价/订单明细的物料主数据 */
+export interface Material {
+  id: number;
+  code: string;          // 物料编码（唯一，归一化后判重）
+  codeNorm: string;
+  name: string;          // 物料名称
+  spec: string | null;   // 料号规格
+  brand: string | null;
+  purchasePrice: number | null; // 进货价
+  salePrice: number | null;     // 出货价（默认报价）
+  priceTaxIncluded: boolean;    // true=价格为含税价
+  taxRate: number;              // 税率（%），默认 13
+  remark: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MaterialListRow extends Material {
+  orderItemCount: number;
+  orderCount: number;
+  lastOrderDate: string | null;
 }
 
 /** 客户微信群（同一客户可有多个群：商务交流群、研发交流群…） */
@@ -133,12 +158,18 @@ export interface Order {
 export interface OrderItem {
   id: number;
   orderId: number;
-  chipModel: string;
+  materialId: number | null;   // 关联物料库（可空，手工录入的行）
+  materialCode: string | null; // 物料编码
+  materialName: string | null; // 物料名称
+  chipModel: string;           // 料号规格（如 GD32F407ZGT6）
   brand: string | null;
-  packageSpec: string | null;
+  packageSpec: string | null;  // 封装规格（选填的补充说明）
   qty: number;
-  unitPrice: number | null;
-  subtotal: number | null;
+  unitPrice: number | null;    // 出货价
+  purchasePrice: number | null; // 进货价
+  priceTaxIncluded: boolean;   // 单价是否为含税价
+  taxRate: number;             // 税率（%）
+  subtotal: number | null;     // 含税金额 = 数量 × 含税单价
   customerPn: string | null;
   remark: string | null;
   sortOrder: number;
@@ -207,7 +238,6 @@ export interface CustomerListRow extends Customer {
   activeOrderCount: number;
   wechatGroupCount: number;
 }
-
 export interface ReminderItem {
   nodeId: number;
   orderId: number;

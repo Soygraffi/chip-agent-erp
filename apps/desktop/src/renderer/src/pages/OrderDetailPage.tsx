@@ -262,6 +262,13 @@ export function OrderDetailPage(): JSX.Element {
           >
             导出订单详情
           </Button>
+          <Button
+            type="primary"
+            ghost
+            onClick={() => void api.exportQuote(detail.id).then((p) => (p ? void message.success(`报价单已导出：${p}`) : undefined))}
+          >
+            导出报价单
+          </Button>
           <Popconfirm
             title={`删除订单「${detail.orderNo}」`}
             description="删除后物料明细、进度节点、订单文档、附件将一并删除，不可恢复。"
@@ -332,15 +339,67 @@ export function OrderDetailPage(): JSX.Element {
         rowKey="id"
         size="small"
         pagination={false}
+        scroll={{ x: 1500 }}
         dataSource={detail.items}
         columns={[
-          { title: '芯片型号', dataIndex: 'chipModel' },
-          { title: '品牌', dataIndex: 'brand', width: 100 },
-          { title: '封装规格', dataIndex: 'packageSpec', width: 120 },
+          { title: '物料编码', dataIndex: 'materialCode', width: 130, render: (v: string | null) => v ?? '-' },
+          { title: '物料名称', dataIndex: 'materialName', width: 130, render: (v: string | null) => v ?? '-' },
+          { title: '料号规格', dataIndex: 'chipModel', width: 150 },
+          { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
           { title: '数量', dataIndex: 'qty', width: 80, align: 'right' as const },
-          { title: '单价', dataIndex: 'unitPrice', width: 100, align: 'right' as const },
-          { title: '小计', dataIndex: 'subtotal', width: 100, align: 'right' as const },
-          { title: '客户料号', dataIndex: 'customerPn', width: 120 },
+          {
+            title: '进货价',
+            dataIndex: 'purchasePrice',
+            width: 100,
+            align: 'right' as const,
+            render: (v: number | null) => (v == null ? '-' : v.toFixed(2)),
+          },
+          {
+            title: '出货价',
+            dataIndex: 'unitPrice',
+            width: 100,
+            align: 'right' as const,
+            render: (v: number | null) => (v == null ? '-' : v.toFixed(2)),
+          },
+          {
+            title: '价格口径',
+            dataIndex: 'priceTaxIncluded',
+            width: 100,
+            render: (v: boolean, r) => (
+              <Tag color={v ? 'blue' : 'orange'}>{v ? '含税' : '不含税'} {r.taxRate}%</Tag>
+            ),
+          },
+          {
+            title: '含税单价',
+            width: 100,
+            align: 'right' as const,
+            render: (_: unknown, r) => {
+              const p = r.unitPrice ?? 0;
+              const gross = r.priceTaxIncluded ? p : Math.round(p * (1 + r.taxRate / 100) * 100) / 100;
+              return gross.toFixed(2);
+            },
+          },
+          {
+            title: '含税金额',
+            dataIndex: 'subtotal',
+            width: 110,
+            align: 'right' as const,
+            render: (v: number | null) => (v ?? 0).toFixed(2),
+          },
+          {
+            title: '毛利',
+            width: 100,
+            align: 'right' as const,
+            render: (_: unknown, r) => {
+              const p = r.unitPrice ?? 0;
+              const c = r.purchasePrice ?? 0;
+              const rate = 1 + r.taxRate / 100;
+              const grossSale = r.priceTaxIncluded ? p : p * rate;
+              const grossCost = r.priceTaxIncluded ? c : c * rate;
+              return (Math.round(r.qty * (grossSale - grossCost) * 100) / 100).toFixed(2);
+            },
+          },
+          { title: '备注', dataIndex: 'remark', width: 120, render: (v: string | null) => v ?? '' },
         ]}
       />
 

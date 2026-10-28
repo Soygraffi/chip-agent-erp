@@ -320,9 +320,54 @@ CREATE INDEX idx_node_order ON order_node(order_id, sort_order);
 CREATE INDEX idx_node_plan  ON order_node(plan_time) WHERE status IN ('pending','in_progress','delayed');
 `;
 
+/**
+ * V1.3：物料库（进货价/出货价/含税标记）；明细增加物料编码、名称、进货价、含税口径；
+ * 客户增加 logo。
+ */
+const V13 = `
+ALTER TABLE customer ADD COLUMN logo_path TEXT;
+
+CREATE TABLE material (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  code               TEXT    NOT NULL,        -- 物料编码
+  code_norm          TEXT    NOT NULL,        -- 归一化编码（唯一性依据）
+  name               TEXT    NOT NULL,        -- 物料名称
+  spec               TEXT,                    -- 料号规格
+  brand              TEXT,
+  purchase_price     REAL,                    -- 进货价
+  sale_price         REAL,                    -- 出货价（默认报价）
+  price_tax_included INTEGER NOT NULL DEFAULT 1, -- 1=价格含税
+  tax_rate           REAL    NOT NULL DEFAULT 13,
+  remark             TEXT,
+  is_active          INTEGER NOT NULL DEFAULT 1,
+  created_at         TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at         TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX ux_material_code ON material(code_norm);
+CREATE INDEX idx_material_active ON material(is_active);
+
+ALTER TABLE order_item ADD COLUMN material_id INTEGER REFERENCES material(id);
+ALTER TABLE order_item ADD COLUMN material_code TEXT;
+ALTER TABLE order_item ADD COLUMN material_name TEXT;
+ALTER TABLE order_item ADD COLUMN purchase_price REAL;
+ALTER TABLE order_item ADD COLUMN price_tax_included INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE order_item ADD COLUMN tax_rate REAL NOT NULL DEFAULT 13;
+
+INSERT INTO setting (key, value) VALUES ('company_name', '')
+  ON CONFLICT(key) DO NOTHING;
+INSERT INTO setting (key, value) VALUES
+  ('quote_terms', '1、交货周期：具体交货时间以合同约定时间为准
+2、付款方式：票到月结30天付现')
+  ON CONFLICT(key) DO NOTHING;
+INSERT INTO setting (key, value) VALUES
+  ('quote_footer', '如果对上述条款有任何问题，请随时向我们垂询。')
+  ON CONFLICT(key) DO NOTHING;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
   { version: 3, name: 'v1.2 customer wechat & optional order fields', sql: V12 },
+  { version: 4, name: 'v1.3 material library, tax-aware item prices, customer logo', sql: V13 },
 ];
 

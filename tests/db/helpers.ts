@@ -126,3 +126,37 @@ export function seedNode(
     );
   return Number(r.lastInsertRowid);
 }
+
+export interface MaterialSeed {
+  code?: string;
+  name?: string;
+  spec?: string | null;
+  brand?: string | null;
+  purchasePrice?: number | null;
+  salePrice?: number | null;
+  priceTaxIncluded?: boolean;
+  taxRate?: number;
+  isActive?: boolean;
+}
+
+export function seedMaterial(db: DatabaseSync, m: MaterialSeed = {}): number {
+  const code = m.code ?? 'RDDZX03001';
+  const r = db
+    .prepare(
+      'INSERT INTO material (code, code_norm, name, spec, brand, purchase_price, sale_price, ' +
+        'price_tax_included, tax_rate, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(
+      code,
+      code.trim().normalize('NFKC').toLowerCase(),
+      m.name ?? 'ARM处理器',
+      m.spec ?? 'GD32F407ZGT6',
+      m.brand ?? '兆易创新',
+      m.purchasePrice ?? 12.5,
+      m.salePrice ?? 29.24,
+      m.priceTaxIncluded === false ? 0 : 1,
+      m.taxRate ?? 13,
+      m.isActive === false ? 0 : 1,
+    );
+  return Number(r.lastInsertRowid);
+}

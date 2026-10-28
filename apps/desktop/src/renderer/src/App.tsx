@@ -5,6 +5,7 @@ import {
   DashboardOutlined,
   TeamOutlined,
   ProfileOutlined,
+  AppstoreOutlined,
   ToolOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
@@ -15,6 +16,7 @@ import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { OrderFormPage } from './pages/OrderFormPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
+import { MaterialsPage } from './pages/MaterialsPage';
 import { ToolsPage } from './pages/ToolsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReminderBell, StartupReminderModal } from './components/Reminders';
@@ -25,6 +27,7 @@ const MENU_ITEMS = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '首页看板' },
   { key: '/customers', icon: <TeamOutlined />, label: '客户管理' },
   { key: '/orders', icon: <ProfileOutlined />, label: '订单管理' },
+  { key: '/materials', icon: <AppstoreOutlined />, label: '物料管理' },
   { key: '/tools', icon: <ToolOutlined />, label: '数据工具' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
@@ -64,6 +67,7 @@ function Shell(): JSX.Element {
             <Route path="/orders/new" element={<OrderFormPage />} />
             <Route path="/orders/:id/edit" element={<OrderFormPage />} />
             <Route path="/orders/:id" element={<OrderDetailPage />} />
+            <Route path="/materials" element={<MaterialsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

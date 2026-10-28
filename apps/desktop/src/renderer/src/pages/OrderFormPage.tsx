@@ -11,7 +11,6 @@ import {
   Select,
   Space,
   Table,
-  Tag,
   message,
 } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
@@ -25,13 +24,31 @@ interface OptionItem {
   name: string;
 }
 
+interface MaterialOption {
+  id: number;
+  code: string;
+  name: string;
+  spec: string | null;
+  brand: string | null;
+  purchasePrice: number | null;
+  salePrice: number | null;
+  priceTaxIncluded: boolean;
+  taxRate: number;
+}
+
 interface ItemRow {
   key: number;
+  materialId: number | null;
+  materialCode: string | null;
+  materialName: string | null;
   chipModel: string;
   brand: string | null;
   packageSpec: string | null;
   qty: number;
   unitPrice: number | null;
+  purchasePrice: number | null;
+  priceTaxIncluded: boolean;
+  taxRate: number;
   customerPn: string | null;
   remark: string | null;
 }
@@ -39,6 +56,31 @@ interface ItemRow {
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
+
+export function taxIncludedPrice(it: { unitPrice: number | null; priceTaxIncluded: boolean; taxRate: number }): number {
+  const price = it.unitPrice ?? 0;
+  return it.priceTaxIncluded ? price : round2(price * (1 + it.taxRate / 100));
+}
+
+export function itemAmount(it: { qty: number; unitPrice: number | null; priceTaxIncluded: boolean; taxRate: number }): number {
+  return round2(it.qty * taxIncludedPrice(it));
+}
+
+const EMPTY_ITEM: Omit<ItemRow, 'key'> = {
+  materialId: null,
+  materialCode: null,
+  materialName: null,
+  chipModel: '',
+  brand: null,
+  packageSpec: null,
+  qty: 1,
+  unitPrice: null,
+  purchasePrice: null,
+  priceTaxIncluded: true,
+  taxRate: 13,
+  customerPn: null,
+  remark: null,
+};
 
 export function OrderFormPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
@@ -50,7 +92,8 @@ export function OrderFormPage(): JSX.Element {
   const [types, setTypes] = useState<OptionItem[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<OptionItem[]>([]);
   const [groups, setGroups] = useState<WechatGroup[]>([]);
-  const [items, setItems] = useState<ItemRow[]>([{ key: 0, chipModel: '', brand: null, packageSpec: null, qty: 1, unitPrice: null, customerPn: null, remark: null }]);
+  const [materials, setMaterials] = useState<MaterialOption[]>([]);
+  const [items, setItems] = useState<ItemRow[]>([{ key: 0, ...EMPTY_ITEM }]);
   const [manual, setManual] = useState(false);
   const [manualAmount, setManualAmount] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -61,6 +104,7 @@ export function OrderFormPage(): JSX.Element {
     void api.statuses.list().then((r) => setStatuses(r as OptionItem[]));
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
     void api.dicts.list('payment_method').then((r) => setPaymentMethods(r as OptionItem[]));
+    void api.materials.options().then((r) => setMaterials(r as MaterialOption[]));
   }, []);
 
   useEffect(() => {
@@ -83,11 +127,17 @@ export function OrderFormPage(): JSX.Element {
         setItems(
           detail.items.map((it, i) => ({
             key: i,
+            materialId: it.materialId,
+            materialCode: it.materialCode,
+            materialName: it.materialName,
             chipModel: it.chipModel,
             brand: it.brand,
             packageSpec: it.packageSpec,
             qty: it.qty,
             unitPrice: it.unitPrice,
+            purchasePrice: it.purchasePrice,
+            priceTaxIncluded: it.priceTaxIncluded,
+            taxRate: it.taxRate,
             customerPn: it.customerPn,
             remark: it.remark,
           })),
@@ -109,12 +159,31 @@ export function OrderFormPage(): JSX.Element {
   };
 
   const autoTotal = useMemo(
-    () => round2(items.reduce((acc, it) => acc + it.qty * (it.unitPrice ?? 0), 0)),
+    () => round2(items.reduce((acc, it) => acc + itemAmount(it), 0)),
     [items],
   );
 
   const updateItem = (key: number, patch: Partial<ItemRow>): void => {
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
+  };
+
+  const onPickMaterial = (key: number, materialId: number): void => {
+    const m = materials.find((x) => x.id === materialId);
+    if (!m) {
+      updateItem(key, { materialId: null });
+      return;
+    }
+    updateItem(key, {
+      materialId: m.id,
+      materialCode: m.code,
+      materialName: m.name,
+      chipModel: m.spec ?? '',
+      brand: m.brand,
+      purchasePrice: m.purchasePrice,
+      unitPrice: m.salePrice,
+      priceTaxIncluded: m.priceTaxIncluded,
+      taxRate: m.taxRate,
+    });
   };
 
   const submit = async (): Promise<void> => {
@@ -136,14 +205,20 @@ export function OrderFormPage(): JSX.Element {
         totalAmount: manual ? manualAmount : null,
         wechatGroupIds: (values.wechatGroupIds as number[] | undefined) ?? [],
         items: items
-          .filter((it) => it.chipModel.trim() !== '')
+          .filter((it) => it.chipModel.trim() !== '' || (it.materialName ?? '').trim() !== '')
           .map((it) => ({
+            materialId: it.materialId,
+            materialCode: it.materialCode,
+            materialName: it.materialName,
             chipModel: it.chipModel,
             brand: it.brand,
             packageSpec: it.packageSpec,
             qty: it.qty,
             unitPrice: it.unitPrice,
-            subtotal: round2(it.qty * (it.unitPrice ?? 0)),
+            purchasePrice: it.purchasePrice,
+            priceTaxIncluded: it.priceTaxIncluded,
+            taxRate: it.taxRate,
+            subtotal: itemAmount(it),
             customerPn: it.customerPn,
             remark: it.remark,
           })),
@@ -166,50 +241,117 @@ export function OrderFormPage(): JSX.Element {
 
   const itemColumns = [
     {
-      title: '芯片型号 *',
+      title: '从物料库选择',
       width: 200,
       render: (_: unknown, r: ItemRow) => (
-        <Input value={r.chipModel} placeholder="如 STM32F103C8T6" onChange={(e) => updateItem(r.key, { chipModel: e.target.value })} />
+        <Select
+          showSearch
+          allowClear
+          placeholder="选择物料自动带出"
+          style={{ width: '100%' }}
+          value={r.materialId ?? undefined}
+          optionFilterProp="label"
+          options={materials.map((m) => ({
+            value: m.id,
+            label: `${m.code} ${m.name}${m.spec ? ' / ' + m.spec : ''}`,
+          }))}
+          onChange={(v) => onPickMaterial(r.key, v as number)}
+        />
+      ),
+    },
+    {
+      title: '物料编码',
+      width: 140,
+      render: (_: unknown, r: ItemRow) => (
+        <Input value={r.materialCode ?? ''} onChange={(e) => updateItem(r.key, { materialCode: e.target.value || null })} />
+      ),
+    },
+    {
+      title: '物料名称',
+      width: 140,
+      render: (_: unknown, r: ItemRow) => (
+        <Input value={r.materialName ?? ''} onChange={(e) => updateItem(r.key, { materialName: e.target.value || null })} />
+      ),
+    },
+    {
+      title: '料号规格 *',
+      width: 150,
+      render: (_: unknown, r: ItemRow) => (
+        <Input value={r.chipModel} placeholder="如 GD32F407ZGT6" onChange={(e) => updateItem(r.key, { chipModel: e.target.value })} />
       ),
     },
     {
       title: '品牌',
-      width: 110,
-      render: (_: unknown, r: ItemRow) => <Input value={r.brand ?? ''} onChange={(e) => updateItem(r.key, { brand: e.target.value || null })} />,
-    },
-    {
-      title: '封装规格',
-      width: 130,
-      render: (_: unknown, r: ItemRow) => <Input value={r.packageSpec ?? ''} onChange={(e) => updateItem(r.key, { packageSpec: e.target.value || null })} />,
+      width: 100,
+      render: (_: unknown, r: ItemRow) => (
+        <Input value={r.brand ?? ''} onChange={(e) => updateItem(r.key, { brand: e.target.value || null })} />
+      ),
     },
     {
       title: '数量 *',
-      width: 110,
+      width: 90,
       render: (_: unknown, r: ItemRow) => (
         <InputNumber min={0} precision={0} value={r.qty} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { qty: v ?? 0 })} />
       ),
     },
     {
-      title: '单价',
-      width: 130,
+      title: '进货价',
+      width: 110,
+      render: (_: unknown, r: ItemRow) => (
+        <InputNumber min={0} precision={4} value={r.purchasePrice ?? undefined} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { purchasePrice: v ?? null })} />
+      ),
+    },
+    {
+      title: '出货价',
+      width: 110,
       render: (_: unknown, r: ItemRow) => (
         <InputNumber min={0} precision={4} value={r.unitPrice ?? undefined} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { unitPrice: v ?? null })} />
       ),
     },
     {
-      title: '小计（自动）',
+      title: '价格口径',
       width: 110,
-      align: 'right' as const,
-      render: (_: unknown, r: ItemRow) => round2(r.qty * (r.unitPrice ?? 0)).toFixed(2),
+      render: (_: unknown, r: ItemRow) => (
+        <Select
+          value={r.priceTaxIncluded}
+          style={{ width: '100%' }}
+          options={[
+            { value: true, label: '含税' },
+            { value: false, label: '不含税' },
+          ]}
+          onChange={(v) => updateItem(r.key, { priceTaxIncluded: v as boolean })}
+        />
+      ),
     },
     {
-      title: '客户料号',
-      width: 130,
-      render: (_: unknown, r: ItemRow) => <Input value={r.customerPn ?? ''} onChange={(e) => updateItem(r.key, { customerPn: e.target.value || null })} />,
+      title: '税率%',
+      width: 80,
+      render: (_: unknown, r: ItemRow) => (
+        <InputNumber min={0} max={100} precision={2} value={r.taxRate} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { taxRate: v ?? 13 })} />
+      ),
+    },
+    {
+      title: '含税单价',
+      width: 100,
+      align: 'right' as const,
+      render: (_: unknown, r: ItemRow) => taxIncludedPrice(r).toFixed(2),
+    },
+    {
+      title: '含税金额',
+      width: 110,
+      align: 'right' as const,
+      render: (_: unknown, r: ItemRow) => itemAmount(r).toFixed(2),
+    },
+    {
+      title: '备注',
+      width: 120,
+      render: (_: unknown, r: ItemRow) => (
+        <Input value={r.remark ?? ''} onChange={(e) => updateItem(r.key, { remark: e.target.value || null })} />
+      ),
     },
     {
       title: '',
-      width: 50,
+      width: 46,
       render: (_: unknown, r: ItemRow) => (
         <Popconfirm title="删除此行" onConfirm={() => setItems((prev) => prev.filter((it) => it.key !== r.key))}>
           <Button danger size="small" icon={<DeleteOutlined />} />
@@ -223,33 +365,33 @@ export function OrderFormPage(): JSX.Element {
       <Form form={form} layout="vertical">
         <Space size={24} align="start" wrap style={{ display: 'flex' }}>
           <Form.Item name="customerId" label="所属客户" rules={[{ required: true, message: '请选择客户' }]}>
-            <Select showSearch optionFilterProp="label" style={{ width: 260 }} placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} onChange={(v) => onCustomerChange(v)} />
+            <Select showSearch optionFilterProp="label" style={{ width: 240 }} placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} onChange={(v) => onCustomerChange(v)} />
           </Form.Item>
-          <Form.Item name="orderNo" label="订单编号" extra="留空自动生成（如 XS202610280001）">
-            <Input style={{ width: 200 }} placeholder="留空自动生成" />
+          <Form.Item name="orderNo" label="订单编号" extra="留空自动生成">
+            <Input style={{ width: 180 }} placeholder="留空自动生成" />
           </Form.Item>
           <Form.Item name="orderDate" label="订单日期" extra="可不填">
-            <DatePicker style={{ width: 160 }} />
+            <DatePicker style={{ width: 150 }} />
           </Form.Item>
           <Form.Item name="typeId" label="订单类型" extra="可不填">
-            <Select allowClear style={{ width: 140 }} options={types.map((t) => ({ value: t.id, label: t.name }))} />
+            <Select allowClear style={{ width: 130 }} options={types.map((t) => ({ value: t.id, label: t.name }))} />
           </Form.Item>
           <Form.Item name="statusId" label="订单状态" extra="可不填">
             <Select allowClear style={{ width: 130 }} options={statuses.map((s) => ({ value: s.id, label: s.name }))} />
           </Form.Item>
           <Form.Item name="expectedDeliveryDate" label="预计交货日期">
-            <DatePicker style={{ width: 160 }} />
+            <DatePicker style={{ width: 150 }} />
           </Form.Item>
           <Form.Item name="actualDeliveryDate" label="实际交货日期">
-            <DatePicker style={{ width: 160 }} />
+            <DatePicker style={{ width: 150 }} />
           </Form.Item>
           <Form.Item name="paymentMethodId" label="付款方式">
-            <Select allowClear style={{ width: 140 }} options={paymentMethods.map((p) => ({ value: p.id, label: p.name }))} />
+            <Select allowClear style={{ width: 130 }} options={paymentMethods.map((p) => ({ value: p.id, label: p.name }))} />
           </Form.Item>
           <Form.Item name="isKey" label="重点跟进" valuePropName="checked">
             <Checkbox />
           </Form.Item>
-          <Form.Item name="wechatGroupIds" label="沟通微信群" style={{ width: 320 }} extra="从该客户的微信群中选择，可多选">
+          <Form.Item name="wechatGroupIds" label="沟通微信群" style={{ width: 300 }} extra="从该客户的微信群中选择，可多选">
             <Select
               mode="multiple"
               allowClear
@@ -258,32 +400,35 @@ export function OrderFormPage(): JSX.Element {
             />
           </Form.Item>
           <Form.Item name="remark" label="备注">
-            <Input style={{ width: 220 }} />
+            <Input style={{ width: 200 }} />
           </Form.Item>
         </Space>
       </Form>
 
-      <div style={{ marginBottom: 8, fontWeight: 600 }}>订单物料明细（最多 50 行）</div>
+      <div style={{ marginBottom: 8, fontWeight: 600 }}>
+        订单物料明细（最多 50 行；可先从物料库选择，自动带出编码/名称/规格/品牌/价格）
+      </div>
       <Table<ItemRow>
         rowKey="key"
         size="small"
         pagination={false}
+        scroll={{ x: 1700 }}
         dataSource={items}
         columns={itemColumns}
         footer={() => (
           <Button
             icon={<PlusOutlined />}
             disabled={items.length >= 50}
-            onClick={() => setItems((prev) => [...prev, { key: Math.max(...prev.map((p) => p.key)) + 1, chipModel: '', brand: null, packageSpec: null, qty: 1, unitPrice: null, customerPn: null, remark: null }])}
+            onClick={() => setItems((prev) => [...prev, { key: Math.max(0, ...prev.map((p) => p.key)) + 1, ...EMPTY_ITEM }])}
           >
             添加明细行
           </Button>
         )}
       />
 
-      <Space style={{ marginTop: 16 }} size={24}>
+      <Space style={{ marginTop: 16 }} size={24} wrap>
         <span>
-          自动汇总总金额：<strong>{autoTotal.toFixed(2)}</strong>
+          自动汇总含税总金额：<strong>{autoTotal.toFixed(2)}</strong>
         </span>
         <Checkbox
           checked={manual}

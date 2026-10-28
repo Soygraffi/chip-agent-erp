@@ -239,26 +239,6 @@ function computeOverdueDays(row: OrderListRow, today: string): number {
 
 /* ---------------- order_item ---------------- */
 
-export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
-  return db
-    .prepare(
-      'SELECT id, order_id AS orderId, chip_model AS chipModel, brand, package_spec AS packageSpec, ' +
-        'qty, unit_price AS unitPrice, subtotal, customer_pn AS customerPn, remark, sort_order AS sortOrder ' +
-        'FROM order_item WHERE order_id = ? ORDER BY sort_order, id',
-    )
-    .all(orderId)
-    .map(
-      (r) =>
-        ({
-          ...r,
-          brand: (r.brand as string | null) ?? null,
-          packageSpec: (r.packageSpec as string | null) ?? null,
-          customerPn: (r.customerPn as string | null) ?? null,
-          remark: (r.remark as string | null) ?? null,
-        }) as OrderItem,
-    );
-}
-
 export interface ItemInput {
   chipModel: string;
   brand: string | null;
@@ -268,22 +248,64 @@ export interface ItemInput {
   subtotal: number | null;
   customerPn: string | null;
   remark: string | null;
+  /** V1.3：物料库关联与价格口径 */
+  materialId?: number | null;
+  materialCode?: string | null;
+  materialName?: string | null;
+  purchasePrice?: number | null;
+  priceTaxIncluded?: boolean;
+  taxRate?: number;
+}
+
+export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
+  return db
+    .prepare(
+      'SELECT id, order_id AS orderId, material_id AS materialId, material_code AS materialCode, ' +
+        'material_name AS materialName, chip_model AS chipModel, brand, package_spec AS packageSpec, ' +
+        'qty, unit_price AS unitPrice, purchase_price AS purchasePrice, price_tax_included AS priceTaxIncluded, ' +
+        'tax_rate AS taxRate, subtotal, customer_pn AS customerPn, remark, sort_order AS sortOrder ' +
+        'FROM order_item WHERE order_id = ? ORDER BY sort_order, id',
+    )
+    .all(orderId)
+    .map(
+      (r) =>
+        ({
+          ...r,
+          materialId: (r.materialId as number | null) ?? null,
+          materialCode: (r.materialCode as string | null) ?? null,
+          materialName: (r.materialName as string | null) ?? null,
+          brand: (r.brand as string | null) ?? null,
+          packageSpec: (r.packageSpec as string | null) ?? null,
+          purchasePrice: (r.purchasePrice as number | null) ?? null,
+          priceTaxIncluded: !!(r.priceTaxIncluded as number | null ?? 1),
+          taxRate: Number(r.taxRate ?? 13),
+          customerPn: (r.customerPn as string | null) ?? null,
+          remark: (r.remark as string | null) ?? null,
+        }) as OrderItem,
+    );
 }
 
 export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput[]): void {
   db.prepare('DELETE FROM order_item WHERE order_id = ?').run(orderId);
   const stmt = db.prepare(
-    'INSERT INTO order_item (order_id, chip_model, brand, package_spec, qty, unit_price, subtotal, customer_pn, remark, sort_order) ' +
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO order_item (order_id, material_id, material_code, material_name, chip_model, brand, ' +
+      'package_spec, qty, unit_price, purchase_price, price_tax_included, tax_rate, subtotal, ' +
+      'customer_pn, remark, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   items.forEach((it, i) => {
     stmt.run(
       orderId,
+      it.materialId ?? null,
+      it.materialCode ?? null,
+      it.materialName ?? null,
       it.chipModel,
       it.brand,
       it.packageSpec,
       it.qty,
       it.unitPrice,
+      it.purchasePrice ?? null,
+      it.priceTaxIncluded === false ? 0 : 1,
+      it.taxRate ?? 13,
       it.subtotal,
       it.customerPn,
       it.remark,

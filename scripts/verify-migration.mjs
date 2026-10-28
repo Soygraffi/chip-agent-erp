@@ -1,18 +1,22 @@
 import { DatabaseSync } from 'node:sqlite';
 import { migrate } from '../packages/db/dist/index.js';
 
-const db = new DatabaseSync('D:/Programming Projects/ERP for me/.tmp-store-probe/migrate-test.db');
-const before = db.prepare('SELECT name FROM pragma_table_info(\'customer\')').all().map((c) => c.name);
-const countBefore = db.prepare('SELECT COUNT(*) AS c FROM customer').get().c;
+const path = process.argv[2] ?? '.tmp-store-probe/v4-test.db';
+const db = new DatabaseSync(path);
+const before = db.prepare("SELECT value FROM schema_meta WHERE key='schema_version'").get();
 migrate(db);
-const v = db.prepare("SELECT value FROM schema_meta WHERE key='schema_version'").get();
-const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('customer_wechat_group','wechat_member','order_attachment','order_wechat_group')").all().map((t) => t.name);
-const after = db.prepare('SELECT name FROM pragma_table_info(\'customer\')').all().map((c) => c.name);
-const countAfter = db.prepare('SELECT COUNT(*) AS c FROM customer').get().c;
-const ordersCount = db.prepare('SELECT COUNT(*) AS c FROM orders').get().c;
-console.log('schema_version:', v.value);
-console.log('new tables:', tables.join(','));
-console.log('customer count before/after:', countBefore, countAfter);
-console.log('orders count:', ordersCount);
-console.log('contact column removed:', !after.includes('contact'));
+const after = db.prepare("SELECT value FROM schema_meta WHERE key='schema_version'").get();
+const hasTable = (name) =>
+  !!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(name);
+const hasCol = (table, col) =>
+  !!db.prepare(`SELECT name FROM pragma_table_info('${table}') WHERE name = ?`).get(col);
+console.log('schema_version:', before?.value ?? '(none)', '->', after.value);
+console.log('material table:', hasTable('material'));
+console.log('customer.logo_path:', hasCol('customer', 'logo_path'));
+console.log('order_item.material_id:', hasCol('order_item', 'material_id'));
+console.log('order_item.price_tax_included:', hasCol('order_item', 'price_tax_included'));
+console.log(
+  'company_name setting:',
+  db.prepare("SELECT value FROM setting WHERE key='company_name'").get(),
+);
 db.close();

@@ -532,6 +532,62 @@ function StorageTab(): JSX.Element {
   );
 }
 
+function QuoteTab(): JSX.Element {
+  const [companyName, setCompanyName] = useState('');
+  const [quoteTerms, setQuoteTerms] = useState('');
+  const [quoteFooter, setQuoteFooter] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    void api.settings.getQuoteConfig().then((r) => {
+      const c = r as { companyName: string; quoteTerms: string; quoteFooter: string };
+      setCompanyName(c.companyName);
+      setQuoteTerms(c.quoteTerms);
+      setQuoteFooter(c.quoteFooter);
+    });
+  }, []);
+
+  const save = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      await api.settings.setQuoteConfig({ companyName, quoteTerms, quoteFooter });
+      void message.success('报价单设置已保存（下次导出即生效）');
+    } catch (e) {
+      void message.error(errorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <Card size="small" title="报价单抬头与说明">
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 6, color: '#666' }}>公司名称（报价单顶部大字标题）</div>
+          <Input
+            value={companyName}
+            placeholder="例如：湖北长江光电子信息产业供应链有限公司"
+            onChange={(e) => setCompanyName(e.target.value)}
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 6, color: '#666' }}>
+            备注说明（每行一条，例如「1、交货周期：...」「2、付款方式：...」）
+          </div>
+          <Input.TextArea rows={4} value={quoteTerms} onChange={(e) => setQuoteTerms(e.target.value)} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 6, color: '#666' }}>页脚（表尾提示语）</div>
+          <Input value={quoteFooter} onChange={(e) => setQuoteFooter(e.target.value)} />
+        </div>
+        <Button type="primary" loading={loading} onClick={() => void save()}>
+          保存
+        </Button>
+      </Card>
+    </div>
+  );
+}
+
 export function SettingsPage(): JSX.Element {
   return (
     <Card title="系统设置">
@@ -542,6 +598,7 @@ export function SettingsPage(): JSX.Element {
           { key: 'payment_method', label: '付款方式', children: <DictTab category="payment_method" /> },
           { key: 'status', label: '订单状态（语义）', children: <StatusTab /> },
           { key: 'template', label: '节点模板', children: <TemplateTab /> },
+          { key: 'quote', label: '报价单', children: <QuoteTab /> },
           { key: 'numbering', label: '编号规则', children: <NumberingTab /> },
           { key: 'storage', label: '存储设置', children: <StorageTab /> },
         ]}

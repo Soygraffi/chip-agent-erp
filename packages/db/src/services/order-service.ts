@@ -108,6 +108,10 @@ export const orderService = {
     const items: ItemInput[] = input.items.map((it) => ({
       ...it,
       chipModel: it.chipModel.trim(),
+      materialCode: it.materialCode?.trim() || null,
+      materialName: it.materialName?.trim() || null,
+      priceTaxIncluded: it.priceTaxIncluded !== false,
+      taxRate: it.taxRate ?? 13,
       subtotal: itemSubtotal(it),
     }));
     const auto = autoTotal(items);
@@ -185,6 +189,10 @@ export const orderService = {
         const items: ItemInput[] = input.items.map((it, i) => ({
           ...it,
           chipModel: it.chipModel.trim(),
+          materialCode: it.materialCode?.trim() || null,
+          materialName: it.materialName?.trim() || null,
+          priceTaxIncluded: it.priceTaxIncluded !== false,
+          taxRate: it.taxRate ?? 13,
           subtotal: itemSubtotal(it),
           sortOrder: i + 1,
         }));

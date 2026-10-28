@@ -191,12 +191,14 @@ describe('导出（V1.2）', () => {
     expect(rows[1][9]).toBe('商务交流群');
   });
 
-  it('导出订单明细包含芯片型号', async () => {
+  it('导出订单明细包含物料编码/价格口径列', async () => {
     seed();
     const buf = await exportItems(db);
     const rows = await readAll(buf);
-    expect(rows[0][2]).toBe('芯片型号');
-    expect(rows[1][2]).toBe('STM32F103');
+    expect(rows[0][2]).toBe('物料编码');
+    expect(rows[0][4]).toBe('料号规格');
+    expect(rows[0][9]).toBe('含税口径');
+    expect(rows[1][4]).toBe('STM32F103');
   });
 
   it('导出单订单详情：4 个 sheet（订单信息/物料明细/进度节点/沟通微信群）', async () => {
@@ -208,7 +210,7 @@ describe('导出（V1.2）', () => {
     const info = wb.worksheets[0];
     expect(String(info.getRow(1).getCell(2).value)).toBe('XS202610280001');
     const items = wb.worksheets[1];
-    expect(String(items.getRow(2).getCell(1).value)).toBe('STM32F103');
+    expect(String(items.getRow(2).getCell(3).value)).toBe('STM32F103');
     const nodes = wb.worksheets[2];
     expect(String(nodes.getRow(2).getCell(1).value)).toBe('需求沟通');
     expect(nodes.rowCount).toBe(11); // 表头 + 10 个节点

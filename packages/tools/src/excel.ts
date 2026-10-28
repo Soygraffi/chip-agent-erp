@@ -354,7 +354,7 @@ export async function exportOrders(db: DatabaseSync, filter: OrderFilter): Promi
 export async function exportItems(db: DatabaseSync): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('订单明细');
-  const headers = ['订单编号', '客户名称', '芯片型号', '品牌', '封装规格', '数量', '单价', '小计', '客户料号'];
+  const headers = ['订单编号', '客户名称', '物料编码', '物料名称', '料号规格', '品牌', '数量', '进货价', '出货价', '含税口径', '税率(%)', '含税单价', '含税金额', '毛利', '客户料号'];
   ws.addRow(headers);
   const page = listOrders(db, {
     page: 1,
@@ -365,22 +365,47 @@ export async function exportItems(db: DatabaseSync): Promise<Buffer> {
     const items = db
       .prepare('SELECT * FROM order_item WHERE order_id = ? ORDER BY sort_order')
       .all(o.id) as {
+      material_code: string | null;
+      material_name: string | null;
       chip_model: string;
       brand: string | null;
-      package_spec: string | null;
       qty: number;
       unit_price: number | null;
+      purchase_price: number | null;
+      price_tax_included: number;
+      tax_rate: number;
       subtotal: number | null;
       customer_pn: string | null;
     }[];
     items.forEach((it) => {
+      const taxIncluded = it.price_tax_included === 1;
+      const rate = it.tax_rate ?? 13;
+      const grossPrice = taxIncluded
+        ? (it.unit_price ?? 0)
+        : Number(((it.unit_price ?? 0) * (1 + rate / 100)).toFixed(4));
+      const grossPurchase = taxIncluded
+        ? (it.purchase_price ?? 0)
+        : Number(((it.purchase_price ?? 0) * (1 + rate / 100)).toFixed(4));
       ws.addRow([
-        o.orderNo, o.customerName, it.chip_model, it.brand ?? '', it.package_spec ?? '',
-        it.qty, it.unit_price ?? '', it.subtotal ?? '', it.customer_pn ?? '',
+        o.orderNo,
+        o.customerName,
+        it.material_code ?? '',
+        it.material_name ?? '',
+        it.chip_model,
+        it.brand ?? '',
+        it.qty,
+        it.purchase_price ?? '',
+        it.unit_price ?? '',
+        taxIncluded ? '含税' : '不含税',
+        rate,
+        grossPrice,
+        it.subtotal ?? 0,
+        Number(((it.qty * (grossPrice - grossPurchase)) || 0).toFixed(2)),
+        it.customer_pn ?? '',
       ]);
     });
   }
-  ws.columns.forEach((col, i) => (col.width = Math.max(10, (headers[i] ?? '').length + 8)));
+  ws.columns.forEach((col, i) => (col.width = Math.max(10, (headers[i] ?? '').length + 6)));
   styleHeaderRow(ws);
   return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
 }
@@ -412,10 +437,21 @@ export async function exportOrderDetail(db: DatabaseSync, id: number): Promise<B
   wsInfo.getColumn(2).width = 40;
 
   const wsItems = wb.addWorksheet('物料明细');
-  const itemHeaders = ['芯片型号', '品牌', '封装规格', '数量', '单价', '小计', '客户料号'];
+  const itemHeaders = ['物料编码', '物料名称', '料号规格', '品牌', '数量', '进货价', '出货价', '含税口径', '含税金额', '备注'];
   wsItems.addRow(itemHeaders);
   detail.items.forEach((it) =>
-    wsItems.addRow([it.chipModel, it.brand ?? '', it.packageSpec ?? '', it.qty, it.unitPrice ?? '', it.subtotal ?? '', it.customerPn ?? '']),
+    wsItems.addRow([
+      it.materialCode ?? '',
+      it.materialName ?? '',
+      it.chipModel,
+      it.brand ?? '',
+      it.qty,
+      it.purchasePrice ?? '',
+      it.unitPrice ?? '',
+      it.priceTaxIncluded ? '含税' : '不含税',
+      it.subtotal ?? 0,
+      it.remark ?? '',
+    ]),
   );
   wsItems.columns.forEach((col, i) => (col.width = Math.max(10, (itemHeaders[i] ?? '').length + 8)));
   styleHeaderRow(wsItems);

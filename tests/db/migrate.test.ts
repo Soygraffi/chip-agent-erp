@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(3);
+    expect(SCHEMA_VERSION).toBe(4);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -19,7 +19,7 @@ describe('数据库迁移与种子', () => {
     expect(templates.c).toBe(10);
   });
 
-  it('全部 16 张表存在', () => {
+  it('全部 17 张表存在', () => {
     const db = createTestDb();
     const rows = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
@@ -31,6 +31,7 @@ describe('数据库迁移与种子', () => {
         'customer',
         'customer_wechat_group',
         'dict_item',
+        'material',
         'node_attachment',
         'node_follow_up',
         'node_template',
@@ -92,6 +93,30 @@ describe('数据库迁移与种子', () => {
     const cols = db.prepare("SELECT name FROM pragma_table_info('customer')").all() as { name: string }[];
     expect(cols.some((c) => c.name === 'contact')).toBe(false);
     expect(cols.some((c) => c.name === 'phone')).toBe(false);
+    db.close();
+  });
+
+  it('V1.3 迁移：物料表、明细价格口径字段、客户 logo 列', () => {
+    const db = createTestDb();
+    const materialCols = (db.prepare("SELECT name FROM pragma_table_info('material')").all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    for (const c of ['code', 'code_norm', 'name', 'spec', 'brand', 'purchase_price', 'sale_price', 'price_tax_included', 'tax_rate', 'is_active']) {
+      expect(materialCols).toContain(c);
+    }
+    const itemCols = (db.prepare("SELECT name FROM pragma_table_info('order_item')").all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    for (const c of ['material_id', 'material_code', 'material_name', 'purchase_price', 'price_tax_included', 'tax_rate']) {
+      expect(itemCols).toContain(c);
+    }
+    const custCols = (db.prepare("SELECT name FROM pragma_table_info('customer')").all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    expect(custCols).toContain('logo_path');
+    // 设置里有报价单抬头默认值
+    const setting = db.prepare("SELECT value FROM setting WHERE key = 'company_name'").get() as { value: string };
+    expect(setting.value).toBe('');
     db.close();
   });
 

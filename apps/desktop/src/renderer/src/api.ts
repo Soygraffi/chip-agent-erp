@@ -40,6 +40,9 @@ export const api = {
     create: (input: unknown): Promise<number> => call('customers:create', input),
     update: (id: number, input: unknown): Promise<void> => call('customers:update', id, input),
     softDelete: (id: number): Promise<{ orderCount: number }> => call('customers:softDelete', id),
+    uploadLogo: (id: number): Promise<{ storedPath: string } | null> =>
+      call('customers:uploadLogo', id),
+    clearLogo: (id: number): Promise<void> => call('customers:clearLogo', id),
   },
 
   /* 订单 */
@@ -71,6 +74,7 @@ export const api = {
     open: (storedPath: string): Promise<void> => call('attachments:open', storedPath),
     openFolder: (storedPath: string): Promise<void> => call('attachments:openFolder', storedPath),
     pickAndAdd: (nodeId: number): Promise<unknown> => call('attachments:pickAndAdd', nodeId),
+    url: (storedPath: string): Promise<{ url: string }> => call('attachments:url', storedPath),
   },
 
   /* 客户微信群 */
@@ -90,6 +94,17 @@ export const api = {
     list: (orderId: number): Promise<unknown> => call('orderDocs:list', orderId),
     pickAndAdd: (orderId: number): Promise<unknown> => call('orderDocs:pickAndAdd', orderId),
     remove: (id: number): Promise<void> => call('orderDocs:delete', id),
+  },
+
+  /* 物料库 */
+  materials: {
+    list: (filter: unknown): Promise<unknown> => call('materials:list', filter),
+    options: (): Promise<unknown> => call('materials:options'),
+    get: (id: number): Promise<unknown> => call('materials:get', id),
+    create: (input: unknown): Promise<number> => call('materials:create', input),
+    update: (id: number, input: unknown): Promise<void> => call('materials:update', id, input),
+    remove: (id: number): Promise<void> => call('materials:delete', id),
+    orders: (id: number): Promise<unknown> => call('materials:orders', id),
   },
 
   /* 看板与提醒 */
@@ -128,6 +143,8 @@ export const api = {
   settings: {
     getOrderNoConfig: (): Promise<unknown> => call('settings:getOrderNoConfig'),
     setOrderNoConfig: (cfg: unknown): Promise<unknown> => call('settings:setOrderNoConfig', cfg),
+    getQuoteConfig: (): Promise<unknown> => call('settings:getQuoteConfig'),
+    setQuoteConfig: (cfg: unknown): Promise<unknown> => call('settings:setQuoteConfig', cfg),
     storageInfo: (): Promise<unknown> => call('settings:storageInfo'),
     migrateDataDir: (dir: string): Promise<unknown> => call('settings:migrateDataDir', dir),
     setBackupDir: (dir: string): Promise<unknown> => call('settings:setBackupDir', dir),
@@ -138,6 +155,7 @@ export const api = {
   exportOrders: (filter: unknown): Promise<string | null> => call('export:orders', filter),
   exportItems: (): Promise<string | null> => call('export:items'),
   exportOrderDetail: (id: number): Promise<string | null> => call('export:orderDetail', id),
+  exportQuote: (orderId: number): Promise<string | null> => call('export:quote', orderId),
   downloadCustomerTemplate: (): Promise<string | null> => call('import:customerTemplate'),
   downloadOrderTemplate: (): Promise<string | null> => call('import:orderTemplate'),
   importCustomers: (): Promise<{ file: string; report: ImportReport } | null> => call('import:customers'),

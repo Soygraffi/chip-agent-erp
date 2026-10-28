@@ -23,6 +23,7 @@ import {
   orderAttachmentService,
   nodeService,
   wechatService,
+  materialService,
   statsService,
   statusDictService,
   dictService,
@@ -40,6 +41,7 @@ import {
   exportCustomers,
   exportOrders,
   exportOrderDetail,
+  exportQuote,
 } from '@erp/tools';
 
 let dir: string;
@@ -245,7 +247,7 @@ describe('第九章验收标准', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load((await exportOrderDetail(db, oid)) as never);
     expect(wb.worksheets.map((w) => w.name)).toEqual(['订单信息', '物料明细', '进度节点', '沟通微信群']);
-    expect(String(wb.worksheets[1].getRow(2).getCell(1).value)).toBe('CHIP-ACCEPT');
+    expect(String(wb.worksheets[1].getRow(2).getCell(3).value)).toBe('CHIP-ACCEPT');
     const ordersWb = new ExcelJS.Workbook();
     await ordersWb.xlsx.load((await exportOrders(db, { page: 1, pageSize: 100, today: '2026-10-28' })) as never);
     expect(String(ordersWb.worksheets[0].getRow(2).getCell(2).value)).toBe('导出验收客户');
@@ -362,6 +364,119 @@ describe('第九章验收标准', () => {
     expect(row.orderDate).toBeNull();
     expect(row.statusName).toBe('未填写');
     expect(row.typeName).toBeNull();
+  });
+
+  it('V1.3 新增：物料库增删改查、订单引用、删除保护与关联订单', () => {
+    const mid = materialService.create(db, {
+      code: 'RDDZX03001',
+      name: 'ARM处理器',
+      spec: 'GD32F407ZGT6',
+      brand: '兆易创新',
+      purchasePrice: 12.5,
+      salePrice: 29.24,
+      priceTaxIncluded: true,
+      taxRate: 13,
+    });
+    const cid = customerService.create(db, { name: '物料验收客户' });
+    const oid = orderService.create(db, {
+      customerId: cid,
+      items: [
+        {
+          materialId: mid,
+          materialCode: 'RDDZX03001',
+          materialName: 'ARM处理器',
+          chipModel: 'GD32F407ZGT6',
+          brand: '兆易创新',
+          packageSpec: null,
+          qty: 5,
+          unitPrice: 29.24,
+          purchasePrice: 12.5,
+          priceTaxIncluded: true,
+          taxRate: 13,
+          subtotal: 146.2,
+          customerPn: null,
+          remark: null,
+        },
+      ],
+    });
+    expect(orderService.get(db, oid).totalAmount).toBe(146.2);
+    expect(() => materialService.delete(db, mid)).toThrowError(/不能删除/);
+    const orders = materialService.ordersUsing(db, mid);
+    expect(orders[0].orderId).toBe(oid);
+    expect(materialService.list(db, { search: 'GD32', page: 1, pageSize: 10 }).total).toBe(1);
+  });
+
+  it('V1.3 新增：不含税单价按税率换算为含税金额', () => {
+    const cid = customerService.create(db, { name: '不含税客户' });
+    const oid = orderService.create(db, {
+      customerId: cid,
+      items: [
+        {
+          chipModel: 'X1',
+          brand: null,
+          packageSpec: null,
+          qty: 2,
+          unitPrice: 100,
+          purchasePrice: 80,
+          priceTaxIncluded: false,
+          taxRate: 13,
+          subtotal: 226,
+          customerPn: null,
+          remark: null,
+        },
+      ],
+    });
+    const d = orderService.get(db, oid);
+    expect(d.items[0].subtotal).toBe(226); // 2 × 100 × 1.13
+    expect(d.totalAmount).toBe(226);
+    expect(d.items[0].priceTaxIncluded).toBe(false);
+  });
+
+  it('V1.3 新增：一键导出报价单（公司抬头 + 明细 + 合计含税）', async () => {
+    setSetting(db, 'company_name', '测试供应链有限公司');
+    const cid = customerService.create(db, { name: '报价单客户' });
+    const oid = orderService.create(db, {
+      customerId: cid,
+      items: [
+        {
+          materialCode: 'RDDZX03001',
+          materialName: 'ARM处理器',
+          chipModel: 'GD32F407ZGT6',
+          brand: '兆易创新',
+          packageSpec: null,
+          qty: 5,
+          unitPrice: 29.24,
+          purchasePrice: 12.5,
+          priceTaxIncluded: true,
+          taxRate: 13,
+          subtotal: 146.2,
+          customerPn: null,
+          remark: null,
+        },
+      ],
+    });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await exportQuote(db, oid)) as never);
+    const ws = wb.worksheets[0];
+    expect(ws.name).toBe('报价单');
+    expect(String(ws.getCell('A1').value)).toBe('测试供应链有限公司');
+    expect(String(ws.getCell('A2').value)).toBe('报价单');
+    expect(ws.getRow(4).getCell(7).value).toBe(146.2);
+    // 合计行（1 条明细时位于第 5 行）
+    let totalRowNo = 0;
+    ws.eachRow((row, i) => {
+      if (String(row.getCell(1).value) === '合计（含税）') totalRowNo = i;
+    });
+    expect(totalRowNo).toBeGreaterThan(0);
+    expect(ws.getRow(totalRowNo).getCell(7).value).toBe(146.2);
+  });
+
+  it('V1.3 新增：客户 Logo 路径保存/清除', () => {
+    const cid = customerService.create(db, { name: 'Logo客户' });
+    customerService.update(db, cid, { logoPath: 'attachments/customer-logos/1/a.png' });
+    expect(customerService.get(db, cid).logoPath).toBe('attachments/customer-logos/1/a.png');
+    customerService.update(db, cid, { logoPath: null });
+    expect(customerService.get(db, cid).logoPath).toBeNull();
   });
 
   it('9.2.1 启动（打开+迁移）≤3s；9.2.2 全部功能离线可用（本套件全部为本地 DB/文件操作）', () => {
