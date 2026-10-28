@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -17,6 +17,7 @@ import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
+import { pinyinFilterOption } from '../utils/pinyin';
 import type { OrderDetail, WechatGroup } from '../models';
 
 interface OptionItem {
@@ -422,7 +423,7 @@ export function OrderFormPage(): JSX.Element {
       <Form form={form} layout="vertical">
         <Space size={24} align="start" wrap style={{ display: 'flex' }}>
           <Form.Item name="customerId" label="所属客户" rules={[{ required: true, message: '请选择客户' }]}>
-            <Select showSearch optionFilterProp="label" style={{ width: 240 }} placeholder="选择客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} onChange={(v) => onCustomerChange(v)} />
+            <Select showSearch filterOption={(input, option) => pinyinFilterOption(input, option)} style={{ width: 240 }} placeholder="输入名称或拼音搜索客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} onChange={(v) => onCustomerChange(v)} />
           </Form.Item>
           <Form.Item name="orderNo" label="订单编号" extra="留空自动生成">
             <Input style={{ width: 180 }} placeholder="留空自动生成" />

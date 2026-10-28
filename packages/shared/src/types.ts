@@ -107,6 +107,7 @@ export interface Material {
   taxRate: number;              // 税率（%），默认 13
   remark: string | null;
   isActive: boolean;
+  supplierId: number | null;    // V1.6 供应商
   createdAt: string;
   updatedAt: string;
 }
@@ -115,6 +116,7 @@ export interface MaterialListRow extends Material {
   orderItemCount: number;
   orderCount: number;
   lastOrderDate: string | null;
+  supplierName: string | null;
 }
 
 /** 客户微信群（同一客户可有多个群：商务交流群、研发交流群…） */
@@ -249,6 +251,25 @@ export interface CustomerListRow extends Customer {
   orderCount: number;
   activeOrderCount: number;
   wechatGroupCount: number;
+}
+
+/** 供应商管理（V1.6）：给我们和客户供应芯片的公司 */
+export interface Supplier {
+  id: number;
+  name: string;
+  nameNorm: string;
+  shortName: string | null;
+  contact: string | null;
+  phone: string | null;
+  address: string | null;
+  remark: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupplierListRow extends Supplier {
+  materialCount: number;
 }
 
 /** 订单总览（V1.5）：列表行 + 明细 + 进度节点，供订单管理/首页直接展示 */

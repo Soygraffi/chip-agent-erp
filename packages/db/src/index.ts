@@ -1,4 +1,4 @@
-export * from './connection.js';
+﻿export * from './connection.js';
 export * from './migrator.js';
 export * from './migrations.js';
 export * from './repos/dict-repo.js';
@@ -10,4 +10,5 @@ export * from './repos/stats-repo.js';
 export * from './repos/wechat-repo.js';
 export * from './repos/attachment-repo.js';
 export * from './repos/material-repo.js';
+export * from './repos/supplier-repo.js';
 export * from './services/index.js';

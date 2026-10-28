@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+﻿import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { migrate, SCHEMA_VERSION, currentSchemaVersion, MIGRATIONS, openDatabase } from '@erp/db';
 import { createTestDb } from './helpers.ts';
@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(6);
+    expect(SCHEMA_VERSION).toBe(7);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -19,7 +19,7 @@ describe('数据库迁移与种子', () => {
     expect(templates.c).toBe(10);
   });
 
-  it('全部 17 张表存在', () => {
+  it('全部 18 张表存在', () => {
     const db = createTestDb();
     const rows = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
@@ -32,6 +32,7 @@ describe('数据库迁移与种子', () => {
         'customer_wechat_group',
         'dict_item',
         'material',
+        'supplier',
         'node_attachment',
         'node_follow_up',
         'node_template',
@@ -126,6 +127,19 @@ describe('数据库迁移与种子', () => {
     expect(custCols).toContain('contact');
     const memberCols = (db.prepare("SELECT name FROM pragma_table_info('wechat_member')").all() as { name: string }[]).map((c) => c.name);
     expect(memberCols).toContain('company');
+    db.close();
+  });
+
+  it('V1.6 迁移：供应商表、物料供应商列、菜单顺序设置', () => {
+    const db = createTestDb();
+    expect(!!db.prepare("SELECT name FROM sqlite_master WHERE name='supplier'").get()).toBe(true);
+    expect(
+      (db.prepare("SELECT name FROM pragma_table_info('material')").all() as { name: string }[]).some(
+        (c) => c.name === 'supplier_id',
+      ),
+    ).toBe(true);
+    const menu = db.prepare("SELECT value FROM setting WHERE key='menu_order'").get() as { value: string };
+    expect(menu.value).toBe('');
     db.close();
   });
 

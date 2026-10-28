@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -14,6 +14,7 @@ import {
 } from 'antd';
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { api, errorMessage } from '../api';
+import { matchesPinyin, pinyinFilterOption } from '../utils/pinyin';
 import type { WechatGroupWithCustomer, WechatMember } from '../models';
 
 interface CustomerOption {
@@ -40,6 +41,7 @@ export function WechatGroupsPage(): JSX.Element {
   const [creating, setCreating] = useState(false);
   const [memberRows, setMemberRows] = useState<MemberRow[]>([]);
   const [memberSearch, setMemberSearch] = useState('');
+  const [search, setSearch] = useState('');
   const [groupForm] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -154,6 +156,8 @@ export function WechatGroupsPage(): JSX.Element {
     }
   };
 
+  const filteredGroups = groups.filter((g) => matchesPinyin(search, g.name, g.customerName));
+
   const filteredRows = memberRows.filter(
     (r) =>
       !memberSearch ||
@@ -183,10 +187,16 @@ export function WechatGroupsPage(): JSX.Element {
         </Space>
       }
     >
+      <Input.Search
+        allowClear
+        placeholder="搜索客户 / 群名（支持拼音，如 csdfr）"
+        style={{ width: 320, marginBottom: 12 }}
+        onSearch={(v) => setSearch(v)}
+      />
       <Table<WechatGroupWithCustomer>
         rowKey="id"
         loading={loading}
-        dataSource={groups}
+        dataSource={filteredGroups}
         pagination={false}
         expandable={{
           expandedRowRender: (g) => (
@@ -245,7 +255,7 @@ export function WechatGroupsPage(): JSX.Element {
             <Form.Item name="customerId" label="所属客户" rules={[{ required: true, message: '请选择客户' }]}>
               <Select
                 showSearch
-                optionFilterProp="label"
+                filterOption={(input, option) => pinyinFilterOption(input, option)}
                 style={{ width: 260 }}
                 options={customers.map((c) => ({ value: c.id, label: c.name }))}
               />

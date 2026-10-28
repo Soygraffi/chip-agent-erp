@@ -1,19 +1,12 @@
-import React, { useEffect } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd';
+import type { MenuProps } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import {
-  DashboardOutlined,
-  TeamOutlined,
-  ProfileOutlined,
-  AppstoreOutlined,
-  WechatOutlined,
-  ToolOutlined,
-  SettingOutlined,
-} from '@ant-design/icons';
 import { HashRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
+import { SuppliersPage } from './pages/SuppliersPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { OrderFormPage } from './pages/OrderFormPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
@@ -22,24 +15,28 @@ import { WechatGroupsPage } from './pages/WechatGroupsPage';
 import { ToolsPage } from './pages/ToolsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReminderBell, StartupReminderModal } from './components/Reminders';
+import { applyMenuOrder, MENU_ITEMS } from './menu';
+import { api } from './api';
 
 const { Sider, Content, Header } = Layout;
-
-const MENU_ITEMS = [
-  { key: '/dashboard', icon: <DashboardOutlined />, label: '首页看板' },
-  { key: '/customers', icon: <TeamOutlined />, label: '客户管理' },
-  { key: '/wechat', icon: <WechatOutlined />, label: '微信群管理' },
-  { key: '/orders', icon: <ProfileOutlined />, label: '订单管理' },
-  { key: '/materials', icon: <AppstoreOutlined />, label: '物料管理' },
-  { key: '/tools', icon: <ToolOutlined />, label: '数据工具' },
-  { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
-];
 
 function Shell(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
+  const [menuItems, setMenuItems] = useState(MENU_ITEMS);
+
+  useEffect(() => {
+    const load = (): void => {
+      void api.settings.getMenuOrder().then((saved) => setMenuItems(applyMenuOrder(saved ?? '')));
+    };
+    load();
+    const off = window.api.onDataChanged(load);
+    return off;
+  }, []);
+
   const selectedKey =
-    MENU_ITEMS.map((m) => m.key)
+    menuItems
+      .map((m) => m.key)
       .filter((k) => location.pathname.startsWith(k))
       .sort((a, b) => b.length - a.length)[0] ?? '/dashboard';
 
@@ -51,7 +48,7 @@ function Shell(): JSX.Element {
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
-          items={MENU_ITEMS}
+          items={menuItems as MenuProps['items']}
           onClick={(e) => navigate(e.key)}
         />
       </Sider>
@@ -66,6 +63,7 @@ function Shell(): JSX.Element {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
+            <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/wechat" element={<WechatGroupsPage />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/new" element={<OrderFormPage />} />

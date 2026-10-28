@@ -12,6 +12,7 @@ import {
   orderAttachmentService,
   wechatService,
   materialService,
+  supplierService,
   rateService,
   statsService,
   statusDictService,
@@ -499,6 +500,26 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     wrap(() => materialService.ordersUsing(db(), id)),
   );
 
+  /* ---------------- 供应商（V1.6） ---------------- */
+  ipcMain.handle('suppliers:list', (_e, filter) => wrap(() => supplierService.list(db(), filter)));
+  ipcMain.handle('suppliers:options', () => wrap(() => supplierService.options(db())));
+  ipcMain.handle('suppliers:get', (_e, id: number) => wrap(() => supplierService.get(db(), id)));
+  ipcMain.handle('suppliers:create', (_e, input) => {
+    const r = wrap(() => supplierService.create(db(), input));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('suppliers:update', (_e, id: number, input) => {
+    const r = wrap(() => supplierService.update(db(), id, input));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('suppliers:delete', (_e, id: number) => {
+    const r = wrap(() => supplierService.softDelete(db(), id, todayStr()));
+    if (r.ok) changed();
+    return r;
+  });
+
   /* ---------------- 设置 ---------------- */
   ipcMain.handle('settings:getOrderNoConfig', () => wrap(() => getOrderNoConfig(db())));
   ipcMain.handle('settings:getQuoteConfig', () =>
@@ -508,6 +529,15 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
       quoteFooter: getSetting(db(), 'quote_footer') ?? '',
     })),
   );
+  ipcMain.handle('settings:getMenuOrder', () => wrap(() => getSetting(db(), 'menu_order') ?? ''));
+  ipcMain.handle('settings:setMenuOrder', (_e, order: string[]) => {
+    const r = wrap(() => {
+      setSetting(db(), 'menu_order', order.join(','));
+      return order.join(',');
+    });
+    if (r.ok) changed();
+    return r;
+  });
   ipcMain.handle('settings:setQuoteConfig', (_e, cfg: { companyName: string; quoteTerms: string; quoteFooter: string }) => {
     const r = wrap(() => {
       setSetting(db(), 'company_name', cfg.companyName.trim());

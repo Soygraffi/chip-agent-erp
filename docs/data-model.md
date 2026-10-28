@@ -5,7 +5,8 @@
 > **V1.2 变更**：移除客户联系人/电话/邮箱/负责业务员/合作起始日期；新增客户微信群与成员、订单文档、订单-微信群关联；订单日期/类型/状态可空；移除订单币种/汇率/负责人与节点负责人。
 > **V1.3 变更**：新增物料库（进货价/出货价/含税口径/税率）；订单明细增加物料编码/名称/进货价/含税口径；客户增加 Logo；新增报价单导出。
 > **V1.4 变更**：客户增加 sort_order（卡片拖动排序）；进货价/出货价各自独立含税标记（purchase_tax_included）；节点顺序改由模板拖动排序维护。
-> **V1.5 变更**：客户增加 contact（联系人，可选）；群成员增加 company（任职公司）。迁移脚本见 packages/db/src/migrations.ts（version 3、4、5、6）。
+> **V1.5 变更**：客户增加 contact（联系人，可选）；群成员增加 company（任职公司）。
+> **V1.6 变更**：新增 supplier（供应商，软删除、名称唯一）；物料增加 supplier_id；设置增加 menu_order。迁移脚本见 packages/db/src/migrations.ts（version 3~7）。
 
 ## 一、实体关系（ER）
 
@@ -179,6 +180,22 @@ CREATE TABLE order_wechat_group (
   PRIMARY KEY (order_id, group_id)
 );
 
+-- 供应商（V1.6）：给我们和客户供应芯片的公司
+CREATE TABLE supplier (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL,
+  name_norm  TEXT    NOT NULL,
+  short_name TEXT,
+  contact    TEXT,
+  phone      TEXT,
+  address    TEXT,
+  remark     TEXT,
+  deleted_at TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX ux_supplier_name ON supplier(name_norm) WHERE deleted_at IS NULL;
+
 -- 物料库（V1.3）
 CREATE TABLE material (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,6 +211,7 @@ CREATE TABLE material (
   tax_rate           REAL    NOT NULL DEFAULT 13,
   remark             TEXT,
   is_active          INTEGER NOT NULL DEFAULT 1,
+  supplier_id        INTEGER REFERENCES supplier(id), -- V1.6 供应商
   created_at         TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at         TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );

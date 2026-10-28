@@ -67,6 +67,10 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
   const [nodeModal, setNodeModal] = useState<OrderNode | null>(null);
   const [form] = Form.useForm();
 
+  useEffect(() => {
+    if (nodeModal) form.setFieldsValue({ name: nodeModal.name, status: nodeModal.status });
+  }, [nodeModal, form]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -103,7 +107,6 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
 
   const openNode = (n: OrderNode): void => {
     setNodeModal(n);
-    form.setFieldsValue({ name: n.name, status: n.status });
   };
 
   const submitNode = async (): Promise<void> => {
@@ -133,6 +136,18 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
     if (n.status === 'delayed') return 'error';
     if (n.status === 'in_progress') return 'process';
     return 'wait';
+  };
+
+  /** 订单状态与时间轴联动：取当前（第一个未完成）节点的状态；全部完成则为已完结 */
+  const deriveStatus = (nodes: OrderNode[]): { label: string; color: string } => {
+    if (nodes.length === 0) return { label: '未填写', color: '#BFBFBF' };
+    const sorted = [...nodes].sort((a, b) => a.sortOrder - b.sortOrder);
+    if (sorted.every((n) => n.status === 'done')) return { label: '已完结', color: '#52C41A' };
+    const current = sorted.find((n) => n.status !== 'done')!;
+    return {
+      label: `${current.name} · ${NODE_STATUS_LABELS[current.status]}`,
+      color: NODE_STATUS_COLORS[current.status],
+    };
   };
 
   return (
@@ -219,7 +234,7 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
                 <a onClick={() => navigate(`/orders/${o.id}`)}>{o.customerName}</a>
                 {o.customerDeleted && <Tag color="red">已删除客户</Tag>}
                 {o.customerContact && <Tag color="blue">联系人：{o.customerContact}</Tag>}
-                {o.statusName ? <Tag color={o.statusColor}>{o.statusName}</Tag> : <Tag color="#BFBFBF">未填写</Tag>}
+                <Tag color={deriveStatus(o.nodes).color}>{deriveStatus(o.nodes).label}</Tag>
                 {o.daysOverdue > 0 && <Tag color="red">逾期 {o.daysOverdue} 天</Tag>}
                 {o.isKey && <Tag color="gold">重点</Tag>}
                 <Tag>{o.typeName ?? '未分类'}</Tag>
@@ -303,7 +318,29 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
             <Input />
           </Form.Item>
           <Form.Item name="status" label="当前进度状态">
-            <Select options={Object.entries(NODE_STATUS_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
+            <Form.Item noStyle shouldUpdate>
+              {({ getFieldValue, setFieldValue }) => {
+                const current = getFieldValue('status') as string | undefined;
+                return (
+                  <Space wrap>
+                    {Object.entries(NODE_STATUS_LABELS).map(([value, label]) => (
+                      <Button
+                        key={value}
+                        type={current === value ? 'primary' : 'default'}
+                        style={
+                          current === value
+                            ? { background: NODE_STATUS_COLORS[value], borderColor: NODE_STATUS_COLORS[value] }
+                            : undefined
+                        }
+                        onClick={() => setFieldValue('status', value)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </Space>
+                );
+              }}
+            </Form.Item>
           </Form.Item>
         </Form>
       </Modal>

@@ -383,6 +383,31 @@ ALTER TABLE customer ADD COLUMN contact TEXT;
 ALTER TABLE wechat_member ADD COLUMN company TEXT;
 `;
 
+/**
+ * V1.6：供应商管理（供应芯片的公司）；物料可关联供应商；菜单顺序设置。
+ */
+const V16 = `
+CREATE TABLE supplier (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL,
+  name_norm  TEXT    NOT NULL,
+  short_name TEXT,
+  contact    TEXT,
+  phone      TEXT,
+  address    TEXT,
+  remark     TEXT,
+  deleted_at TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX ux_supplier_name ON supplier(name_norm) WHERE deleted_at IS NULL;
+
+ALTER TABLE material ADD COLUMN supplier_id INTEGER REFERENCES supplier(id);
+
+INSERT INTO setting (key, value) VALUES ('menu_order', '')
+  ON CONFLICT(key) DO NOTHING;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -390,5 +415,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 4, name: 'v1.3 material library, tax-aware item prices, customer logo', sql: V13 },
   { version: 5, name: 'v1.4 customer sort order & per-price tax flags', sql: V14 },
   { version: 6, name: 'v1.5 customer contact & member company', sql: V15 },
+  { version: 7, name: 'v1.6 supplier management & menu order', sql: V16 },
 ];
 

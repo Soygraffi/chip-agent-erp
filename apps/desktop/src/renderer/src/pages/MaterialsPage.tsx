@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -18,6 +18,7 @@ import {
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { pinyinFilterOption } from '../utils/pinyin';
 import type { MaterialListRow, Page } from '../models';
 
 interface MaterialOrderRow {
@@ -56,6 +57,7 @@ export function MaterialsPage(): JSX.Element {
   const [creating, setCreating] = useState(false);
   const [form] = Form.useForm();
   const [margin, setMargin] = useState<number | null>(null);
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
   const [ordersDrawer, setOrdersDrawer] = useState<{ material: MaterialListRow; rows: MaterialOrderRow[] } | null>(null);
 
   const load = useCallback(async () => {
@@ -78,6 +80,7 @@ export function MaterialsPage(): JSX.Element {
 
   useEffect(() => {
     void load();
+    void api.suppliers.options().then((r) => setSuppliers(r as { id: number; name: string }[]));
   }, [load]);
 
   const openCreate = (): void => {
@@ -217,6 +220,7 @@ export function MaterialsPage(): JSX.Element {
           { title: '物料名称', dataIndex: 'name', width: 150 },
           { title: '料号规格', dataIndex: 'spec', width: 150, render: (v: string | null) => v ?? '-' },
           { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
+          { title: '供应商', dataIndex: 'supplierName', width: 150, render: (v: string | null) => v ?? '-' },
           {
             title: '进货价',
             dataIndex: 'purchasePrice',
@@ -317,6 +321,15 @@ export function MaterialsPage(): JSX.Element {
             </Form.Item>
             <Form.Item name="brand" label="品牌">
               <Input style={{ width: 160 }} placeholder="如 兆易创新" />
+            </Form.Item>
+            <Form.Item name="supplierId" label="供应商">
+              <Select
+                allowClear
+                showSearch
+                filterOption={(input, option) => pinyinFilterOption(input, option)}
+                style={{ width: 220 }}
+                options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+              />
             </Form.Item>
             <Form.Item name="taxRate" label="税率（%）">
               <InputNumber min={0} max={100} precision={2} style={{ width: 120 }} />

@@ -95,11 +95,27 @@ export function OrderDetailPage(): JSX.Element {
 
   const openNodeModal = (mode: 'edit' | 'create', node: OrderNode | null): void => {
     setNodeModal({ mode, node });
-    if (mode === 'edit' && node) {
-      form.setFieldsValue({ name: node.name, status: node.status });
+  };
+
+  // 弹窗内容挂载后再写入表单值，避免 destroyOnClose 时设置无效（V1.6 修复“第一个节点选不了状态”）
+  useEffect(() => {
+    if (!nodeModal) return;
+    if (nodeModal.mode === 'edit' && nodeModal.node) {
+      form.setFieldsValue({ name: nodeModal.node.name, status: nodeModal.node.status });
     } else {
       form.resetFields();
     }
+  }, [nodeModal, form]);
+
+  /** 订单状态与时间轴联动：当前（第一个未完成）节点 */
+  const deriveStatus = (): { label: string; color: string } => {
+    if (sortedNodes.length === 0) return { label: '未填写', color: '#BFBFBF' };
+    if (sortedNodes.every((n) => n.status === 'done')) return { label: '已完结', color: '#52C41A' };
+    const current = sortedNodes.find((n) => n.status !== 'done')!;
+    return {
+      label: `${current.name} · ${NODE_STATUS_LABELS[current.status]}`,
+      color: NODE_STATUS_COLORS[current.status],
+    };
   };
 
   const submitNode = async (): Promise<void> => {
@@ -169,7 +185,7 @@ export function OrderDetailPage(): JSX.Element {
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/orders')} />
           <span>{customerName}</span>
-          {status ? <Tag color={status.color}>{status.name}</Tag> : <Tag color="#BFBFBF">未填写</Tag>}
+          {status ? <Tag color={deriveStatus().color}>{deriveStatus().label}</Tag> : <Tag color="#BFBFBF">未填写</Tag>}
           {daysOverdue > 0 && <Tag color="red">逾期 {daysOverdue} 天</Tag>}
           {detail.isKey && <Tag color="gold">重点跟进</Tag>}
         </Space>
@@ -377,8 +393,30 @@ export function OrderDetailPage(): JSX.Element {
           <Form.Item name="name" label="节点名称" rules={[{ required: true, message: '请输入节点名称' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="status" label="节点状态">
-            <Select options={Object.entries(NODE_STATUS_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
+          <Form.Item name="status" label="当前进度状态">
+            <Form.Item noStyle shouldUpdate>
+              {({ getFieldValue, setFieldValue }) => {
+                const current = getFieldValue('status') as string | undefined;
+                return (
+                  <Space wrap>
+                    {Object.entries(NODE_STATUS_LABELS).map(([value, label]) => (
+                      <Button
+                        key={value}
+                        type={current === value ? 'primary' : 'default'}
+                        style={
+                          current === value
+                            ? { background: NODE_STATUS_COLORS[value], borderColor: NODE_STATUS_COLORS[value] }
+                            : undefined
+                        }
+                        onClick={() => setFieldValue('status', value)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </Space>
+                );
+              }}
+            </Form.Item>
           </Form.Item>
         </Form>
       </Modal>

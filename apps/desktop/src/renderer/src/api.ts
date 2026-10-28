@@ -111,6 +111,16 @@ export const api = {
     orders: (id: number): Promise<unknown> => call('materials:orders', id),
   },
 
+  /* 供应商 */
+  suppliers: {
+    list: (filter: unknown): Promise<unknown> => call('suppliers:list', filter),
+    options: (): Promise<unknown> => call('suppliers:options'),
+    get: (id: number): Promise<unknown> => call('suppliers:get', id),
+    create: (input: unknown): Promise<number> => call('suppliers:create', input),
+    update: (id: number, input: unknown): Promise<void> => call('suppliers:update', id, input),
+    remove: (id: number): Promise<void> => call('suppliers:delete', id),
+  },
+
   /* 看板与提醒 */
   stats: {
     dashboard: (): Promise<unknown> => call('stats:dashboard'),
@@ -152,6 +162,8 @@ export const api = {
     setOrderNoConfig: (cfg: unknown): Promise<unknown> => call('settings:setOrderNoConfig', cfg),
     getQuoteConfig: (): Promise<unknown> => call('settings:getQuoteConfig'),
     setQuoteConfig: (cfg: unknown): Promise<unknown> => call('settings:setQuoteConfig', cfg),
+    getMenuOrder: (): Promise<string> => call('settings:getMenuOrder'),
+    setMenuOrder: (order: string[]): Promise<string> => call('settings:setMenuOrder', order),
     storageInfo: (): Promise<unknown> => call('settings:storageInfo'),
     migrateDataDir: (dir: string): Promise<unknown> => call('settings:migrateDataDir', dir),
     setBackupDir: (dir: string): Promise<unknown> => call('settings:setBackupDir', dir),

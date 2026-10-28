@@ -1,13 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { HolderOutlined } from '@ant-design/icons';
 import { message } from 'antd';
 
 interface SortableListProps<T> {
   items: T[];
-  getKey: (item: T) => number;
+  getKey: (item: T) => number | string;
   renderMain: (item: T) => React.ReactNode;
   renderActions?: (item: T) => React.ReactNode;
-  onReorder: (ids: number[]) => Promise<void> | void;
+  onReorder: (ids: (number | string)[]) => Promise<void> | void;
   hint?: string;
 }
 

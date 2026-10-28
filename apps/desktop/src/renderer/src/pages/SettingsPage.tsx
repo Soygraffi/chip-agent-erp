@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -18,6 +18,7 @@ import {
 import { PlusOutlined } from '@ant-design/icons';
 import { api, errorMessage } from '../api';
 import { SortableList } from '../components/SortableList';
+import { applyMenuOrder, MENU_ITEMS } from '../menu';
 
 interface DictItem {
   id: number;
@@ -97,7 +98,7 @@ function DictTab({ category }: { category: string }): JSX.Element {
         getKey={(r) => r.id}
         hint="按住左侧拖动手柄上下拖动即可调整顺序（影响下拉选项的显示顺序）"
         onReorder={async (ids) => {
-          await api.dicts.reorder(category, ids);
+          await api.dicts.reorder(category, ids as number[]);
           load();
         }}
         renderMain={(r) => (
@@ -194,7 +195,7 @@ function StatusTab(): JSX.Element {
         getKey={(r) => r.id}
         hint="拖动调整订单状态的显示顺序（影响首页状态分布与筛选下拉顺序）"
         onReorder={async (ids) => {
-          await api.statuses.reorder(ids);
+          await api.statuses.reorder(ids as number[]);
           load();
         }}
         renderMain={(r) => (
@@ -318,7 +319,7 @@ function TemplateTab(): JSX.Element {
         getKey={(r) => r.id}
         hint="拖动调整节点顺序（影响之后新建订单的进度节点顺序，历史订单不受影响）"
         onReorder={async (ids) => {
-          await api.templates.reorder(ids);
+          await api.templates.reorder(ids as number[]);
           load();
         }}
         renderMain={(r) => (
@@ -534,6 +535,36 @@ function QuoteTab(): JSX.Element {
   );
 }
 
+function MenuOrderTab(): JSX.Element {
+  const [items, setItems] = useState(MENU_ITEMS);
+
+  useEffect(() => {
+    void api.settings.getMenuOrder().then((saved) => setItems(applyMenuOrder(saved ?? '')));
+  }, []);
+
+  return (
+    <Card size="small" title="左侧菜单顺序" style={{ maxWidth: 620 }}>
+      <div style={{ color: '#666', marginBottom: 12 }}>
+        拖动下面的菜单项调整左侧导航顺序，松手立即生效。
+      </div>
+      <SortableList
+        items={items}
+        getKey={(m) => m.key}
+        onReorder={async (keys) => {
+          const saved = await api.settings.setMenuOrder(keys as string[]);
+          setItems(applyMenuOrder(saved));
+        }}
+        renderMain={(m) => (
+          <Space>
+            {m.icon}
+            <span>{m.label}</span>
+          </Space>
+        )}
+      />
+    </Card>
+  );
+}
+
 export function SettingsPage(): JSX.Element {
   return (
     <Card title="系统设置">
@@ -545,6 +576,7 @@ export function SettingsPage(): JSX.Element {
           { key: 'status', label: '订单状态（语义）', children: <StatusTab /> },
           { key: 'template', label: '节点顺序 / 模板', children: <TemplateTab /> },
           { key: 'quote', label: '报价单', children: <QuoteTab /> },
+          { key: 'menu', label: '菜单顺序', children: <MenuOrderTab /> },
           { key: 'numbering', label: '编号规则', children: <NumberingTab /> },
           { key: 'storage', label: '存储设置', children: <StorageTab /> },
         ]}

@@ -15,12 +15,13 @@ export interface MaterialInput {
   taxRate?: number;
   remark?: string | null;
   isActive?: boolean;
+  supplierId?: number | null;
 }
 
 const COLS = `m.id, m.code, m.code_norm AS codeNorm, m.name, m.spec, m.brand,
   m.purchase_price AS purchasePrice, m.purchase_tax_included AS purchaseTaxIncluded,
   m.sale_price AS salePrice, m.price_tax_included AS priceTaxIncluded, m.tax_rate AS taxRate,
-  m.remark, m.is_active AS isActive, m.created_at AS createdAt, m.updated_at AS updatedAt`;
+  m.remark, m.is_active AS isActive, m.supplier_id AS supplierId, m.created_at AS createdAt, m.updated_at AS updatedAt`;
 
 function mapMaterial(r: Record<string, unknown>): Material {
   return {
@@ -33,6 +34,7 @@ function mapMaterial(r: Record<string, unknown>): Material {
     remark: (r.remark as string | null) ?? null,
     priceTaxIncluded: !!r.priceTaxIncluded,
     isActive: !!r.isActive,
+    supplierId: (r.supplierId as number | null) ?? null,
   } as Material;
 }
 
@@ -40,7 +42,7 @@ export function insertMaterial(db: DatabaseSync, m: MaterialInput): number {
   const r = db
     .prepare(
       'INSERT INTO material (code, code_norm, name, spec, brand, purchase_price, purchase_tax_included, ' +
-        'sale_price, price_tax_included, tax_rate, remark, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'sale_price, price_tax_included, tax_rate, remark, is_active, supplier_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       m.code,
@@ -55,6 +57,7 @@ export function insertMaterial(db: DatabaseSync, m: MaterialInput): number {
       m.taxRate ?? 13,
       m.remark ?? null,
       m.isActive === false ? 0 : 1,
+      m.supplierId ?? null,
     );
   return Number(r.lastInsertRowid);
 }
@@ -70,6 +73,7 @@ export function updateMaterial(
     name: 'name',
     spec: 'spec',
     brand: 'brand',
+    supplierId: 'supplier_id',
     purchasePrice: 'purchase_price',
     salePrice: 'sale_price',
     remark: 'remark',
@@ -154,8 +158,9 @@ export function listMaterials(db: DatabaseSync, f: MaterialFilter): Page<Materia
         (SELECT COUNT(*) FROM order_item i WHERE i.material_id = m.id) AS orderItemCount,
         (SELECT COUNT(DISTINCT i.order_id) FROM order_item i WHERE i.material_id = m.id) AS orderCount,
         (SELECT MAX(o.order_date) FROM order_item i JOIN orders o ON o.id = i.order_id
-          WHERE i.material_id = m.id) AS lastOrderDate
-       FROM material m WHERE ${whereSql}
+          WHERE i.material_id = m.id) AS lastOrderDate,
+        sup.name AS supplierName
+       FROM material m LEFT JOIN supplier sup ON sup.id = m.supplier_id WHERE ${whereSql}
        ORDER BY m.code
        LIMIT ? OFFSET ?`,
     )
@@ -175,6 +180,7 @@ export interface MaterialOption {
   name: string;
   spec: string | null;
   brand: string | null;
+  supplierId: number | null;
   purchasePrice: number | null;
   purchaseTaxIncluded: boolean;
   salePrice: number | null;
@@ -187,7 +193,7 @@ export function listMaterialOptions(db: DatabaseSync): MaterialOption[] {
   return (
     db
       .prepare(
-        `SELECT id, code, name, spec, brand,
+        `SELECT id, code, name, spec, brand, supplier_id AS supplierId,
                 purchase_price AS purchasePrice, purchase_tax_included AS purchaseTaxIncluded,
                 sale_price AS salePrice, price_tax_included AS priceTaxIncluded, tax_rate AS taxRate
          FROM material WHERE is_active = 1 ORDER BY code`,
@@ -199,6 +205,7 @@ export function listMaterialOptions(db: DatabaseSync): MaterialOption[] {
         ...r,
         spec: (r.spec as string | null) ?? null,
         brand: (r.brand as string | null) ?? null,
+        supplierId: (r.supplierId as number | null) ?? null,
         purchasePrice: (r.purchasePrice as number | null) ?? null,
         purchaseTaxIncluded: r.purchaseTaxIncluded == null ? true : !!r.purchaseTaxIncluded,
         salePrice: (r.salePrice as number | null) ?? null,

@@ -1,4 +1,4 @@
-﻿import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import type { Material, MaterialListRow, Page } from '@erp/shared';
 import { bizError } from '@erp/shared';
 import {
@@ -22,11 +22,13 @@ export interface MaterialCreateInput {
   spec?: string | null;
   brand?: string | null;
   purchasePrice?: number | null;
+  purchaseTaxIncluded?: boolean;
   salePrice?: number | null;
   priceTaxIncluded?: boolean;
   taxRate?: number;
   remark?: string | null;
   isActive?: boolean;
+  supplierId?: number | null;
 }
 
 function validate(input: Partial<MaterialCreateInput>): void {
@@ -58,11 +60,13 @@ export const materialService = {
       spec: input.spec ?? null,
       brand: input.brand ?? null,
       purchasePrice: input.purchasePrice ?? null,
+      purchaseTaxIncluded: input.purchaseTaxIncluded !== false,
       salePrice: input.salePrice ?? null,
       priceTaxIncluded: input.priceTaxIncluded !== false,
       taxRate: input.taxRate ?? 13,
       remark: input.remark ?? null,
       isActive: input.isActive !== false,
+      supplierId: input.supplierId ?? null,
     });
   },
 

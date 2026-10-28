@@ -1,4 +1,4 @@
-export * from './dict-repo.js';
+﻿export * from './dict-repo.js';
 export * from './customer-repo.js';
 export * from './order-repo.js';
 export * from './node-repo.js';
@@ -7,3 +7,4 @@ export * from './stats-repo.js';
 export * from './wechat-repo.js';
 export * from './attachment-repo.js';
 export * from './material-repo.js';
+export * from './supplier-repo.js';
