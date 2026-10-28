@@ -1,4 +1,4 @@
-﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.6.3）
+﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.6.4）
 
 以客户为中心的芯片代理商订单全流程管理工具：客户 → 订单 → 进度节点三级数据，替代碎片化的 Excel 记录。
 数据 100% 本地存储（SQLite），支持 Excel 导入导出与一键备份恢复（含附件）。
@@ -18,12 +18,13 @@
 - **V1.6**：供应商管理、进度状态四按钮、客户/供应商拼音搜索、订单状态与时间轴联动、首页看板重排、侧边栏顺序可拖动配置
 - **V1.6.1**：修复进度状态按钮失效；订单物料自动进入物料库（含历史订单回填）
 - **V1.6.2**：修复订单详情白屏（Hook 顺序），新增错误边界与错误日志
-- **V1.6.3**：修复进度条第一个节点点不动（自研可点击 NodeStepper）
+- **V1.6.3**：修复进度条第一个节点点不动（可点击步骤条）
+- **V1.6.4**：恢复原 antd 步骤条外观，同时保留任意步骤可点击
 - 升级自动迁移数据库（v2 → v3 → v4），原有客户/订单/节点数据完整保留
 
 ## 文档
 
-- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md) / [V1.5](docs/PRD-v1.5-delta.md) / [V1.6](docs/PRD-v1.6-delta.md) / [V1.6.1](docs/PRD-v1.6.1-delta.md) / [V1.6.2](docs/PRD-v1.6.2-delta.md) / [V1.6.3](docs/PRD-v1.6.3-delta.md)）
+- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md) / [V1.5](docs/PRD-v1.5-delta.md) / [V1.6](docs/PRD-v1.6-delta.md) / [V1.6.1](docs/PRD-v1.6.1-delta.md) / [V1.6.2](docs/PRD-v1.6.2-delta.md) / [V1.6.3](docs/PRD-v1.6.3-delta.md) / [V1.6.4](docs/PRD-v1.6.4-delta.md)）
 - 数据模型：[docs/data-model.md](docs/data-model.md)
 - 开发计划：[docs/dev-plan.md](docs/dev-plan.md)
 - 使用说明：[docs/USAGE.md](docs/USAGE.md)
