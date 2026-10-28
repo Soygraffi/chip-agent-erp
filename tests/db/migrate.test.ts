@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(8);
+    expect(SCHEMA_VERSION).toBe(9);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -127,6 +127,29 @@ describe('数据库迁移与种子', () => {
     expect(custCols).toContain('contact');
     const memberCols = (db.prepare("SELECT name FROM pragma_table_info('wechat_member')").all() as { name: string }[]).map((c) => c.name);
     expect(memberCols).toContain('company');
+    db.close();
+  });
+
+  it('V1.6.5 迁移：节点模板改名为「供应商备货」（含已有订单节点）', () => {
+    const db = openDatabase(':memory:');
+    db.exec('CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT)');
+    for (const m of MIGRATIONS.filter((x) => x.version <= 8)) {
+      db.exec(m.sql);
+      db.prepare(
+        "INSERT INTO schema_meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).run(String(m.version));
+    }
+    db.prepare("UPDATE node_template SET name = '供应商备货/排产' WHERE code = 'stock'").run();
+    db.prepare("INSERT INTO customer (name, name_norm) VALUES ('客户', '客户')").run();
+    db.prepare("INSERT INTO orders (order_no, customer_id, status_id) VALUES ('R-1', 1, 1)").run();
+    db.prepare(
+      "INSERT INTO order_node (order_id, name, status) VALUES (1, '供应商备货/排产', 'pending')",
+    ).run();
+    migrate(db);
+    const t = db.prepare("SELECT name FROM node_template WHERE code = 'stock'").get() as { name: string };
+    expect(t.name).toBe('供应商备货');
+    const n = db.prepare("SELECT name FROM order_node WHERE order_id = 1").get() as { name: string };
+    expect(n.name).toBe('供应商备货');
     db.close();
   });
 

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -175,6 +175,20 @@ function StatusTab(): JSX.Element {
 
   return (
     <div>
+      <div
+        style={{
+          background: '#f6ffed',
+          border: '1px solid #b7eb8f',
+          borderRadius: 6,
+          padding: '8px 12px',
+          marginBottom: 12,
+          color: '#595959',
+          fontSize: 12,
+        }}
+      >
+        状态含义约定：<b>待确认</b> = 客户还未下单完成（询价 / 规格确认中）；<b>进行中</b> = 客户下单完成后的执行状态；
+        订单未选状态时显示为「未填写」。
+      </div>
       <Space style={{ marginBottom: 12 }}>
         <Button
           type="primary"

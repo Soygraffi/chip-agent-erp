@@ -195,7 +195,7 @@ INSERT INTO node_template (name, code, sort_order, is_system) VALUES
   ('报价中',         'quote',    20, 1),
   ('客户确认',       'confirm',  30, 1),
   ('下达采购',       'purchase', 40, 1),
-  ('供应商备货/排产', 'stock',   50, 1),
+  ('供应商备货', 'stock',   50, 1),
   ('到货入库',       'arrival',  60, 1),
   ('发货中',         'ship',     70, 1),
   ('客户签收',       'sign',     80, 1),
@@ -446,6 +446,14 @@ WHERE material_id IS NULL
   AND (TRIM(COALESCE(material_code, '')) <> '' OR TRIM(COALESCE(chip_model, '')) <> '');
 `;
 
+/**
+ * V1.6.5：节点模板「供应商备货/排产」更名为「供应商备货」（含已有订单节点）。
+ */
+const V165 = `
+UPDATE node_template SET name = '供应商备货' WHERE code = 'stock' AND name LIKE '供应商备货%';
+UPDATE order_node SET name = '供应商备货' WHERE name LIKE '供应商备货%';
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -455,5 +463,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 6, name: 'v1.5 customer contact & member company', sql: V15 },
   { version: 7, name: 'v1.6 supplier management & menu order', sql: V16 },
   { version: 8, name: 'v1.6.1 backfill materials from order items', sql: V161 },
+  { version: 9, name: 'v1.6.5 rename stock template', sql: V165 },
 ];
 

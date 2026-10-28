@@ -26,6 +26,20 @@ interface MetricProps {
   money?: boolean;
 }
 
+/** 订单状态的含义（用于饼图悬浮说明与图表下方图例） */
+const STATUS_MEANINGS: Record<string, string> = {
+  待确认: '客户还未下单完成（询价 / 规格确认中）',
+  进行中: '客户下单完成后的执行状态',
+  已发货: '已发货，等待签收 / 对账',
+  已完结: '订单全部完成',
+  已取消: '订单已取消',
+  未填写: '尚未设置订单状态',
+};
+
+function statusMeaning(name: string): string {
+  return STATUS_MEANINGS[name] ?? '自定义状态';
+}
+
 function MetricCard({ title, value, icon, color, money }: MetricProps): JSX.Element {
   return (
     <Card
@@ -90,7 +104,11 @@ export function DashboardPage(): JSX.Element {
     if (!stats || !pieRef.current) return;
     const chart = echarts.init(pieRef.current);
     chart.setOption({
-      tooltip: { trigger: 'item' },
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: { name: string; value: number }) =>
+          `${p.name}：${p.value} 个<br/><span style="color:#999;font-size:12px">${statusMeaning(p.name)}</span>`,
+      },
       legend: { bottom: 0, icon: 'circle' },
       series: [
         {
@@ -189,7 +207,29 @@ export function DashboardPage(): JSX.Element {
             loading={loading}
             style={{ borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', height: '100%' }}
           >
-            <div ref={pieRef} style={{ height: 260 }} />
+            <div ref={pieRef} style={{ height: 240 }} />
+            <div style={{ marginTop: 4, borderTop: '1px dashed #f0f0f0', paddingTop: 10 }}>
+              <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 6 }}>状态说明</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(stats?.statusDistribution ?? []).map((s) => (
+                  <div key={s.statusName} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: s.color,
+                        display: 'inline-block',
+                        flexShrink: 0,
+                        transform: 'translateY(-1px)',
+                      }}
+                    />
+                    <span style={{ color: '#262626', minWidth: 64 }}>{s.statusName}</span>
+                    <span style={{ color: '#8c8c8c' }}>{statusMeaning(s.statusName)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </Card>
         </Col>
         <Col xs={24} lg={14}>
