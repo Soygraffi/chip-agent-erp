@@ -82,6 +82,7 @@ export interface Customer {
   shortName: string | null;
   typeId: number | null;
   address: string | null;
+  contact: string | null; // V1.5 联系人（可选）
   isKey: boolean;
   remark: string | null;
   logoPath: string | null;
@@ -126,12 +127,13 @@ export interface WechatGroup {
   createdAt: string;
 }
 
-/** 微信群成员：群内微信号 → 真实姓名 / 岗位 */
+/** 微信群成员：群内微信号 → 真实姓名 / 公司 / 岗位 */
 export interface WechatMember {
   id: number;
   groupId: number;
   wechatId: string;
   realName: string | null;
+  company: string | null;
   position: string | null;
   remark: string | null;
   sortOrder: number;
@@ -234,6 +236,7 @@ export interface CurrencyRate {
 export interface OrderListRow extends Order {
   customerName: string;
   customerDeleted: boolean;
+  customerContact: string | null;
   typeName: string | null;
   statusName: string;
   statusColor: string;
@@ -246,6 +249,12 @@ export interface CustomerListRow extends Customer {
   orderCount: number;
   activeOrderCount: number;
   wechatGroupCount: number;
+}
+
+/** 订单总览（V1.5）：列表行 + 明细 + 进度节点，供订单管理/首页直接展示 */
+export interface OrderWithDetails extends OrderListRow {
+  items: OrderItem[];
+  nodes: OrderNode[];
 }
 export interface ReminderItem {
   nodeId: number;

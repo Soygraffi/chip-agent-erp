@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(5);
+    expect(SCHEMA_VERSION).toBe(6);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -89,10 +89,10 @@ describe('数据库迁移与种子', () => {
     };
     expect(nullable.order_date).toBeNull();
     expect(nullable.status_id).toBeNull();
-    // 旧字段列已不存在
+    // 旧字段列已不存在（contact 在 V1.5 作为可选联系人重新加入）
     const cols = db.prepare("SELECT name FROM pragma_table_info('customer')").all() as { name: string }[];
-    expect(cols.some((c) => c.name === 'contact')).toBe(false);
     expect(cols.some((c) => c.name === 'phone')).toBe(false);
+    expect(cols.some((c) => c.name === 'email')).toBe(false);
     db.close();
   });
 
@@ -117,6 +117,15 @@ describe('数据库迁移与种子', () => {
     // 设置里有报价单抬头默认值
     const setting = db.prepare("SELECT value FROM setting WHERE key = 'company_name'").get() as { value: string };
     expect(setting.value).toBe('');
+    db.close();
+  });
+
+  it('V1.5 迁移：客户联系人、群成员任职公司', () => {
+    const db = createTestDb();
+    const custCols = (db.prepare("SELECT name FROM pragma_table_info('customer')").all() as { name: string }[]).map((c) => c.name);
+    expect(custCols).toContain('contact');
+    const memberCols = (db.prepare("SELECT name FROM pragma_table_info('wechat_member')").all() as { name: string }[]).map((c) => c.name);
+    expect(memberCols).toContain('company');
     db.close();
   });
 

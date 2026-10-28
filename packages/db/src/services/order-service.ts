@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { Order, OrderItem, OrderListRow, OrderNode, Page, WechatGroup } from '@erp/shared';
+import type { Order, OrderItem, OrderListRow, OrderNode, OrderWithDetails, Page, WechatGroup } from '@erp/shared';
 import { bizError, isValidDateStr, round2 } from '@erp/shared';
 import {
   attachmentPathsByOrder,
@@ -250,6 +250,19 @@ export const orderService = {
 
   list(db: DatabaseSync, filter: OrderFilter): Page<OrderListRow> {
     return listOrders(db, filter);
+  },
+
+  /** V1.5 订单总览：列表行 + 物料明细 + 进度节点（订单管理/首页直接展示，无需进详情） */
+  overview(db: DatabaseSync, filter: OrderFilter): Page<OrderWithDetails> {
+    const page = listOrders(db, filter);
+    return {
+      total: page.total,
+      rows: page.rows.map((row) => ({
+        ...row,
+        items: listItems(db, row.id),
+        nodes: listNodesByOrder(db, row.id),
+      })),
+    };
   },
 
   /** 订单详情用：状态是否终态（未填写视为未结束） */

@@ -23,14 +23,34 @@ describe('客户微信群与群成员（V1.2）', () => {
   it('群成员：微信号必填，真实姓名与岗位可空', () => {
     const cid = customerService.create(db, { name: 'A客户' });
     const gid = wechatService.createGroup(db, cid, { name: '商务交流群' });
-    wechatService.createMember(db, gid, { wechatId: 'wx01', realName: '张三', position: '采购经理' });
+    wechatService.createMember(db, gid, {
+      wechatId: 'wx01',
+      realName: '张三',
+      company: '华强半导体',
+      position: '采购经理',
+    });
     wechatService.createMember(db, gid, { wechatId: 'wx02' });
     const members = wechatService.listMembers(db, gid);
     expect(members).toHaveLength(2);
-    expect(members[0]).toMatchObject({ wechatId: 'wx01', realName: '张三', position: '采购经理' });
+    expect(members[0]).toMatchObject({ wechatId: 'wx01', realName: '张三', company: '华强半导体', position: '采购经理' });
     expect(members[1].realName).toBeNull();
+    expect(members[1].company).toBeNull();
     expect(members[1].position).toBeNull();
     expect(() => wechatService.createMember(db, gid, { wechatId: ' ' })).toThrowError(/微信号不能为空/);
+  });
+
+  it('V1.5 编辑群：可改所属客户，并清理不属于新客户的订单关联', () => {
+    const c1 = customerService.create(db, { name: '客户一' });
+    const c2 = customerService.create(db, { name: '客户二' });
+    const gid = wechatService.createGroup(db, c1, { name: '商务群' });
+    const statusId = statusDictService.list(db).find((s) => s.name === '进行中')!.id;
+    const oid = orderService.create(db, { customerId: c1, statusId, items: [], wechatGroupIds: [gid] });
+    expect(wechatService.listOrderGroups(db, oid)).toHaveLength(1);
+    wechatService.updateGroup(db, gid, { customerId: c2, name: '商务群（改）' });
+    expect(wechatService.listAllGroups(db).find((g) => g.id === gid)!.customerName).toBe('客户二');
+    // 原客户订单的关联已被清理
+    expect(wechatService.listOrderGroups(db, oid)).toHaveLength(0);
+    expect(() => wechatService.updateGroup(db, gid, { customerId: 99999 })).toThrowError(/客户不存在/);
   });
 
   it('编辑与删除群/成员', () => {

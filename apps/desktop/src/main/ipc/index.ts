@@ -166,6 +166,9 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   );
   ipcMain.handle('orders:get', (_e, id: number) => wrap(() => orderService.get(db(), id)));
   ipcMain.handle('orders:items', (_e, id: number) => wrap(() => orderService.get(db(), id).items));
+  ipcMain.handle('orders:overview', (_e, filter: OrderFilter) =>
+    wrap(() => orderService.overview(db(), { ...filter, today: todayStr() })),
+  );
   ipcMain.handle('orders:create', (_e, input) => {
     const r = wrap(() => orderService.create(db(), input));
     if (r.ok) changed();

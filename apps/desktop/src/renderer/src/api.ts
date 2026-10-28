@@ -51,6 +51,7 @@ export const api = {
     list: (filter: unknown): Promise<unknown> => call('orders:list', filter),
     get: (id: number): Promise<unknown> => call('orders:get', id),
     items: (id: number): Promise<unknown> => call('orders:items', id),
+    overview: (filter: unknown): Promise<unknown> => call('orders:overview', filter),
     create: (input: unknown): Promise<number> => call('orders:create', input),
     update: (id: number, input: unknown): Promise<void> => call('orders:update', id, input),
     restoreAutoAmount: (id: number): Promise<void> => call('orders:restoreAutoAmount', id),

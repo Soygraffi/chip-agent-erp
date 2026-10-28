@@ -375,11 +375,20 @@ ALTER TABLE material ADD COLUMN purchase_tax_included INTEGER NOT NULL DEFAULT 1
 ALTER TABLE order_item ADD COLUMN purchase_tax_included INTEGER NOT NULL DEFAULT 1;
 `;
 
+/**
+ * V1.5：客户联系人（可选）；群成员增加任职公司；订单总览支持（无结构变更）。
+ */
+const V15 = `
+ALTER TABLE customer ADD COLUMN contact TEXT;
+ALTER TABLE wechat_member ADD COLUMN company TEXT;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
   { version: 3, name: 'v1.2 customer wechat & optional order fields', sql: V12 },
   { version: 4, name: 'v1.3 material library, tax-aware item prices, customer logo', sql: V13 },
   { version: 5, name: 'v1.4 customer sort order & per-price tax flags', sql: V14 },
+  { version: 6, name: 'v1.5 customer contact & member company', sql: V15 },
 ];
 

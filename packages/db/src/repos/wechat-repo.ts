@@ -4,7 +4,7 @@ import type { WechatGroup, WechatGroupWithCustomer, WechatMember } from '@erp/sh
 const GROUP_COLS = `g.id, g.customer_id AS customerId, g.name, g.remark,
   g.sort_order AS sortOrder, g.created_at AS createdAt`;
 const MEMBER_COLS = `m.id, m.group_id AS groupId, m.wechat_id AS wechatId, m.real_name AS realName,
-  m.position, m.remark, m.sort_order AS sortOrder, m.created_at AS createdAt`;
+  m.company, m.position, m.remark, m.sort_order AS sortOrder, m.created_at AS createdAt`;
 
 export function listGroups(db: DatabaseSync, customerId: number): WechatGroup[] {
   return db
@@ -37,7 +37,7 @@ export function insertGroup(
 export function updateGroup(
   db: DatabaseSync,
   id: number,
-  patch: { name?: string; remark?: string | null; sortOrder?: number },
+  patch: { name?: string; remark?: string | null; sortOrder?: number; customerId?: number },
 ): boolean {
   const fields: string[] = [];
   const args: (string | number | null)[] = [];
@@ -53,10 +53,22 @@ export function updateGroup(
     fields.push('sort_order = ?');
     args.push(patch.sortOrder);
   }
+  if (patch.customerId !== undefined) {
+    fields.push('customer_id = ?');
+    args.push(patch.customerId);
+  }
   if (fields.length === 0) return false;
   args.push(id);
   return db.prepare(`UPDATE customer_wechat_group SET ${fields.join(', ')} WHERE id = ?`).run(...args)
     .changes > 0;
+}
+
+/** 群转移客户后，清理不属于新客户订单的关联（避免订单挂到其他客户的群） */
+export function pruneOrderGroupLinks(db: DatabaseSync, groupId: number, customerId: number): void {
+  db.prepare(
+    `DELETE FROM order_wechat_group
+     WHERE group_id = ? AND order_id IN (SELECT id FROM orders WHERE customer_id != ?)`,
+  ).run(groupId, customerId);
 }
 
 export function deleteGroup(db: DatabaseSync, id: number): boolean {
@@ -70,6 +82,7 @@ export function listMembers(db: DatabaseSync, groupId: number): WechatMember[] {
     .map((r) => ({
       ...r,
       realName: (r.realName as string | null) ?? null,
+      company: (r.company as string | null) ?? null,
       position: (r.position as string | null) ?? null,
       remark: (r.remark as string | null) ?? null,
     })) as WechatMember[];
@@ -83,6 +96,7 @@ export function getMember(db: DatabaseSync, id: number): WechatMember | null {
   return {
     ...r,
     realName: (r.realName as string | null) ?? null,
+    company: (r.company as string | null) ?? null,
     position: (r.position as string | null) ?? null,
     remark: (r.remark as string | null) ?? null,
   } as WechatMember;
@@ -91,16 +105,24 @@ export function getMember(db: DatabaseSync, id: number): WechatMember | null {
 export function insertMember(
   db: DatabaseSync,
   groupId: number,
-  input: { wechatId: string; realName?: string | null; position?: string | null; remark?: string | null; sortOrder?: number },
+  input: {
+    wechatId: string;
+    realName?: string | null;
+    company?: string | null;
+    position?: string | null;
+    remark?: string | null;
+    sortOrder?: number;
+  },
 ): number {
   const r = db
     .prepare(
-      'INSERT INTO wechat_member (group_id, wechat_id, real_name, position, remark, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO wechat_member (group_id, wechat_id, real_name, company, position, remark, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       groupId,
       input.wechatId,
       input.realName ?? null,
+      input.company ?? null,
       input.position ?? null,
       input.remark ?? null,
       input.sortOrder ?? 0,
@@ -111,11 +133,19 @@ export function insertMember(
 export function updateMember(
   db: DatabaseSync,
   id: number,
-  patch: { wechatId?: string; realName?: string | null; position?: string | null; remark?: string | null; sortOrder?: number },
+  patch: {
+    wechatId?: string;
+    realName?: string | null;
+    company?: string | null;
+    position?: string | null;
+    remark?: string | null;
+    sortOrder?: number;
+  },
 ): boolean {
   const map: Record<string, string> = {
     wechatId: 'wechat_id',
     realName: 'real_name',
+    company: 'company',
     position: 'position',
     remark: 'remark',
   };

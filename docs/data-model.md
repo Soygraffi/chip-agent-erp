@@ -4,7 +4,8 @@
 >
 > **V1.2 变更**：移除客户联系人/电话/邮箱/负责业务员/合作起始日期；新增客户微信群与成员、订单文档、订单-微信群关联；订单日期/类型/状态可空；移除订单币种/汇率/负责人与节点负责人。
 > **V1.3 变更**：新增物料库（进货价/出货价/含税口径/税率）；订单明细增加物料编码/名称/进货价/含税口径；客户增加 Logo；新增报价单导出。
-> **V1.4 变更**：客户增加 sort_order（卡片拖动排序）；进货价/出货价各自独立含税标记（purchase_tax_included）；节点顺序改由模板拖动排序维护。迁移脚本见 packages/db/src/migrations.ts（version 3、4、5）。
+> **V1.4 变更**：客户增加 sort_order（卡片拖动排序）；进货价/出货价各自独立含税标记（purchase_tax_included）；节点顺序改由模板拖动排序维护。
+> **V1.5 变更**：客户增加 contact（联系人，可选）；群成员增加 company（任职公司）。迁移脚本见 packages/db/src/migrations.ts（version 3、4、5、6）。
 
 ## 一、实体关系（ER）
 
@@ -98,6 +99,7 @@ CREATE TABLE customer (
   short_name        TEXT,
   type_id           INTEGER REFERENCES dict_item(id),
   address           TEXT,
+  contact           TEXT,                   -- V1.5 联系人（可选）
   is_key            INTEGER NOT NULL DEFAULT 0,  -- 重点客户
   remark            TEXT,
   logo_path         TEXT,                   -- V1.3 客户 Logo 相对路径
@@ -128,6 +130,7 @@ CREATE TABLE wechat_member (
   group_id   INTEGER NOT NULL REFERENCES customer_wechat_group(id) ON DELETE CASCADE,
   wechat_id  TEXT    NOT NULL,               -- 群内微信号/ID（必填）
   real_name  TEXT,                           -- 真实姓名
+  company    TEXT,                           -- V1.5 任职公司
   position   TEXT,                           -- 岗位
   remark     TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,

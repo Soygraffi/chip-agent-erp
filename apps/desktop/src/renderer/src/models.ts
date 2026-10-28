@@ -1,4 +1,4 @@
-/** 渲染层用到的领域模型（与 @erp/shared 一致的类型别名） */
+﻿/** 渲染层用到的领域模型（与 @erp/shared 一致的类型别名） */
 import type {
   Customer,
   CustomerListRow,
@@ -12,6 +12,7 @@ import type {
   OrderItem,
   OrderListRow,
   OrderNode,
+  OrderWithDetails,
   ReminderItem,
   WechatGroup,
   WechatGroupWithCustomer,
@@ -31,6 +32,7 @@ export type {
   OrderItem,
   OrderListRow,
   OrderNode,
+  OrderWithDetails,
   ReminderItem,
   WechatGroup,
   WechatGroupWithCustomer,

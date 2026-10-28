@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -103,6 +103,7 @@ export function CustomersPage(): JSX.Element {
       shortName: row.shortName,
       typeId: row.typeId,
       address: row.address,
+      contact: row.contact,
       isKey: row.isKey,
       remark: row.remark,
     });
@@ -286,6 +287,7 @@ export function CustomersPage(): JSX.Element {
                     <div>
                       订单：{c.orderCount} 个（跟进中 {c.activeOrderCount}）
                     </div>
+                    <div>联系人：{c.contact || '未填写'}</div>
                     <div>地址：{c.address || '未填写'}</div>
                   </div>
 
@@ -366,6 +368,9 @@ export function CustomersPage(): JSX.Element {
           </Form.Item>
           <Form.Item name="typeId" label="客户类型">
             <Select allowClear options={types.map((t) => ({ value: t.id, label: t.name }))} />
+          </Form.Item>
+          <Form.Item name="contact" label="联系人">
+            <Input />
           </Form.Item>
           <Form.Item name="address" label="地址">
             <Input />

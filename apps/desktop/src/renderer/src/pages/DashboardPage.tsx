@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Card, Col, Row, Space, Statistic, Table, Tag, Tooltip, message } from 'antd';
+import { Button, Card, Col, Row, Space, Statistic, message } from 'antd';
 import { PlusOutlined, TeamOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts';
 import { api, errorMessage } from '../api';
-import type { DashboardStats, OrderListRow } from '../models';
+import type { DashboardStats } from '../models';
+import { OrdersBoard } from '../components/OrdersBoard';
 
 export function DashboardPage(): JSX.Element {
   const navigate = useNavigate();
@@ -52,20 +53,6 @@ export function DashboardPage(): JSX.Element {
     };
   }, [stats]);
 
-  const overdueColumns = [
-    { title: '订单编号', dataIndex: 'orderNo', render: (v: string, r: OrderListRow) => <a onClick={() => navigate(`/orders/${r.id}`)}>{v}</a> },
-    { title: '客户', dataIndex: 'customerName' },
-    { title: '预计交期', dataIndex: 'expectedDeliveryDate', width: 110 },
-    { title: '逾期', width: 110, render: (_: unknown, r: OrderListRow) => <Tag color="red">逾期 {r.daysOverdue} 天</Tag> },
-  ];
-  const keyColumns = [
-    { title: '订单编号', dataIndex: 'orderNo', render: (v: string, r: OrderListRow) => <a onClick={() => navigate(`/orders/${r.id}`)}>{v}</a> },
-    { title: '客户', dataIndex: 'customerName' },
-    { title: '状态', dataIndex: 'statusName', render: (v: string, r: OrderListRow) => <Tag color={r.statusColor}>{v}</Tag> },
-    { title: '金额', dataIndex: 'totalAmount', align: 'right' as const },
-    { title: '预计交期', dataIndex: 'expectedDeliveryDate', width: 110 },
-  ];
-
   return (
     <div>
       <Row gutter={[12, 12]}>
@@ -91,21 +78,7 @@ export function DashboardPage(): JSX.Element {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic
-              title="待发货订单数"
-              value={stats?.pendingShipCount ?? 0}
-              loading={loading}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="逾期订单数"
-              value={stats?.overdueOrderCount ?? 0}
-              valueStyle={stats && stats.overdueOrderCount > 0 ? { color: '#ff4d4f' } : undefined}
-              loading={loading}
-            />
+            <Statistic title="待发货订单数" value={stats?.pendingShipCount ?? 0} loading={loading} />
           </Card>
         </Col>
         <Col span={6}>
@@ -113,7 +86,7 @@ export function DashboardPage(): JSX.Element {
             <Statistic title="重点跟进订单数" value={stats?.keyOrderCount ?? 0} loading={loading} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={12}>
           <Card size="small">
             <Space size={12}>
               <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/customers')}>
@@ -133,35 +106,20 @@ export function DashboardPage(): JSX.Element {
             <div ref={pieRef} style={{ height: 240 }} />
           </Card>
         </Col>
-        <Col span={16}>
-          <Card title="逾期订单（按逾期天数倒序）" size="small" loading={loading}>
-            <Table<OrderListRow>
-              rowKey="id"
-              size="small"
-              pagination={false}
-              dataSource={stats?.overdueOrders ?? []}
-              columns={overdueColumns}
-              rowClassName={() => 'row-overdue'}
-              locale={{ emptyText: '暂无逾期订单' }}
-            />
-          </Card>
-        </Col>
       </Row>
 
-      <Row style={{ marginTop: 12 }}>
-        <Col span={24}>
-          <Card title="重点跟进订单" size="small" loading={loading}>
-            <Table<OrderListRow>
-              rowKey="id"
-              size="small"
-              pagination={false}
-              dataSource={stats?.keyOrders ?? []}
-              columns={keyColumns}
-              locale={{ emptyText: '暂无重点跟进订单' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <Card
+        title="订单管理"
+        size="small"
+        style={{ marginTop: 12 }}
+        extra={
+          <Button size="small" onClick={() => navigate('/orders')}>
+            查看全部订单
+          </Button>
+        }
+      >
+        <OrdersBoard showFilters={false} pageSize={5} />
+      </Card>
     </div>
   );
 }

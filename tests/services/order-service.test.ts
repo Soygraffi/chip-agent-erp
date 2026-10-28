@@ -129,6 +129,21 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
     expect(nodes.c).toBe(0);
   });
 
+  it('V1.5 订单总览：列表行直接带物料明细与进度节点', () => {
+    const input = baseInput(db);
+    const id = orderService.create(db, input);
+    const page = orderService.overview(db, { page: 1, pageSize: 10, today: '2026-10-28' });
+    expect(page.total).toBe(1);
+    const row = page.rows[0];
+    expect(row.id).toBe(id);
+    expect(row.items).toHaveLength(2);
+    expect(row.nodes).toHaveLength(10);
+    expect(row.customerContact).toBeNull();
+    // 明细字段齐全，可直接展示物料名称/料号规格/品牌/数量
+    expect(row.items[0].chipModel).toBe('STM32F103');
+    expect(row.items[0].qty).toBe(100);
+  });
+
   it('isTerminal：状态为空视为未结束', () => {
     const input = baseInput(db);
     const id = orderService.create(db, { ...input, statusId: null });

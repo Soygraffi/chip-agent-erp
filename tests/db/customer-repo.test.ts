@@ -19,15 +19,17 @@ describe('客户仓储', () => {
     db = createTestDb();
   });
 
-  it('新增与读取（保留原始写法、重点客户）', () => {
+  it('新增与读取（保留原始写法、重点客户、联系人可选）', () => {
     const id = insertCustomer(db, {
       name: ' ＡＢＣ 电子 ',
       nameNorm: 'abc 电子',
+      contact: '张三',
       isKey: true,
     });
     const c = getCustomer(db, id)!;
     expect(c.name).toBe(' ＡＢＣ 电子 '); // 保留原始写法
     expect(c.nameNorm).toBe('abc 电子');
+    expect(c.contact).toBe('张三');
     expect(c.isKey).toBe(true);
     expect(c.deletedAt).toBeNull();
   });

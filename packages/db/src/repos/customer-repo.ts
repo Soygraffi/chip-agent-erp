@@ -7,6 +7,7 @@ export interface CustomerInput {
   shortName?: string | null;
   typeId?: number | null;
   address?: string | null;
+  contact?: string | null;
   isKey?: boolean;
   remark?: string | null;
   logoPath?: string | null;
@@ -19,8 +20,8 @@ export function insertCustomer(db: DatabaseSync, c: CustomerInput): number {
     ((db.prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM customer').get() as { n: number }).n);
   const r = db
     .prepare(
-      'INSERT INTO customer (name, name_norm, short_name, type_id, address, is_key, remark, logo_path, sort_order) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO customer (name, name_norm, short_name, type_id, address, contact, is_key, remark, logo_path, sort_order) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       c.name,
@@ -28,6 +29,7 @@ export function insertCustomer(db: DatabaseSync, c: CustomerInput): number {
       c.shortName ?? null,
       c.typeId ?? null,
       c.address ?? null,
+      c.contact ?? null,
       c.isKey ? 1 : 0,
       c.remark ?? null,
       c.logoPath ?? null,
@@ -53,6 +55,7 @@ export function updateCustomer(
     shortName: 'short_name',
     typeId: 'type_id',
     address: 'address',
+    contact: 'contact',
     remark: 'remark',
     logoPath: 'logo_path',
   };
@@ -83,7 +86,7 @@ export function updateCustomer(
 }
 
 const CUSTOMER_COLS = `c.id, c.name, c.name_norm AS nameNorm, c.short_name AS shortName, c.type_id AS typeId,
-  c.address, c.is_key AS isKey, c.remark, c.logo_path AS logoPath, c.sort_order AS sortOrder,
+  c.address, c.contact, c.is_key AS isKey, c.remark, c.logo_path AS logoPath, c.sort_order AS sortOrder,
   c.deleted_at AS deletedAt, c.created_at AS createdAt, c.updated_at AS updatedAt`;
 
 export function getCustomer(db: DatabaseSync, id: number): Customer | null {
@@ -94,6 +97,7 @@ export function getCustomer(db: DatabaseSync, id: number): Customer | null {
   return {
     ...r,
     isKey: !!r.isKey,
+    contact: (r.contact as string | null) ?? null,
     shortName: (r.shortName as string | null) ?? null,
     logoPath: (r.logoPath as string | null) ?? null,
     deletedAt: (r.deletedAt as string | null) ?? null,

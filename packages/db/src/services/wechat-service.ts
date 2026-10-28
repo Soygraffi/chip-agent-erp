@@ -12,6 +12,7 @@ import {
   listGroups,
   listGroupsByOrder,
   listMembers,
+  pruneOrderGroupLinks,
   setOrderGroups,
   updateGroup,
   updateMember,
@@ -39,12 +40,25 @@ export const wechatService = {
   updateGroup(
     db: DatabaseSync,
     id: number,
-    input: { name?: string; remark?: string | null },
+    input: { name?: string; remark?: string | null; customerId?: number },
   ): void {
-    if (!getGroup(db, id)) throw bizError('NOT_FOUND', '微信群不存在');
+    const existing = getGroup(db, id);
+    if (!existing) throw bizError('NOT_FOUND', '微信群不存在');
     if (input.name !== undefined && (!input.name || !input.name.trim()))
       throw bizError('VALIDATION', '群名称不能为空');
-    updateGroup(db, id, { ...input, name: input.name?.trim() });
+    const patch: { name?: string; remark?: string | null; customerId?: number } = {
+      ...input,
+      name: input.name?.trim(),
+    };
+    if (input.customerId !== undefined && input.customerId !== existing.customerId) {
+      const target = db.prepare('SELECT id FROM customer WHERE id = ? AND deleted_at IS NULL').get(input.customerId);
+      if (!target) throw bizError('CUSTOMER_NOT_FOUND');
+      patch.customerId = input.customerId;
+    }
+    updateGroup(db, id, patch);
+    if (patch.customerId !== undefined) {
+      pruneOrderGroupLinks(db, id, patch.customerId);
+    }
   },
 
   deleteGroup(db: DatabaseSync, id: number): void {
@@ -59,7 +73,13 @@ export const wechatService = {
   createMember(
     db: DatabaseSync,
     groupId: number,
-    input: { wechatId: string; realName?: string | null; position?: string | null; remark?: string | null },
+    input: {
+      wechatId: string;
+      realName?: string | null;
+      company?: string | null;
+      position?: string | null;
+      remark?: string | null;
+    },
   ): number {
     if (!getGroup(db, groupId)) throw bizError('NOT_FOUND', '微信群不存在');
     if (!input.wechatId || !input.wechatId.trim())
@@ -67,6 +87,7 @@ export const wechatService = {
     return insertMember(db, groupId, {
       wechatId: input.wechatId.trim(),
       realName: input.realName ?? null,
+      company: input.company ?? null,
       position: input.position ?? null,
       remark: input.remark ?? null,
     });
@@ -75,7 +96,13 @@ export const wechatService = {
   updateMember(
     db: DatabaseSync,
     id: number,
-    input: { wechatId?: string; realName?: string | null; position?: string | null; remark?: string | null },
+    input: {
+      wechatId?: string;
+      realName?: string | null;
+      company?: string | null;
+      position?: string | null;
+      remark?: string | null;
+    },
   ): void {
     if (!getMember(db, id)) throw bizError('NOT_FOUND', '群成员不存在');
     if (input.wechatId !== undefined && (!input.wechatId || !input.wechatId.trim()))

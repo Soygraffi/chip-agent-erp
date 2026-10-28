@@ -18,7 +18,6 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined,
-  CheckCircleOutlined,
   EditOutlined,
   FileAddOutlined,
   PaperClipOutlined,
@@ -112,16 +111,6 @@ export function OrderDetailPage(): JSX.Element {
         await api.nodes.create(orderId, { name: values.name });
       }
       setNodeModal(null);
-      void load();
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
-  const markDone = async (node: OrderNode): Promise<void> => {
-    try {
-      await api.nodes.update(node.id, { status: 'done' });
-      void message.success(`「${node.name}」已完成`);
       void load();
     } catch (e) {
       void message.error(errorMessage(e));
@@ -360,15 +349,9 @@ export function OrderDetailPage(): JSX.Element {
           }))}
         />
       </div>
-      <Space wrap size={8}>
-        {sortedNodes
-          .filter((n) => n.status !== 'done')
-          .map((n) => (
-            <Button key={n.id} size="small" type="primary" ghost icon={<CheckCircleOutlined />} onClick={() => void markDone(n)}>
-              完成：{n.name}
-            </Button>
-          ))}
-      </Space>
+      <div style={{ color: '#999', fontSize: 12, marginBottom: 8 }}>
+        点击任意步骤即可编辑名称与「当前进度状态」（未开始 / 进行中 / 已完成 / 异常延误）。
+      </div>
 
       <Modal
         title={nodeModal?.mode === 'edit' ? '编辑节点' : '新增节点'}

@@ -202,7 +202,7 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
   const rows = db
     .prepare(
       `SELECT ${ORDER_COLS},
-        c.name AS customerName, c.deleted_at AS customerDeleted,
+        c.name AS customerName, c.deleted_at AS customerDeleted, c.contact AS customerContact,
         t.name AS typeName, s.name AS statusName, s.color AS statusColor,
         s.is_terminal AS statusIsTerminal
        FROM orders o
@@ -221,6 +221,7 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
         isKey: !!r.isKey,
         statusIsTerminal: !!r.statusIsTerminal,
         customerDeleted: !!r.customerDeleted,
+        customerContact: (r.customerContact as string | null) ?? null,
         statusName: (r.statusName as string | null) ?? UNFILLED_STATUS_NAME,
         statusColor: (r.statusColor as string | null) ?? UNFILLED_STATUS_COLOR,
         typeName: (r.typeName as string | null) ?? null,
