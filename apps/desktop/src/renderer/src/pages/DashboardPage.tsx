@@ -100,8 +100,11 @@ export function DashboardPage(): JSX.Element {
     return off;
   }, [load]);
 
+  // 仅展示有订单的状态（数量为 0 的不进入饼图与说明列表）
+  const distribution = (stats?.statusDistribution ?? []).filter((s) => s.count > 0);
+
   useEffect(() => {
-    if (!stats || !pieRef.current) return;
+    if (!stats || distribution.length === 0 || !pieRef.current) return;
     const chart = echarts.init(pieRef.current);
     chart.setOption({
       tooltip: {
@@ -117,7 +120,7 @@ export function DashboardPage(): JSX.Element {
           center: ['50%', '45%'],
           itemStyle: { borderColor: '#fff', borderWidth: 3 },
           label: { formatter: '{b}\n{c}' },
-          data: stats.statusDistribution.map((s) => ({ name: s.statusName, value: s.count, itemStyle: { color: s.color } })),
+          data: distribution.map((s) => ({ name: s.statusName, value: s.count, itemStyle: { color: s.color } })),
         },
       ],
     });
@@ -207,11 +210,27 @@ export function DashboardPage(): JSX.Element {
             loading={loading}
             style={{ borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', height: '100%' }}
           >
-            <div ref={pieRef} style={{ height: 240 }} />
+            {distribution.length === 0 ? (
+              <div
+                style={{
+                  height: 240,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#bfbfbf',
+                }}
+              >
+                暂无订单数据
+              </div>
+            ) : (
+              <div ref={pieRef} style={{ height: 240 }} />
+            )}
             <div style={{ marginTop: 4, borderTop: '1px dashed #f0f0f0', paddingTop: 10 }}>
-              <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 6 }}>状态说明</div>
+              <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 6 }}>
+                状态说明（仅显示有订单的状态，数量为 0 的不展示）
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {(stats?.statusDistribution ?? []).map((s) => (
+                {distribution.map((s) => (
                   <div key={s.statusName} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
                     <span
                       style={{
@@ -228,6 +247,7 @@ export function DashboardPage(): JSX.Element {
                     <span style={{ color: '#8c8c8c' }}>{statusMeaning(s.statusName)}</span>
                   </div>
                 ))}
+                {distribution.length === 0 && <span style={{ color: '#bfbfbf' }}>暂无订单数据</span>}
               </div>
             </div>
           </Card>
