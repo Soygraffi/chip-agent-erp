@@ -1,0 +1,215 @@
+/**
+ * 数据库迁移脚本（对应 docs/data-model.md 二章 DDL 与四章种子数据）
+ * 采用 TS 内嵌 SQL 而非独立 .sql 文件，避免打包/测试路径问题；版本号与语义不变。
+ */
+
+export interface Migration {
+  version: number;
+  name: string;
+  sql: string;
+}
+
+const DDL = `
+CREATE TABLE dict_item (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  category    TEXT    NOT NULL,
+  name        TEXT    NOT NULL,
+  color       TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  is_system   INTEGER NOT NULL DEFAULT 0,
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_dict_category ON dict_item(category, sort_order);
+
+CREATE TABLE order_status (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  name                 TEXT    NOT NULL,
+  color                TEXT    NOT NULL,
+  sort_order           INTEGER NOT NULL DEFAULT 0,
+  is_terminal          INTEGER NOT NULL DEFAULT 0,
+  terminal_result      TEXT,
+  is_default_completed INTEGER NOT NULL DEFAULT 0,
+  is_system            INTEGER NOT NULL DEFAULT 0,
+  enabled              INTEGER NOT NULL DEFAULT 1,
+  created_at           TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at           TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE node_template (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL,
+  code       TEXT    UNIQUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_system  INTEGER NOT NULL DEFAULT 0,
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  remark     TEXT
+);
+
+CREATE TABLE currency_rate (
+  currency_id INTEGER PRIMARY KEY REFERENCES dict_item(id),
+  rate        REAL    NOT NULL,
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE customer (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  name              TEXT    NOT NULL,
+  name_norm         TEXT    NOT NULL,
+  short_name        TEXT,
+  type_id           INTEGER REFERENCES dict_item(id),
+  contact           TEXT    NOT NULL,
+  phone             TEXT    NOT NULL,
+  email             TEXT,
+  address           TEXT,
+  sales_owner       TEXT,
+  cooperation_start TEXT,
+  is_key            INTEGER NOT NULL DEFAULT 0,
+  remark            TEXT,
+  deleted_at        TEXT,
+  created_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX ux_customer_name ON customer(name_norm) WHERE deleted_at IS NULL;
+CREATE INDEX idx_customer_type    ON customer(type_id);
+CREATE INDEX idx_customer_deleted ON customer(deleted_at);
+
+CREATE TABLE orders (
+  id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_no               TEXT    NOT NULL UNIQUE,
+  customer_id            INTEGER NOT NULL REFERENCES customer(id),
+  order_date             TEXT    NOT NULL,
+  type_id                INTEGER REFERENCES dict_item(id),
+  status_id              INTEGER NOT NULL REFERENCES order_status(id),
+  expected_delivery_date TEXT,
+  actual_delivery_date   TEXT,
+  currency_id            INTEGER REFERENCES dict_item(id),
+  exchange_rate          REAL,
+  total_amount           REAL,
+  amount_manual          INTEGER NOT NULL DEFAULT 0,
+  payment_method_id      INTEGER REFERENCES dict_item(id),
+  owner                  TEXT,
+  is_key                 INTEGER NOT NULL DEFAULT 0,
+  remark                 TEXT,
+  created_at             TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at             TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_orders_customer ON orders(customer_id);
+CREATE INDEX idx_orders_status   ON orders(status_id);
+CREATE INDEX idx_orders_date     ON orders(order_date);
+CREATE INDEX idx_orders_delivery ON orders(expected_delivery_date);
+
+CREATE TABLE order_item (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id     INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  chip_model   TEXT    NOT NULL,
+  brand        TEXT,
+  package_spec TEXT,
+  qty          INTEGER NOT NULL DEFAULT 0,
+  unit_price   REAL,
+  subtotal     REAL,
+  customer_pn  TEXT,
+  remark       TEXT,
+  sort_order   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_item_order ON order_item(order_id);
+CREATE INDEX idx_item_model ON order_item(chip_model);
+
+CREATE TABLE order_node (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id    INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  template_id INTEGER REFERENCES node_template(id),
+  name        TEXT    NOT NULL,
+  status      TEXT    NOT NULL DEFAULT 'pending'
+              CHECK (status IN ('pending','in_progress','done','delayed')),
+  plan_time   TEXT,
+  actual_time TEXT,
+  owner       TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_node_order ON order_node(order_id, sort_order);
+CREATE INDEX idx_node_plan  ON order_node(plan_time) WHERE status IN ('pending','in_progress','delayed');
+
+CREATE TABLE node_follow_up (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  node_id    INTEGER NOT NULL REFERENCES order_node(id) ON DELETE CASCADE,
+  content    TEXT    NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_follow_up_node ON node_follow_up(node_id, created_at);
+
+CREATE TABLE node_attachment (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  node_id       INTEGER NOT NULL REFERENCES order_node(id) ON DELETE CASCADE,
+  original_name TEXT    NOT NULL,
+  stored_path   TEXT    NOT NULL,
+  size          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_attachment_node ON node_attachment(node_id);
+
+CREATE TABLE setting (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
+`;
+
+const SEED = `
+INSERT INTO order_status (name, color, sort_order, is_terminal, terminal_result, is_default_completed, is_system) VALUES
+  ('待确认', '#8C8C8C', 10, 0, NULL,      0, 1),
+  ('进行中', '#1677FF', 20, 0, NULL,      0, 1),
+  ('已发货', '#13C2C2', 30, 0, NULL,      0, 1),
+  ('已完结', '#52C41A', 40, 1, 'completed', 1, 1),
+  ('已取消', '#595959', 50, 1, 'cancelled', 0, 1);
+
+INSERT INTO dict_item (category, name, sort_order, is_system) VALUES
+  ('customer_type', '终端',   10, 1),
+  ('customer_type', '方案商', 20, 1),
+  ('customer_type', '贸易商', 30, 1),
+  ('customer_type', '其他',   40, 1);
+
+INSERT INTO dict_item (category, name, sort_order, is_system) VALUES
+  ('order_type', '样品单',   10, 1),
+  ('order_type', '批量订单', 20, 1),
+  ('order_type', '备货订单', 30, 1),
+  ('order_type', '返单',     40, 1);
+
+INSERT INTO dict_item (category, name, sort_order, is_system) VALUES
+  ('payment_method', '款到发货', 10, 1),
+  ('payment_method', '月结',     20, 1),
+  ('payment_method', '其他',     30, 1);
+
+INSERT INTO dict_item (category, name, sort_order, is_system) VALUES
+  ('currency', '人民币 CNY', 10, 1),
+  ('currency', '美元 USD',   20, 1);
+
+INSERT INTO currency_rate (currency_id, rate) VALUES
+  ((SELECT id FROM dict_item WHERE category='currency' AND name='人民币 CNY'), 1.0),
+  ((SELECT id FROM dict_item WHERE category='currency' AND name='美元 USD'),   7.200000);
+
+INSERT INTO node_template (name, code, sort_order, is_system) VALUES
+  ('需求沟通',       'demand',   10, 1),
+  ('报价中',         'quote',    20, 1),
+  ('客户确认',       'confirm',  30, 1),
+  ('下达采购',       'purchase', 40, 1),
+  ('供应商备货/排产', 'stock',   50, 1),
+  ('到货入库',       'arrival',  60, 1),
+  ('发货中',         'ship',     70, 1),
+  ('客户签收',       'sign',     80, 1),
+  ('对账开票',       'invoice',  90, 1),
+  ('收款完成',       'payment',  100, 1);
+
+INSERT INTO setting (key, value) VALUES
+  ('order_no_prefix', 'XS'),
+  ('order_no_date_format', 'YYYYMMDD'),
+  ('order_no_seq_width', '4'),
+  ('backup_dir', '');
+`;
+
+export const MIGRATIONS: Migration[] = [
+  { version: 1, name: 'init', sql: DDL },
+  { version: 2, name: 'seed', sql: SEED },
+];

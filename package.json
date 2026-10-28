@@ -1,0 +1,32 @@
+{
+  "name": "chip-agent-erp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "芯片代理商客户订单进度管理系统（本地桌面版）",
+  "scripts": {
+    "dev": "pnpm --filter @erp/desktop dev",
+    "build:packages": "pnpm --filter @erp/shared build && pnpm --filter @erp/domain build && pnpm --filter @erp/db build && pnpm --filter @erp/tools build",
+    "build": "pnpm build:packages && pnpm --filter @erp/desktop build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "pretest": "pnpm build:packages",
+    "test": "node --test --test-isolation=none \"tests/**/*.test.ts\"",
+    "test:watch": "node --test --watch --test-isolation=none \"tests/**/*.test.ts\"",
+    "smoke": "pnpm --filter @erp/desktop smoke",
+    "electron:extract": "node scripts/extract-electron.mjs",
+    "package:portable": "node scripts/extract-electron.mjs && pnpm --filter @erp/desktop build && node scripts/make-portable.mjs",
+    "package:installer": "node scripts/extract-electron.mjs && pnpm build && cd apps/desktop && node ../../node_modules/electron-builder/out/cli/cli.js --config electron-builder.yml"
+  },
+  "devDependencies": {
+    "@erp/db": "workspace:*",
+    "@erp/domain": "workspace:*",
+    "@erp/shared": "workspace:*",
+    "@erp/tools": "workspace:*",
+    "@types/node": "^22.10.0",
+    "electron-builder": "^26.18.0",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=23.6.0"
+  }
+}

@@ -1,0 +1,26 @@
+appId: com.erp.chipagent
+productName: 芯片订单管理
+copyright: Copyright © 2026
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: 芯片订单管理
+  uninstallDisplayName: 芯片订单管理
+portable:
+  artifactName: ${productName}-${version}-portable.exe
+publish: null

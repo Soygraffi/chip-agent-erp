@@ -1,0 +1,46 @@
+{
+  "name": "@erp/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "node build.mjs && electron .",
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "smoke": "set ELECTRON_RUN_AS_NODE=1&& electron out/main/smoke.js"
+  },
+  "dependencies": {
+    "@erp/shared": "workspace:*",
+    "@erp/domain": "workspace:*",
+    "@erp/db": "workspace:*",
+    "@erp/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@ant-design/icons": "^5.6.1",
+    "@rollup/plugin-commonjs": "^28.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "@rollup/pluginutils": "^5.1.4",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "antd": "^5.24.0",
+    "commondir": "^1.0.1",
+    "dayjs": "^1.11.13",
+    "deepmerge": "^4.3.1",
+    "echarts": "^5.6.0",
+    "electron": "44.7.0",
+    "estree-walker": "^2.0.2",
+    "fdir": "^6.4.3",
+    "is-module": "^1.0.0",
+    "is-reference": "^3.0.3",
+    "magic-string": "^0.30.17",
+    "picomatch": "^4.0.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.0",
+    "resolve": "^1.22.10",
+    "rollup": "^4.30.0",
+    "typescript": "^5.7.3",
+    "zustand": "^5.0.3"
+  }
+}
