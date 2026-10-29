@@ -272,10 +272,36 @@ export interface SupplierListRow extends Supplier {
   materialCount: number;
 }
 
-/** 订单总览（V1.5）：列表行 + 明细 + 进度节点，供订单管理/首页直接展示 */
+/** 供应商涉及的订单（V1.7：供应商详情页） */
+export interface SupplierOrderRow {
+  orderId: number;
+  orderNo: string;
+  customerName: string;
+  orderDate: string | null;
+  statusName: string;
+  statusColor: string;
+  itemCount: number;      // 该供应商供货物料在订单中的明细条数
+  amount: number;         // 该供应商供货物料的含税金额小计
+}
+
+/** 供应商供货物料（V1.7） */
+export interface SupplierMaterialRow {
+  id: number;
+  code: string;
+  name: string;
+  spec: string | null;
+  brand: string | null;
+  purchasePrice: number | null;
+  salePrice: number | null;
+  isActive: boolean;
+  orderCount: number;
+}
+
+/** 订单总览（V1.5）：列表行 + 明细 + 进度节点；V1.7 增加关联微信群 */
 export interface OrderWithDetails extends OrderListRow {
   items: OrderItem[];
   nodes: OrderNode[];
+  wechatGroups: WechatGroup[];
 }
 export interface ReminderItem {
   nodeId: number;

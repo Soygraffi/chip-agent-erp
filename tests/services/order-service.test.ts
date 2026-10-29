@@ -1,8 +1,8 @@
 ﻿import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { orderService, orderAttachmentService, customerService, materialService } from '@erp/db';
-import { createTestDb, statusByName, dictIdByName } from '../db/helpers.ts';
+import { orderService, orderAttachmentService, customerService, materialService, wechatService } from '@erp/db';
+import { createTestDb, statusByName, dictIdByName, todayOrderNo } from '../db/helpers.ts';
 
 function baseInput(db: DatabaseSync) {
   const cid = customerService.create(db, { name: '华强半导体' });
@@ -30,7 +30,7 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
     const id = orderService.create(db, input);
     const detail = orderService.get(db, id);
 
-    expect(detail.orderNo).toBe('XS202610280001');
+    expect(detail.orderNo).toBe(todayOrderNo(1));
     expect(detail.items).toHaveLength(2);
     expect(detail.items[0].subtotal).toBe(950);
     expect(detail.items[1].subtotal).toBe(105);
@@ -59,8 +59,8 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
     expect(() => orderService.create(db, { ...input, orderNo: 'XH-001' })).toThrowError(/订单编号已存在/);
     const a = orderService.create(db, { ...input, orderNo: null });
     const b = orderService.create(db, { ...input, orderNo: null });
-    expect(orderService.get(db, a).orderNo).toBe('XS202610280001');
-    expect(orderService.get(db, b).orderNo).toBe('XS202610280002');
+    expect(orderService.get(db, a).orderNo).toBe(todayOrderNo(1));
+    expect(orderService.get(db, b).orderNo).toBe(todayOrderNo(2));
   });
 
   it('手改总金额：标记 amountManual，恢复自动汇总', () => {
@@ -142,6 +142,14 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
     // 明细字段齐全，可直接展示物料名称/料号规格/品牌/数量
     expect(row.items[0].chipModel).toBe('STM32F103');
     expect(row.items[0].qty).toBe(100);
+  });
+
+  it('V1.7 订单总览包含关联的微信群体名称', () => {
+    const cid = customerService.create(db, { name: '群客户' });
+    const g1 = wechatService.createGroup(db, cid, { name: '商务交流群' });
+    orderService.create(db, { customerId: cid, items: [], wechatGroupIds: [g1] });
+    const page = orderService.overview(db, { page: 1, pageSize: 10, today: '2026-10-29' });
+    expect(page.rows[0].wechatGroups.map((g) => g.name)).toEqual(['商务交流群']);
   });
 
   it('V1.6.1 订单明细手输物料自动进入物料库并回填 material_id', () => {

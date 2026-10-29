@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd';
 import type { MenuProps } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { SuppliersPage } from './pages/SuppliersPage';
+import { SupplierDetailPage } from './pages/SupplierDetailPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { OrderFormPage } from './pages/OrderFormPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
@@ -64,7 +65,7 @@ function Shell(): JSX.Element {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
-            <Route path="/suppliers" element={<SuppliersPage />} />
+            <Route path="/suppliers" element={<SuppliersPage />} />`n            <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
             <Route path="/wechat" element={<WechatGroupsPage />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/new" element={<OrderFormPage />} />

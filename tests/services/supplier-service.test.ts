@@ -1,7 +1,7 @@
-import { describe, it, beforeEach } from 'node:test';
+﻿import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { supplierService, materialService } from '@erp/db';
+import { supplierService, materialService, customerService, orderService } from '@erp/db';
 import { createTestDb } from '../db/helpers.ts';
 
 describe('供应商管理（V1.6）', () => {
@@ -57,5 +57,51 @@ describe('供应商管理（V1.6）', () => {
     // 解除关联
     materialService.update(db, mid, { supplierId: null });
     expect(supplierService.materialCount(db, sid)).toBe(0);
+  });
+
+  it('V1.7 供应商详情：涉及订单与供货物料', () => {
+    const sid = supplierService.create(db, { name: '深圳华强电子' });
+    const mid = materialService.create(db, {
+      code: 'RDDZX03001',
+      name: 'ARM处理器',
+      supplierId: sid,
+      purchasePrice: 12.5,
+      salePrice: 29.24,
+    });
+    const cid = customerService.create(db, { name: '长沙丹芬瑞' });
+    const oid = orderService.create(db, {
+      customerId: cid,
+      orderDate: '2026-10-29',
+      items: [
+        {
+          materialId: mid,
+          materialCode: 'RDDZX03001',
+          materialName: 'ARM处理器',
+          chipModel: 'GD32F407ZGT6',
+          brand: '兆易创新',
+          packageSpec: null,
+          qty: 5,
+          unitPrice: 29.24,
+          purchasePrice: 12.5,
+          priceTaxIncluded: true,
+          purchaseTaxIncluded: true,
+          taxRate: 13,
+          subtotal: 146.2,
+          customerPn: null,
+          remark: null,
+        },
+      ],
+    });
+    const orders = supplierService.orders(db, sid);
+    expect(orders).toHaveLength(1);
+    expect(orders[0].orderId).toBe(oid);
+    expect(orders[0].customerName).toBe('长沙丹芬瑞');
+    expect(orders[0].itemCount).toBe(1);
+    expect(orders[0].amount).toBe(146.2);
+    const mats = supplierService.materials(db, sid);
+    expect(mats).toHaveLength(1);
+    expect(mats[0].code).toBe('RDDZX03001');
+    expect(mats[0].orderCount).toBe(1);
+    expect(() => supplierService.orders(db, 99999)).toThrowError(/供应商不存在/);
   });
 });

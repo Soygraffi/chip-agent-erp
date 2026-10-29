@@ -1,9 +1,10 @@
-/**
+﻿/**
  * 第九章验收标准自动化验收（PRD 9.1 功能 15 条 + V1.2 微信群/订单文档 + 9.2 非功能可度量项）
  * 沙箱内无法验证的 GUI/安装包项以注释标注，交由真机验收（见 docs/dev-plan.md M9）。
  */
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import { expect } from '../test-utils.ts';
+import { todayOrderNo } from '../db/helpers.ts';
 import ExcelJS from 'exceljs';
 import {
   mkdtempSync,
@@ -109,14 +110,14 @@ describe('第九章验收标准', () => {
       statusId: statusDictService.list(db).find((s) => s.name === '进行中')!.id,
       items: [],
     });
-    expect(orderService.get(db, id).orderNo).toBe('XS202610280001');
+    expect(orderService.get(db, id).orderNo).toBe(todayOrderNo(1));
     expect(orderService.get(db, id).nodes).toHaveLength(10);
     expect(() =>
       orderService.create(db, {
         customerId: cid,
         orderDate: '2026-10-28',
         statusId: statusDictService.list(db).find((s) => s.name === '进行中')!.id,
-        orderNo: 'XS202610280001',
+        orderNo: todayOrderNo(1),
         items: [],
       }),
     ).toThrowError(/编号已存在/);
@@ -190,7 +191,7 @@ describe('第九章验收标准', () => {
     expect(orderService.list(db, { statusId: done, page: 1, pageSize: 10, today: '2026-10-28' }).rows[0].id).toBe(o2);
     expect(orderService.list(db, { dateFrom: '2026-10-15', page: 1, pageSize: 10, today: '2026-10-28' }).rows[0].id).toBe(o2);
     expect(orderService.list(db, { search: 'CHIP-X', page: 1, pageSize: 10, today: '2026-10-28' }).rows[0].id).toBe(o1);
-    expect(orderService.list(db, { search: '202610280002', page: 1, pageSize: 10, today: '2026-10-28' }).rows[0].id).toBe(o2);
+    expect(orderService.list(db, { search: todayOrderNo(2), page: 1, pageSize: 10, today: '2026-10-28' }).rows[0].id).toBe(o2);
     const sorted = orderService.list(db, { sortField: 'total_amount', sortDir: 'desc', page: 1, pageSize: 10, today: '2026-10-28' }).rows;
     expect(sorted[0].id).toBe(o1); // 有金额的在前
   });

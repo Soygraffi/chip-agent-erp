@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -14,7 +14,7 @@ import {
   Tag,
   message,
 } from 'antd';
-import { EditOutlined, ReloadOutlined } from '@ant-design/icons';
+import { EditOutlined, ReloadOutlined, WechatOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
@@ -232,6 +232,11 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
                 {o.customerDeleted && <Tag color="red">已删除客户</Tag>}
                 {o.customerContact && <Tag color="blue">联系人：{o.customerContact}</Tag>}
                 <Tag color={deriveStatus(o.nodes).color}>{deriveStatus(o.nodes).label}</Tag>
+                {(o.wechatGroups ?? []).map((g) => (
+                  <Tag key={g.id} icon={<WechatOutlined />} color="cyan">
+                    {g.name}
+                  </Tag>
+                ))}
                 {o.daysOverdue > 0 && <Tag color="red">逾期 {o.daysOverdue} 天</Tag>}
                 {o.isKey && <Tag color="gold">重点</Tag>}
                 <Tag>{o.typeName ?? '未分类'}</Tag>

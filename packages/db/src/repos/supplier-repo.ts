@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { Page, Supplier, SupplierListRow } from '@erp/shared';
+import type { Page, Supplier, SupplierListRow, SupplierMaterialRow, SupplierOrderRow } from '@erp/shared';
 import { escapeLike } from './customer-repo.js';
 
 export interface SupplierInput {
@@ -141,4 +141,50 @@ export function listSupplierOptions(db: DatabaseSync): { id: number; name: strin
 export function supplierMaterialCount(db: DatabaseSync, id: number): number {
   const r = db.prepare('SELECT COUNT(*) AS c FROM material WHERE supplier_id = ?').get(id) as { c: number };
   return r.c;
+}
+
+/** 供应商涉及的订单（V1.7）：按订单聚合该供应商供货物料的条数与金额 */
+export function listOrdersBySupplier(db: DatabaseSync, supplierId: number): SupplierOrderRow[] {
+  return db
+    .prepare(
+      `SELECT o.id AS orderId, o.order_no AS orderNo, c.name AS customerName,
+              o.order_date AS orderDate,
+              COALESCE(s.name, '未填写') AS statusName, COALESCE(s.color, '#BFBFBF') AS statusColor,
+              COUNT(i.id) AS itemCount, ROUND(COALESCE(SUM(i.subtotal), 0), 2) AS amount
+       FROM order_item i
+       JOIN material m ON m.id = i.material_id
+       JOIN orders o ON o.id = i.order_id
+       JOIN customer c ON c.id = o.customer_id
+       LEFT JOIN order_status s ON s.id = o.status_id
+       WHERE m.supplier_id = ?
+       GROUP BY o.id
+       ORDER BY o.order_date DESC, o.id DESC`,
+    )
+    .all(supplierId) as unknown as SupplierOrderRow[];
+}
+
+/** 供应商供货物料（V1.7） */
+export function listMaterialsBySupplier(db: DatabaseSync, supplierId: number): SupplierMaterialRow[] {
+  return (
+    db
+      .prepare(
+        `SELECT m.id, m.code, m.name, m.spec, m.brand,
+                m.purchase_price AS purchasePrice, m.sale_price AS salePrice, m.is_active AS isActive,
+                (SELECT COUNT(DISTINCT i.order_id) FROM order_item i WHERE i.material_id = m.id) AS orderCount
+         FROM material m WHERE m.supplier_id = ?
+         ORDER BY m.code`,
+      )
+      .all(supplierId) as Record<string, unknown>[]
+  ).map(
+    (r) =>
+      ({
+        ...r,
+        spec: (r.spec as string | null) ?? null,
+        brand: (r.brand as string | null) ?? null,
+        purchasePrice: (r.purchasePrice as number | null) ?? null,
+        salePrice: (r.salePrice as number | null) ?? null,
+        isActive: !!r.isActive,
+        orderCount: Number(r.orderCount ?? 0),
+      }) as SupplierMaterialRow,
+  );
 }

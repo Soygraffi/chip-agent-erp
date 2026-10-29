@@ -306,6 +306,7 @@ export const orderService = {
         ...row,
         items: listItems(db, row.id),
         nodes: listNodesByOrder(db, row.id),
+        wechatGroups: listGroupsByOrder(db, row.id),
       })),
     };
   },

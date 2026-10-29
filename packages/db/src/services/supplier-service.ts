@@ -5,6 +5,8 @@ import {
   findSupplierByNorm,
   getSupplier,
   insertSupplier,
+  listMaterialsBySupplier,
+  listOrdersBySupplier,
   listSupplierOptions,
   listSuppliers,
   softDeleteSupplier,
@@ -68,5 +70,17 @@ export const supplierService = {
 
   materialCount(db: DatabaseSync, id: number): number {
     return supplierMaterialCount(db, id);
+  },
+
+  /** 供应商涉及的订单（V1.7） */
+  orders(db: DatabaseSync, id: number) {
+    if (!getSupplier(db, id)) throw bizError('NOT_FOUND', '供应商不存在');
+    return listOrdersBySupplier(db, id);
+  },
+
+  /** 供应商供货物料（V1.7） */
+  materials(db: DatabaseSync, id: number) {
+    if (!getSupplier(db, id)) throw bizError('NOT_FOUND', '供应商不存在');
+    return listMaterialsBySupplier(db, id);
   },
 };

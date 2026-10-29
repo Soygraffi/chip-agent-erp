@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -13,7 +13,7 @@ import {
   Table,
   message,
 } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, FileWordOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
@@ -272,6 +272,46 @@ export function OrderFormPage(): JSX.Element {
     }
   };
 
+  /** V1.7：用当前已填写的明细直接导出 Word 报价单（无需先保存订单） */
+  const exportQuoteDocx = async (): Promise<void> => {
+    const values = form.getFieldsValue();
+    const cid = values.customerId as number | undefined;
+    const customerName = customers.find((c) => c.id === cid)?.name;
+    if (!customerName) {
+      void message.warning('请先选择所属客户');
+      return;
+    }
+    const valid = items.filter(
+      (it) => it.chipModel.trim() !== '' || (it.materialName ?? '').trim() !== '',
+    );
+    if (valid.length === 0) {
+      void message.warning('请先填写物料明细');
+      return;
+    }
+    try {
+      const p = await api.exportQuoteDocx({
+        customerName,
+        orderNo: (values.orderNo as string) || null,
+        items: valid.map((it) => ({
+          materialCode: it.materialCode,
+          materialName: it.materialName,
+          chipModel: it.chipModel,
+          brand: it.brand,
+          qty: it.qty,
+          unitPrice: it.unitPrice,
+          priceTaxIncluded: it.priceTaxIncluded,
+          taxRate: it.taxRate,
+          subtotal: itemAmount(it),
+          remark: it.remark,
+        })),
+        totalAmount: manual ? (manualAmount ?? autoTotal) : autoTotal,
+      });
+      if (p) void message.success(`报价单已导出：${p}`);
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
+
   const itemColumns = [
     {
       title: '从物料库选择',
@@ -366,6 +406,13 @@ export function OrderFormPage(): JSX.Element {
       ),
     },
     {
+      title: '税率%',
+      width: 80,
+      render: (_: unknown, r: ItemRow) => (
+        <InputNumber min={0} max={100} precision={2} value={r.taxRate} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { taxRate: v ?? 13 })} />
+      ),
+    },
+    {
       title: '利润率%',
       width: 95,
       render: (_: unknown, r: ItemRow) => (
@@ -379,13 +426,6 @@ export function OrderFormPage(): JSX.Element {
           placeholder={r.purchasePrice == null ? '先填进货价' : ''}
           onChange={(v) => onMarginChange(r.key, r, v)}
         />
-      ),
-    },
-    {
-      title: '税率%',
-      width: 80,
-      render: (_: unknown, r: ItemRow) => (
-        <InputNumber min={0} max={100} precision={2} value={r.taxRate} style={{ width: '100%' }} onChange={(v) => updateItem(r.key, { taxRate: v ?? 13 })} />
       ),
     },
     {
@@ -519,6 +559,9 @@ export function OrderFormPage(): JSX.Element {
             保存
           </Button>
           <Button onClick={() => navigate(-1)}>取消</Button>
+          <Button icon={<FileWordOutlined />} onClick={() => void exportQuoteDocx()}>
+            导出报价单（Word）
+          </Button>
         </Space>
       </div>
     </Card>

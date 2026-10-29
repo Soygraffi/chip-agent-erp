@@ -1,4 +1,4 @@
-﻿import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
+import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -40,6 +40,8 @@ import {
   exportOrders,
   exportQuote,
   quoteFileName,
+  buildQuoteDocx,
+  quoteDocxFileName,
   importCustomers,
   importOrders,
   orderTemplate,
@@ -525,6 +527,8 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
+  ipcMain.handle('suppliers:orders', (_e, id: number) => wrap(() => supplierService.orders(db(), id)));
+  ipcMain.handle('suppliers:materials', (_e, id: number) => wrap(() => supplierService.materials(db(), id)));
 
   /* ---------------- 设置 ---------------- */
   ipcMain.handle('settings:getOrderNoConfig', () => wrap(() => getOrderNoConfig(db())));
@@ -633,6 +637,39 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
       return saveBufferWithDialog(quoteFileName(order.orderNo), buf);
     }),
   );
+  // 新建订单页：用当前表单数据直接生成 Word 报价单（V1.7）
+  ipcMain.handle('export:quoteDocx', (_e, payload: {
+    customerName: string;
+    orderNo?: string | null;
+    items: {
+      materialCode?: string | null;
+      materialName?: string | null;
+      chipModel: string;
+      brand?: string | null;
+      qty: number;
+      unitPrice?: number | null;
+      priceTaxIncluded?: boolean;
+      taxRate?: number;
+      subtotal?: number | null;
+      remark?: string | null;
+    }[];
+    totalAmount: number;
+  }) =>
+    wrapAsync(async () => {
+      const buf = buildQuoteDocx({
+        companyName: (getSetting(db(), 'company_name') || '　　　　').trim(),
+        customerName: payload.customerName,
+        orderNo: payload.orderNo ?? null,
+        items: payload.items,
+        totalAmount: payload.totalAmount,
+        terms:
+          getSetting(db(), 'quote_terms') ||
+          '1、交货周期：具体交货时间以合同约定时间为准\n2、付款方式：票到月结30天付现',
+        footer: getSetting(db(), 'quote_footer') || '如果对上述条款有任何问题，请随时向我们垂询。',
+      });
+      return saveBufferWithDialog(quoteDocxFileName(payload.customerName), buf, 'docx');
+    }),
+  );
   ipcMain.handle('import:customerTemplate', () =>
     wrapAsync(async () => {
       const buf = await customerTemplate();
@@ -725,13 +762,20 @@ function statSizeSafe(path: string): number {
   }
 }
 
-async function saveBufferWithDialog(defaultName: string, buf: Buffer): Promise<string | null> {
+async function saveBufferWithDialog(
+  defaultName: string,
+  buf: Buffer,
+  kind: 'xlsx' | 'docx' = 'xlsx',
+): Promise<string | null> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
   if (!win) throw new BizError('IO_ERROR', '没有可用窗口');
   const r = await dialog.showSaveDialog(win, {
     title: '导出',
     defaultPath: defaultName,
-    filters: [{ name: 'Excel 文件', extensions: ['xlsx'] }],
+    filters:
+      kind === 'docx'
+        ? [{ name: 'Word 文档', extensions: ['docx'] }]
+        : [{ name: 'Excel 文件', extensions: ['xlsx'] }],
   });
   if (r.canceled || !r.filePath) return null;
   writeFileSync(r.filePath, buf);

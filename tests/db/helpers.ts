@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+﻿import type { DatabaseSync } from 'node:sqlite';
 import { migrate, openDatabase } from '@erp/db';
 
 /** 内存测试库：迁移 + 种子就绪 */
@@ -159,4 +159,11 @@ export function seedMaterial(db: DatabaseSync, m: MaterialSeed = {}): number {
       m.isActive === false ? 0 : 1,
     );
   return Number(r.lastInsertRowid);
+}
+
+/** 当前日期对应的订单编号前缀（测试用，避免写死日期） */
+export function todayOrderNo(seq: number, prefix = 'XS'): string {
+  const d = new Date();
+  const p = (n: number): string => String(n).padStart(2, '0');
+  return `${prefix}${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${String(seq).padStart(4, '0')}`;
 }

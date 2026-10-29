@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach } from 'node:test';
+﻿import { describe, it, beforeEach, afterEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import ExcelJS from 'exceljs';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase, migrate, customerService, orderService, statusDictService, wechatService } from '@erp/db';
 import type { DatabaseSync } from 'node:sqlite';
+import { todayOrderNo } from '../db/helpers.ts';
 import {
   customerTemplate,
   orderTemplate,
@@ -117,7 +118,7 @@ describe('订单导入（V1.2：日期/类型/状态可选）', () => {
     const page = orderService.list(db, { page: 1, pageSize: 10, today: '2026-10-28' });
     expect(page.total).toBe(1);
     const order = orderService.get(db, page.rows[0].id);
-    expect(order.orderNo).toBe('XS202610280001'); // 按编号规则自动生成
+    expect(order.orderNo).toBe(todayOrderNo(1)); // 按编号规则自动生成
     expect(order.totalAmount).toBe(1000);
     expect(order.amountManual).toBe(true);
     expect(order.nodes).toHaveLength(10); // 自动生成 10 个标准节点
@@ -187,7 +188,7 @@ describe('导出（V1.2）', () => {
     expect(rows[0][0]).toBe('订单编号');
     expect(rows[0][4]).toBe('订单金额');
     expect(rows[0][9]).toBe('沟通微信群');
-    expect(rows[1][0]).toBe('XS202610280001');
+    expect(rows[1][0]).toBe(todayOrderNo(1));
     expect(rows[1][9]).toBe('商务交流群');
   });
 
@@ -209,7 +210,7 @@ describe('导出（V1.2）', () => {
     await wb.xlsx.load(buf as never);
     expect(wb.worksheets.map((w) => w.name)).toEqual(['订单信息', '物料明细', '进度节点', '沟通微信群']);
     const info = wb.worksheets[0];
-    expect(String(info.getRow(1).getCell(2).value)).toBe('XS202610280001');
+    expect(String(info.getRow(1).getCell(2).value)).toBe(todayOrderNo(1));
     const items = wb.worksheets[1];
     expect(String(items.getRow(2).getCell(3).value)).toBe('STM32F103');
     const nodes = wb.worksheets[2];

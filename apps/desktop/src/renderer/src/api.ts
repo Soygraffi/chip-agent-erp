@@ -1,4 +1,4 @@
-/** 渲染层 API：window.api 的强类型封装，统一解包 {ok,data}|{ok:false,...} 信封 */
+﻿/** 渲染层 API：window.api 的强类型封装，统一解包 {ok,data}|{ok:false,...} 信封 */
 import type { Api } from '../../preload/index';
 
 declare global {
@@ -119,6 +119,8 @@ export const api = {
     create: (input: unknown): Promise<number> => call('suppliers:create', input),
     update: (id: number, input: unknown): Promise<void> => call('suppliers:update', id, input),
     remove: (id: number): Promise<void> => call('suppliers:delete', id),
+    orders: (id: number): Promise<unknown> => call('suppliers:orders', id),
+    materials: (id: number): Promise<unknown> => call('suppliers:materials', id),
   },
 
   /* 看板与提醒 */
@@ -175,6 +177,7 @@ export const api = {
   exportItems: (): Promise<string | null> => call('export:items'),
   exportOrderDetail: (id: number): Promise<string | null> => call('export:orderDetail', id),
   exportQuote: (orderId: number): Promise<string | null> => call('export:quote', orderId),
+  exportQuoteDocx: (payload: unknown): Promise<string | null> => call('export:quoteDocx', payload),
   downloadCustomerTemplate: (): Promise<string | null> => call('import:customerTemplate'),
   downloadOrderTemplate: (): Promise<string | null> => call('import:orderTemplate'),
   importCustomers: (): Promise<{ file: string; report: ImportReport } | null> => call('import:customers'),

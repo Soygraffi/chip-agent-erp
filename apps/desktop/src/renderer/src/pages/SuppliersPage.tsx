@@ -14,11 +14,13 @@ import {
   message,
 } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { Page, SupplierListRow } from '../models';
 import { matchesPinyin } from '../utils/pinyin';
 
 export function SuppliersPage(): JSX.Element {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<SupplierListRow[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
@@ -120,7 +122,7 @@ export function SuppliersPage(): JSX.Element {
                 hoverable
                 loading={loading}
                 bodyStyle={{ padding: 16 }}
-                onClick={() => openEdit(s)}
+                onClick={() => navigate(`/suppliers/${s.id}`)}
               >
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <div
@@ -158,6 +160,7 @@ export function SuppliersPage(): JSX.Element {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Space size={4}>
+                    <Button size="small" onClick={() => navigate(`/suppliers/${s.id}`)}>详情</Button>
                     <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(s)} />
                     <Popconfirm
                       title={`删除供应商「${s.name}」`}

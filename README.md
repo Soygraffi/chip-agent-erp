@@ -1,4 +1,4 @@
-﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.6.6）
+﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.7）
 
 以客户为中心的芯片代理商订单全流程管理工具：客户 → 订单 → 进度节点三级数据，替代碎片化的 Excel 记录。
 数据 100% 本地存储（SQLite），支持 Excel 导入导出与一键备份恢复（含附件）。
@@ -22,11 +22,12 @@
 - **V1.6.4**：恢复原 antd 步骤条外观，同时保留任意步骤可点击
 - **V1.6.5**：节点「供应商备货/排产」改名为「供应商备货」；首页与设置中明确订单状态含义
 - **V1.6.6**：首页状态分布隐藏数量为 0 的状态（含说明列表与空数据占位）
+- **V1.7**：供应商详情（涉及订单/物料）、订单卡片显示微信群、利润率列后移、新建订单可直接导出 Word 报价单
 - 升级自动迁移数据库（v2 → v3 → v4），原有客户/订单/节点数据完整保留
 
 ## 文档
 
-- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md) / [V1.5](docs/PRD-v1.5-delta.md) / [V1.6](docs/PRD-v1.6-delta.md) / [V1.6.1](docs/PRD-v1.6.1-delta.md) / [V1.6.2](docs/PRD-v1.6.2-delta.md) / [V1.6.3](docs/PRD-v1.6.3-delta.md) / [V1.6.4](docs/PRD-v1.6.4-delta.md) / [V1.6.5](docs/PRD-v1.6.5-delta.md) / [V1.6.6](docs/PRD-v1.6.6-delta.md)）
+- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md) / [V1.5](docs/PRD-v1.5-delta.md) / [V1.6](docs/PRD-v1.6-delta.md) / [V1.6.1](docs/PRD-v1.6.1-delta.md) / [V1.6.2](docs/PRD-v1.6.2-delta.md) / [V1.6.3](docs/PRD-v1.6.3-delta.md) / [V1.6.4](docs/PRD-v1.6.4-delta.md) / [V1.6.5](docs/PRD-v1.6.5-delta.md) / [V1.6.6](docs/PRD-v1.6.6-delta.md) / [V1.7](docs/PRD-v1.7-delta.md)）
 - 数据模型：[docs/data-model.md](docs/data-model.md)
 - 开发计划：[docs/dev-plan.md](docs/dev-plan.md)
 - 使用说明：[docs/USAGE.md](docs/USAGE.md)
@@ -47,7 +48,7 @@ packages/shared/       共享类型与工具（纯 TS）
 packages/domain/       领域逻辑（编号/金额/状态机/口径/提醒/导入校验，纯函数可单测）
 packages/db/           数据访问层（node:sqlite 迁移/种子/仓储）+ 应用服务层
 packages/tools/        Excel 导入导出 / 附件托管 / 备份恢复
-tests/                 领域/仓储/服务/工具/验收/性能 共 222 个测试
+tests/                 领域/仓储/服务/工具/验收/性能 共 230 个测试
 scripts/               benchmark.ts（性能基准）、download-electron.mjs（镜像下载 Electron）、verify-migration.mjs
 ```
 
@@ -56,6 +57,6 @@ scripts/               benchmark.ts（性能基准）、download-electron.mjs（
 ```bash
 pnpm install          # 安装依赖（首次需网络）
 pnpm build:packages   # 编译 shared/domain/db/tools
-pnpm test             # 运行全部测试（222 个）
+pnpm test             # 运行全部测试（230 个）
 pnpm typecheck        # 全仓类型检查
 pnpm build            # 构建桌面应用（packages + rollup）
