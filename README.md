@@ -1,4 +1,4 @@
-﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.8）
+﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.8.1）
 
 以客户为中心的芯片代理商订单全流程管理工具：客户 → 订单 → 进度节点三级数据，替代碎片化的 Excel 记录。
 数据 100% 本地存储（SQLite），支持 Excel 导入导出与一键备份恢复（含附件）。
@@ -26,11 +26,12 @@
 - **V1.7.1**：Word 报价单按 PPT 模板重排（A4 横版、8 列明细、合计大写、签章区）
 - **V1.7.2**：修复报价单表格超宽出界；内置公司名称默认值；报价人/电话可在设置中维护
 - **V1.8**：导出报价单前弹窗填写信息（空字段自动隐藏），备注可增删编辑
+- **V1.8.1**：订单管理卡片与订单详情页也可弹窗填写后导出 Word 报价单（同一组件）
 - 升级自动迁移数据库（v2 → v3 → v4），原有客户/订单/节点数据完整保留
 
 ## 文档
 
-- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md) / [V1.5](docs/PRD-v1.5-delta.md) / [V1.6](docs/PRD-v1.6-delta.md) / [V1.6.1](docs/PRD-v1.6.1-delta.md) / [V1.6.2](docs/PRD-v1.6.2-delta.md) / [V1.6.3](docs/PRD-v1.6.3-delta.md) / [V1.6.4](docs/PRD-v1.6.4-delta.md) / [V1.6.5](docs/PRD-v1.6.5-delta.md) / [V1.6.6](docs/PRD-v1.6.6-delta.md) / [V1.7](docs/PRD-v1.7-delta.md) / [V1.7.1](docs/PRD-v1.7.1-delta.md) / [V1.7.2](docs/PRD-v1.7.2-delta.md) / [V1.8](docs/PRD-v1.8-delta.md)）
+- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md) / [V1.5](docs/PRD-v1.5-delta.md) / [V1.6](docs/PRD-v1.6-delta.md) / [V1.6.1](docs/PRD-v1.6.1-delta.md) / [V1.6.2](docs/PRD-v1.6.2-delta.md) / [V1.6.3](docs/PRD-v1.6.3-delta.md) / [V1.6.4](docs/PRD-v1.6.4-delta.md) / [V1.6.5](docs/PRD-v1.6.5-delta.md) / [V1.6.6](docs/PRD-v1.6.6-delta.md) / [V1.7](docs/PRD-v1.7-delta.md) / [V1.7.1](docs/PRD-v1.7.1-delta.md) / [V1.7.2](docs/PRD-v1.7.2-delta.md) / [V1.8](docs/PRD-v1.8-delta.md) / [V1.8.1](docs/PRD-v1.8.1-delta.md)）
 - 数据模型：[docs/data-model.md](docs/data-model.md)
 - 开发计划：[docs/dev-plan.md](docs/dev-plan.md)
 - 使用说明：[docs/USAGE.md](docs/USAGE.md)
@@ -51,7 +52,7 @@ packages/shared/       共享类型与工具（纯 TS）
 packages/domain/       领域逻辑（编号/金额/状态机/口径/提醒/导入校验，纯函数可单测）
 packages/db/           数据访问层（node:sqlite 迁移/种子/仓储）+ 应用服务层
 packages/tools/        Excel 导入导出 / 附件托管 / 备份恢复
-tests/                 领域/仓储/服务/工具/验收/性能 共 234 个测试
+tests/                 领域/仓储/服务/工具/验收/性能 共 238 个测试
 scripts/               benchmark.ts（性能基准）、download-electron.mjs（镜像下载 Electron）、verify-migration.mjs
 ```
 
@@ -60,6 +61,6 @@ scripts/               benchmark.ts（性能基准）、download-electron.mjs（
 ```bash
 pnpm install          # 安装依赖（首次需网络）
 pnpm build:packages   # 编译 shared/domain/db/tools
-pnpm test             # 运行全部测试（234 个）
+pnpm test             # 运行全部测试（238 个）
 pnpm typecheck        # 全仓类型检查
 pnpm build            # 构建桌面应用（packages + rollup）

@@ -7,7 +7,6 @@ import {
   Form,
   Input,
   InputNumber,
-  Modal,
   Popconfirm,
   Select,
   Space,
@@ -20,6 +19,8 @@ import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
 import { pinyinFilterOption } from '../utils/pinyin';
 import type { OrderDetail, WechatGroup } from '../models';
+import type { QuoteModalItem } from '../components/QuoteModal';
+import { QuoteModal } from '../components/QuoteModal';
 
 interface OptionItem {
   id: number;
@@ -113,9 +114,12 @@ export function OrderFormPage(): JSX.Element {
   const [manual, setManual] = useState(false);
   const [manualAmount, setManualAmount] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const [quoteOpen, setQuoteOpen] = useState(false);
-  const [notes, setNotes] = useState<string[]>([]);
-  const [quoteForm] = Form.useForm();
+  const [quoteData, setQuoteData] = useState<{
+    customerId: number;
+    customerName: string;
+    items: QuoteModalItem[];
+    totalAmount: number;
+  } | null>(null);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -276,12 +280,12 @@ export function OrderFormPage(): JSX.Element {
     }
   };
 
-  /** V1.8：先弹出报价单信息弹窗（空字段不显示），再导出 Word */
-  const openQuoteModal = async (): Promise<void> => {
+  /** V1.8.1：先弹出报价单信息弹窗（空字段不显示），再导出 Word */
+  const openQuoteModal = (): void => {
     const values = form.getFieldsValue();
     const cid = values.customerId as number | undefined;
     const customerName = customers.find((c) => c.id === cid)?.name;
-    if (!customerName) {
+    if (!cid || !customerName) {
       void message.warning('请先选择所属客户');
       return;
     }
@@ -292,73 +296,23 @@ export function OrderFormPage(): JSX.Element {
       void message.warning('请先填写物料明细');
       return;
     }
-    try {
-      const [customer, cfg] = await Promise.all([
-        api.customers.get(cid as number) as Promise<{
-          contact?: string | null;
-          address?: string | null;
-        }>,
-        api.settings.getQuoteConfig() as Promise<{
-          salesPerson?: string;
-          salesPhone?: string;
-          quoteTerms?: string;
-        }>,
-      ]);
-      const terms = (cfg.quoteTerms ?? '').split('\n').filter((l) => l.trim() !== '');
-      setNotes(terms.length > 0 ? terms : ['1、交货周期：具体交货时间以合同约定时间为准', '2、付款方式：票到月结30天付现']);
-      quoteForm.setFieldsValue({
-        customerName,
-        contact: customer.contact ?? '',
-        phone: '',
-        address: customer.address ?? '',
-        date: dayjs(),
-        validityDays: 30,
-        salesPerson: cfg.salesPerson ?? '',
-        salesPhone: cfg.salesPhone ?? '',
-      });
-      setQuoteOpen(true);
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
-  const confirmQuote = async (): Promise<void> => {
-    const values = await quoteForm.validateFields();
-    const valid = items.filter(
-      (it) => it.chipModel.trim() !== '' || (it.materialName ?? '').trim() !== '',
-    );
-    try {
-      const p = await api.exportQuoteDocx({
-        customerName: (values.customerName as string) || null,
-        contact: (values.contact as string) || null,
-        phone: (values.phone as string) || null,
-        address: (values.address as string) || null,
-        date: values.date ? (values.date as dayjs.Dayjs).format('YYYY-MM-DD') : null,
-        validityDays: (values.validityDays as number) ?? null,
-        salesPerson: (values.salesPerson as string) || null,
-        salesPhone: (values.salesPhone as string) || null,
-        notes: notes.map((n) => n.trim()).filter((n) => n !== ''),
-        items: valid.map((it) => ({
-          materialCode: it.materialCode,
-          materialName: it.materialName,
-          chipModel: it.chipModel,
-          brand: it.brand,
-          qty: it.qty,
-          unitPrice: it.unitPrice,
-          priceTaxIncluded: it.priceTaxIncluded,
-          taxRate: it.taxRate,
-          subtotal: itemAmount(it),
-          remark: it.remark,
-        })),
-        totalAmount: manual ? (manualAmount ?? autoTotal) : autoTotal,
-      });
-      if (p) {
-        setQuoteOpen(false);
-        void message.success(`报价单已导出：${p}`);
-      }
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
+    setQuoteData({
+      customerId: cid,
+      customerName,
+      items: valid.map((it) => ({
+        materialCode: it.materialCode,
+        materialName: it.materialName,
+        chipModel: it.chipModel,
+        brand: it.brand,
+        qty: it.qty,
+        unitPrice: it.unitPrice,
+        priceTaxIncluded: it.priceTaxIncluded,
+        taxRate: it.taxRate,
+        subtotal: itemAmount(it),
+        remark: it.remark,
+      })),
+      totalAmount: manual ? (manualAmount ?? autoTotal) : autoTotal,
+    });
   };
 
   const itemColumns = [
@@ -614,75 +568,16 @@ export function OrderFormPage(): JSX.Element {
         </Space>
       </div>
 
-      <Modal
-        title="导出报价单（Word）"
-        open={quoteOpen}
-        onOk={() => void confirmQuote()}
-        onCancel={() => setQuoteOpen(false)}
-        okText="导出"
-        cancelText="取消"
-        width={720}
-        destroyOnClose
-      >
-        <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 12 }}>
-          以下内容按需填写，留空的栏目不会出现在报价单中。
-        </div>
-        <Form form={quoteForm} layout="vertical">
-          <Space size={16} style={{ display: 'flex' }} wrap>
-            <Form.Item name="customerName" label="客户单位全称" style={{ width: 300 }}>
-              <Input placeholder="留空则不显示" />
-            </Form.Item>
-            <Form.Item name="contact" label="对接人" style={{ width: 180 }}>
-              <Input placeholder="留空则不显示" />
-            </Form.Item>
-            <Form.Item name="phone" label="联系电话（客户）" style={{ width: 200 }}>
-              <Input placeholder="留空则不显示" />
-            </Form.Item>
-          </Space>
-          <Space size={16} style={{ display: 'flex' }} wrap>
-            <Form.Item name="address" label="客户地址" style={{ width: 420 }}>
-              <Input placeholder="留空则不显示" />
-            </Form.Item>
-            <Form.Item name="date" label="报价日期" style={{ width: 180 }}>
-              <DatePicker style={{ width: '100%' }} placeholder="留空则不显示" />
-            </Form.Item>
-            <Form.Item name="validityDays" label="报价有效期（天）" style={{ width: 160 }}>
-              <InputNumber min={0} max={3650} precision={0} style={{ width: '100%' }} placeholder="留空则不显示" />
-            </Form.Item>
-          </Space>
-          <Space size={16} style={{ display: 'flex' }} wrap>
-            <Form.Item name="salesPerson" label="报价人" style={{ width: 220 }}>
-              <Input placeholder="留空则不显示" />
-            </Form.Item>
-            <Form.Item name="salesPhone" label="报价人电话" style={{ width: 240 }}>
-              <Input placeholder="留空则不显示" />
-            </Form.Item>
-          </Space>
-
-          <div style={{ marginBottom: 6, color: '#595959' }}>备注说明</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {notes.map((n, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8 }}>
-                <Input
-                  value={n}
-                  placeholder="留空则该条不显示"
-                  onChange={(e) => setNotes((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
-                />
-                <Button
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => setNotes((prev) => prev.filter((_, j) => j !== i))}
-                />
-              </div>
-            ))}
-            <div>
-              <Button icon={<PlusOutlined />} onClick={() => setNotes((prev) => [...prev, ''])}>
-                添加一条备注
-              </Button>
-            </div>
-          </div>
-        </Form>
-      </Modal>
+      {quoteData && (
+        <QuoteModal
+          open
+          onClose={() => setQuoteData(null)}
+          customerId={quoteData.customerId}
+          customerName={quoteData.customerName}
+          items={quoteData.items}
+          totalAmount={quoteData.totalAmount}
+        />
+      )}
     </Card>
   );
 }

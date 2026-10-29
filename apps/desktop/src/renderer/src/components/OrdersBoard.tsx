@@ -14,13 +14,15 @@ import {
   Tag,
   message,
 } from 'antd';
-import { EditOutlined, ReloadOutlined, WechatOutlined } from '@ant-design/icons';
+import { EditOutlined, FileWordOutlined, ReloadOutlined, WechatOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
 import type { OrderItem, OrderNode, OrderWithDetails, Page } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 import { NodeStepper } from './NodeStepper';
+import { QuoteModal } from './QuoteModal';
+import type { QuoteModalItem } from './QuoteModal';
 
 interface OptionItem {
   id: number;
@@ -57,6 +59,7 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [statusId, setStatusId] = useState<number | null>(null);
+  const [quoteOrder, setQuoteOrder] = useState<OrderWithDetails | null>(null);
   const [typeId, setTypeId] = useState<number | null>(null);
   const [range, setRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
   const [onlyOverdue, setOnlyOverdue] = useState(false);
@@ -247,6 +250,9 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
                 <span style={{ color: '#666' }}>金额：<strong>{(o.totalAmount ?? 0).toFixed(2)}</strong></span>
                 <span style={{ color: '#999', fontSize: 12 }}>日期：{o.orderDate ?? '未填写'}</span>
                 <span style={{ color: '#999', fontSize: 12 }}>交期：{o.expectedDeliveryDate ?? '未填写'}</span>
+                <Button size="small" icon={<FileWordOutlined />} onClick={() => setQuoteOrder(o)}>
+                  报价单
+                </Button>
                 <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/orders/${o.id}/edit`)}>
                   编辑
                 </Button>
@@ -324,6 +330,28 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
           ))}
         </Space>
       </Modal>
+
+      {quoteOrder && (
+        <QuoteModal
+          open
+          onClose={() => setQuoteOrder(null)}
+          customerId={quoteOrder.customerId}
+          customerName={quoteOrder.customerName}
+          items={quoteOrder.items.map<QuoteModalItem>((it) => ({
+            materialCode: it.materialCode,
+            materialName: it.materialName,
+            chipModel: it.chipModel,
+            brand: it.brand,
+            qty: it.qty,
+            unitPrice: it.unitPrice,
+            priceTaxIncluded: it.priceTaxIncluded,
+            taxRate: it.taxRate,
+            subtotal: it.subtotal,
+            remark: it.remark,
+          }))}
+          totalAmount={quoteOrder.totalAmount ?? 0}
+        />
+      )}
     </div>
   );
 }

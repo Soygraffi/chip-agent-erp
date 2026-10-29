@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -19,6 +19,7 @@ import {
   ArrowLeftOutlined,
   EditOutlined,
   FileAddOutlined,
+  FileWordOutlined,
   PaperClipOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -27,6 +28,8 @@ import { api, errorMessage } from '../api';
 import type { Customer, OrderAttachment, OrderDetail, OrderNode } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 import { NodeStepper } from '../components/NodeStepper';
+import { QuoteModal } from '../components/QuoteModal';
+import type { QuoteModalItem } from '../components/QuoteModal';
 
 interface StatusItem {
   id: number;
@@ -51,6 +54,7 @@ export function OrderDetailPage(): JSX.Element {
   const orderId = Number(id);
   const navigate = useNavigate();
   const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [types, setTypes] = useState<TypeItem[]>([]);
@@ -202,6 +206,9 @@ export function OrderDetailPage(): JSX.Element {
             onClick={() => void api.exportQuote(detail.id).then((p) => (p ? void message.success(`报价单已导出：${p}`) : undefined))}
           >
             导出报价单
+          </Button>
+          <Button icon={<FileWordOutlined />} onClick={() => setQuoteOpen(true)}>
+            导出报价单（Word）
           </Button>
           <Popconfirm
             title={`删除订单「${detail.orderNo}」`}
@@ -394,6 +401,27 @@ export function OrderDetailPage(): JSX.Element {
           ))}
         </Space>
       </Modal>
+      {detail && quoteOpen && (
+        <QuoteModal
+          open
+          onClose={() => setQuoteOpen(false)}
+          customerId={detail.customerId}
+          customerName={customerName}
+          items={detail.items.map<QuoteModalItem>((it) => ({
+            materialCode: it.materialCode,
+            materialName: it.materialName,
+            chipModel: it.chipModel,
+            brand: it.brand,
+            qty: it.qty,
+            unitPrice: it.unitPrice,
+            priceTaxIncluded: it.priceTaxIncluded,
+            taxRate: it.taxRate,
+            subtotal: it.subtotal,
+            remark: it.remark,
+          }))}
+          totalAmount={detail.totalAmount ?? 0}
+        />
+      )}
     </Card>
   );
 }
