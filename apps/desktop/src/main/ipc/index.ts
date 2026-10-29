@@ -641,6 +641,9 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   ipcMain.handle('export:quoteDocx', (_e, payload: {
     customerName: string;
     orderNo?: string | null;
+    customerContact?: string | null;
+    customerPhone?: string | null;
+    customerAddress?: string | null;
     items: {
       materialCode?: string | null;
       materialName?: string | null;
@@ -660,6 +663,11 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
         companyName: (getSetting(db(), 'company_name') || '　　　　').trim(),
         customerName: payload.customerName,
         orderNo: payload.orderNo ?? null,
+        customerContact: payload.customerContact ?? null,
+        customerPhone: payload.customerPhone ?? null,
+        customerAddress: payload.customerAddress ?? null,
+        salesPerson: getSetting(db(), 'quote_salesperson') || null,
+        salesPhone: getSetting(db(), 'quote_phone') || null,
         items: payload.items,
         totalAmount: payload.totalAmount,
         terms:

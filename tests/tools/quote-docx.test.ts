@@ -1,7 +1,7 @@
-import { describe, it } from 'node:test';
+﻿import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import AdmZip from 'adm-zip';
-import { buildQuoteDocx, quoteDocxFileName } from '@erp/tools';
+import { buildQuoteDocx, quoteDocxFileName, rmbUppercase } from '@erp/tools';
 
 const input = {
   companyName: '湖北长江光电子信息产业供应链有限公司',
@@ -59,7 +59,11 @@ describe('Word 报价单（V1.7）', () => {
     expect(xml.includes('GD32F407ZGT6')).toBe(true);
     expect(xml.includes('146.20')).toBe(true);
     expect(xml.includes('220.90')).toBe(true);
-    expect(xml.includes('合计（含税）')).toBe(true);
+    expect(xml.includes('合计（含税总金额）')).toBe(true);
+    expect(xml.includes('贰佰贰拾元玖角整')).toBe(true);
+    expect(xml.includes('报价有效期')).toBe(true);
+    expect(xml.includes('交期 / 备注（选填）')).toBe(true);
+    expect(xml.includes('w:orient="landscape"')).toBe(true);
     expect(xml.includes('交货周期')).toBe(true);
     expect(xml.includes('请随时向我们垂询')).toBe(true);
   });
@@ -87,6 +91,14 @@ describe('Word 报价单（V1.7）', () => {
     const xml = zip.getEntry('word/document.xml')!.getData().toString('utf8');
     expect(xml.includes('113.00')).toBe(true); // 含税单价
     expect(xml.includes('226.00')).toBe(true);
+  });
+
+  it('人民币大写转换', () => {
+    expect(rmbUppercase(1624.38)).toBe('壹仟陆佰贰拾肆元叁角捌分');
+    expect(rmbUppercase(0)).toBe('零元整');
+    expect(rmbUppercase(10000)).toBe('壹万元整');
+    expect(rmbUppercase(100.05)).toBe('壹佰元零伍分');
+    expect(rmbUppercase(1234.5)).toBe('壹仟贰佰叁拾肆元伍角整');
   });
 
   it('文件名包含客户名与日期', () => {

@@ -289,8 +289,14 @@ export function OrderFormPage(): JSX.Element {
       return;
     }
     try {
+      const customer = (await api.customers.get(cid as number)) as {
+        contact?: string | null;
+        address?: string | null;
+      };
       const p = await api.exportQuoteDocx({
         customerName,
+        customerContact: customer.contact ?? null,
+        customerAddress: customer.address ?? null,
         orderNo: (values.orderNo as string) || null,
         items: valid.map((it) => ({
           materialCode: it.materialCode,
