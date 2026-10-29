@@ -454,6 +454,15 @@ UPDATE node_template SET name = '供应商备货' WHERE code = 'stock' AND name 
 UPDATE order_node SET name = '供应商备货' WHERE name LIKE '供应商备货%';
 `;
 
+/**
+ * V1.7.2：报价单默认公司名称（此前为空导致 Word 抬头缺中文名）。
+ */
+const V172 = `
+UPDATE setting
+SET value = '湖北长江光电子信息产业供应链有限公司'
+WHERE key = 'company_name' AND (value IS NULL OR TRIM(value) = '');
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -464,5 +473,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 7, name: 'v1.6 supplier management & menu order', sql: V16 },
   { version: 8, name: 'v1.6.1 backfill materials from order items', sql: V161 },
   { version: 9, name: 'v1.6.5 rename stock template', sql: V165 },
+  { version: 10, name: 'v1.7.2 default quote company name', sql: V172 },
 ];
 

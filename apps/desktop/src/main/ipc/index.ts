@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
+﻿import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -548,7 +548,7 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
-  ipcMain.handle('settings:setQuoteConfig', (_e, cfg: { companyName: string; quoteTerms: string; quoteFooter: string }) => {
+  ipcMain.handle('settings:setQuoteConfig', (_e, cfg: { companyName: string; quoteTerms: string; quoteFooter: string; salesPerson?: string; salesPhone?: string }) => {
     const r = wrap(() => {
       setSetting(db(), 'company_name', cfg.companyName.trim());
       setSetting(db(), 'quote_terms', cfg.quoteTerms);
@@ -660,7 +660,7 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   }) =>
     wrapAsync(async () => {
       const buf = buildQuoteDocx({
-        companyName: (getSetting(db(), 'company_name') || '　　　　').trim(),
+        companyName: (getSetting(db(), 'company_name') || '湖北长江光电子信息产业供应链有限公司').trim(),
         customerName: payload.customerName,
         orderNo: payload.orderNo ?? null,
         customerContact: payload.customerContact ?? null,

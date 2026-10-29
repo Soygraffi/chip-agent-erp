@@ -216,7 +216,7 @@ function row(cells: string[], opts: { header?: boolean; height?: number } = {}):
   }</w:trPr>${cells.join('')}</w:tr>`;
 }
 
-const COL_W = [1570, 1505, 3985, 1240, 1175, 1405, 1665, 2613]; // 合计 15158 twips ≈ 26.7cm
+const COL_W = [1460, 1400, 3710, 1155, 1095, 1310, 1550, 2434]; // 合计 14114 twips = 可打印宽度
 
 function documentXml(input: QuoteDocxInput): string {
   const date = input.date ?? new Date().toISOString().slice(0, 10);
@@ -229,11 +229,11 @@ function documentXml(input: QuoteDocxInput): string {
       size: 42,
       color: '1F3864',
     })}`,
-    [{ pos: 15158, val: 'right' }],
+    [{ pos: 14114, val: 'right' }],
     { spacing: 320 },
   )}${tabParagraph(
     `${run(companyEn, { size: 16, color: '595959' })}${TAB}${run('QUOTATION', { size: 18, color: '595959' })}`,
-    [{ pos: 15158, val: 'right' }],
+    [{ pos: 14114, val: 'right' }],
     { spacing: 260, bottomBorder: true },
   )}`;
 
@@ -295,15 +295,15 @@ function documentXml(input: QuoteDocxInput): string {
   const detailTable = table(COL_W, [row(headerCells, { header: true, height: 640 }), ...itemRows]);
 
   const totalTable = table(
-    [12000, 3158],
+    [11156, 2958],
     [
       row([
-        cell('合计（含税总金额）', { width: 12000, align: 'right', bold: true, size: 22 }),
-        cell(`¥ ${money(input.totalAmount)}`, { width: 3158, align: 'right', bold: true, size: 26 }),
+        cell('合计（含税总金额）', { width: 11156, align: 'right', bold: true, size: 22 }),
+        cell(`¥ ${money(input.totalAmount)}`, { width: 2958, align: 'right', bold: true, size: 26 }),
       ]),
       row([
         cell(`合计人民币（大写）：${rmbUppercase(input.totalAmount)}`, {
-          width: 15158,
+          width: 14114,
           span: 2,
           size: 20,
         }),
@@ -324,7 +324,7 @@ function documentXml(input: QuoteDocxInput): string {
     )}${TAB}${run('（公司盖章处）', { size: 20, color: '808080' })}`,
     [
       { pos: 7500, val: 'left' },
-      { pos: 15158, val: 'right' },
+      { pos: 14114, val: 'right' },
     ],
     { spacing: 360, before: 420 },
   );

@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { migrate, SCHEMA_VERSION, currentSchemaVersion, MIGRATIONS, openDatabase } from '@erp/db';
 import { createTestDb } from './helpers.ts';
@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(9);
+    expect(SCHEMA_VERSION).toBe(10);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -115,9 +115,9 @@ describe('数据库迁移与种子', () => {
       (c) => c.name,
     );
     expect(custCols).toContain('logo_path');
-    // 设置里有报价单抬头默认值
+    // 设置里有报价单抬头默认值（V1.7.2 起内置公司名称）
     const setting = db.prepare("SELECT value FROM setting WHERE key = 'company_name'").get() as { value: string };
-    expect(setting.value).toBe('');
+    expect(setting.value).toBe('湖北长江光电子信息产业供应链有限公司');
     db.close();
   });
 

@@ -497,21 +497,37 @@ function QuoteTab(): JSX.Element {
   const [companyName, setCompanyName] = useState('');
   const [quoteTerms, setQuoteTerms] = useState('');
   const [quoteFooter, setQuoteFooter] = useState('');
+  const [salesPerson, setSalesPerson] = useState('');
+  const [salesPhone, setSalesPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     void api.settings.getQuoteConfig().then((r) => {
-      const c = r as { companyName: string; quoteTerms: string; quoteFooter: string };
+      const c = r as {
+        companyName: string;
+        quoteTerms: string;
+        quoteFooter: string;
+        salesPerson?: string;
+        salesPhone?: string;
+      };
       setCompanyName(c.companyName);
       setQuoteTerms(c.quoteTerms);
       setQuoteFooter(c.quoteFooter);
+      setSalesPerson(c.salesPerson ?? '');
+      setSalesPhone(c.salesPhone ?? '');
     });
   }, []);
 
   const save = async (): Promise<void> => {
     setLoading(true);
     try {
-      await api.settings.setQuoteConfig({ companyName, quoteTerms, quoteFooter });
+      await api.settings.setQuoteConfig({
+        companyName,
+        quoteTerms,
+        quoteFooter,
+        salesPerson,
+        salesPhone,
+      });
       void message.success('报价单设置已保存（下次导出即生效）');
     } catch (e) {
       void message.error(errorMessage(e));
@@ -531,6 +547,16 @@ function QuoteTab(): JSX.Element {
             onChange={(e) => setCompanyName(e.target.value)}
           />
         </div>
+        <Space size={16} style={{ display: 'flex', marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 6, color: '#666' }}>报价人（签章区）</div>
+            <Input value={salesPerson} placeholder="例如：张三" onChange={(e) => setSalesPerson(e.target.value)} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 6, color: '#666' }}>联系电话（签章区）</div>
+            <Input value={salesPhone} placeholder="例如：13800000000" onChange={(e) => setSalesPhone(e.target.value)} />
+          </div>
+        </Space>
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 6, color: '#666' }}>
             备注说明（每行一条，例如「1、交货周期：...」「2、付款方式：...」）
