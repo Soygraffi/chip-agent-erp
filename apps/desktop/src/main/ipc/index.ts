@@ -1,4 +1,4 @@
-﻿import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
+import { BrowserWindow, dialog, ipcMain, shell, app } from 'electron';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -637,13 +637,17 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
       return saveBufferWithDialog(quoteFileName(order.orderNo), buf);
     }),
   );
-  // 新建订单页：用当前表单数据直接生成 Word 报价单（V1.7）
+  // 新建订单页：报价单信息由弹窗填写后导出 Word（V1.8；空字段不显示）
   ipcMain.handle('export:quoteDocx', (_e, payload: {
-    customerName: string;
-    orderNo?: string | null;
-    customerContact?: string | null;
-    customerPhone?: string | null;
-    customerAddress?: string | null;
+    customerName?: string | null;
+    contact?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    date?: string | null;
+    validityDays?: number | null;
+    salesPerson?: string | null;
+    salesPhone?: string | null;
+    notes?: string[];
     items: {
       materialCode?: string | null;
       materialName?: string | null;
@@ -659,23 +663,30 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     totalAmount: number;
   }) =>
     wrapAsync(async () => {
+      const fallbackTerms = (
+        getSetting(db(), 'quote_terms') ||
+        '1、交货周期：具体交货时间以合同约定时间为准\n2、付款方式：票到月结30天付现'
+      ).split('\n');
       const buf = buildQuoteDocx({
         companyName: (getSetting(db(), 'company_name') || '湖北长江光电子信息产业供应链有限公司').trim(),
-        customerName: payload.customerName,
-        orderNo: payload.orderNo ?? null,
-        customerContact: payload.customerContact ?? null,
-        customerPhone: payload.customerPhone ?? null,
-        customerAddress: payload.customerAddress ?? null,
-        salesPerson: getSetting(db(), 'quote_salesperson') || null,
-        salesPhone: getSetting(db(), 'quote_phone') || null,
+        customerName: payload.customerName ?? null,
+        contact: payload.contact ?? null,
+        phone: payload.phone ?? null,
+        address: payload.address ?? null,
+        date: payload.date ?? null,
+        validityDays: payload.validityDays ?? null,
+        salesPerson: payload.salesPerson ?? null,
+        salesPhone: payload.salesPhone ?? null,
         items: payload.items,
         totalAmount: payload.totalAmount,
-        terms:
-          getSetting(db(), 'quote_terms') ||
-          '1、交货周期：具体交货时间以合同约定时间为准\n2、付款方式：票到月结30天付现',
-        footer: getSetting(db(), 'quote_footer') || '如果对上述条款有任何问题，请随时向我们垂询。',
+        notes: payload.notes ?? fallbackTerms,
+        footer: getSetting(db(), 'quote_footer') || '',
       });
-      return saveBufferWithDialog(quoteDocxFileName(payload.customerName), buf, 'docx');
+      return saveBufferWithDialog(
+        quoteDocxFileName(payload.customerName || '客户'),
+        buf,
+        'docx',
+      );
     }),
   );
   ipcMain.handle('import:customerTemplate', () =>

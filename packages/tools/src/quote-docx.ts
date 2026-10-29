@@ -1,11 +1,11 @@
 import AdmZip from 'adm-zip';
 
 /**
- * 生成 Word（.docx）报价单（V1.7.2）
+ * 生成 Word（.docx）报价单（V1.8.0）
  * 版式对齐 PPT 模板《半导体元器件代理报价单模板A4横版3》：
  * A4 横版 · 公司抬头（中/英）· 报价单/QUOTATION · 报价信息栏 · 8 列明细表 ·
- * 合计（含税总金额）+ 大写 · 备注说明 · 报价人/电话/盖章处。
- * 采用 OOXML 最小结构 + 表格，无需第三方 docx 库（用 adm-zip 打包）。
+ * 合计（含税总金额）+ 大写 · 备注说明 · 签章区。
+ * 报价信息栏与备注为“有值才显示”，空字段不出现。
  */
 
 export interface QuoteDocxItem {
@@ -23,20 +23,22 @@ export interface QuoteDocxItem {
 
 export interface QuoteDocxInput {
   companyName: string;
-  customerName: string;
-  orderNo?: string | null;
-  items: QuoteDocxItem[];
-  totalAmount: number;
-  terms: string;
-  footer: string;
-  date?: string;
-  customerContact?: string | null;
-  customerPhone?: string | null;
-  customerAddress?: string | null;
+  companyNameEn?: string;
+  customerName?: string | null;
+  contact?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  /** 报价日期（YYYY-MM-DD）；空则不显示 */
+  date?: string | null;
+  /** 报价有效期天数；null/0 不显示 */
+  validityDays?: number | null;
   salesPerson?: string | null;
   salesPhone?: string | null;
-  validityDays?: number;
-  companyNameEn?: string;
+  items: QuoteDocxItem[];
+  totalAmount: number;
+  /** 备注说明（空数组则整块省略） */
+  notes: string[];
+  footer?: string;
 }
 
 const EN_NAME = 'HUBEI CHANGJIANG OPTOELECTRONICS INFORMATION INDUSTRY SUPPLY CHAIN CO., LTD.';
@@ -57,7 +59,7 @@ function grossPrice(it: QuoteDocxItem): number {
   return it.priceTaxIncluded === false ? Math.round(p * (1 + rate / 100) * 10000) / 10000 : p;
 }
 
-/** 人民币金额转中文大写（支持到亿，保留分；角分整时补“整”） */
+/** 人民币金额转中文大写 */
 export function rmbUppercase(amount: number): string {
   const digits = '零壹贰叁肆伍陆柒捌玖';
   const bigUnits = ['', '拾', '佰', '仟'];
@@ -121,11 +123,10 @@ export function rmbUppercase(amount: number): string {
 
 interface RunOpts {
   bold?: boolean;
-  size?: number; // half-points
+  size?: number;
   color?: string;
 }
 
-/** 制表符必须放在 run 内，否则 Word 忽略 */
 const TAB = '<w:r><w:tab/></w:r>';
 
 function run(text: string, opts: RunOpts = {}): string {
@@ -151,7 +152,6 @@ function paragraph(
   return `<w:p>${pPr}${runs}</w:p>`;
 }
 
-/** 带制表位的段落（页眉/信息栏/签章，避免表格线） */
 function tabParagraph(
   runs: string,
   tabs: { pos: number; val?: 'left' | 'right' | 'center' }[],
@@ -216,11 +216,23 @@ function row(cells: string[], opts: { header?: boolean; height?: number } = {}):
   }</w:trPr>${cells.join('')}</w:tr>`;
 }
 
-const COL_W = [1460, 1400, 3710, 1155, 1095, 1310, 1550, 2434]; // 合计 14114 twips = 可打印宽度
+const COL_W = [1460, 1400, 3710, 1155, 1095, 1310, 1550, 2434]; // 合计 14114 twips
+const PAGE_W = 14114;
+
+/** 一行信息：只显示有值的字段，按数量均分制表位 */
+function infoLine(fields: { label: string; value?: string | null }[], before = 0): string {
+  const items = fields.filter((f) => (f.value ?? '').trim() !== '');
+  if (items.length === 0) return '';
+  const runs = items
+    .map((f, i) => `${i > 0 ? TAB : ''}${run(`${f.label}${f.value}`, { size: 20 })}`)
+    .join('');
+  const tabs = items
+    .slice(1)
+    .map((_, i) => ({ pos: Math.floor((PAGE_W * (i + 1)) / items.length), val: 'left' as const }));
+  return tabParagraph(runs, tabs, { spacing: 300, before });
+}
 
 function documentXml(input: QuoteDocxInput): string {
-  const date = input.date ?? new Date().toISOString().slice(0, 10);
-  const validity = input.validityDays ?? 30;
   const companyEn = (input.companyNameEn || EN_NAME).toUpperCase();
 
   const header = `${tabParagraph(
@@ -229,37 +241,30 @@ function documentXml(input: QuoteDocxInput): string {
       size: 42,
       color: '1F3864',
     })}`,
-    [{ pos: 14114, val: 'right' }],
+    [{ pos: PAGE_W, val: 'right' }],
     { spacing: 320 },
   )}${tabParagraph(
     `${run(companyEn, { size: 16, color: '595959' })}${TAB}${run('QUOTATION', { size: 18, color: '595959' })}`,
-    [{ pos: 14114, val: 'right' }],
+    [{ pos: PAGE_W, val: 'right' }],
     { spacing: 260, bottomBorder: true },
   )}`;
 
-  const info1Line = tabParagraph(
-    `${run(`报价日期：${date}`, { size: 20 })}${TAB}${run(`报价有效期：自报价之日起 ${validity} 天`, {
-      size: 20,
-    })}`,
-    [{ pos: 7000, val: 'left' }],
-    { spacing: 300, before: 80 },
-  );
-  const info2Line = tabParagraph(
-    `${run(`客户单位全称：${input.customerName}`, { size: 19 })}${TAB}${run(
-      `对接人：${input.customerContact ?? ''}`,
-      { size: 19 },
-    )}${TAB}${run(`联系电话：${input.customerPhone ?? ''}`, { size: 19 })}`,
+  const dateLine = infoLine(
     [
-      { pos: 6800, val: 'left' },
-      { pos: 9800, val: 'left' },
+      { label: '报价日期：', value: input.date ?? '' },
+      {
+        label: '报价有效期：',
+        value: input.validityDays && input.validityDays > 0 ? `自报价之日起 ${input.validityDays} 天` : '',
+      },
     ],
-    { spacing: 300 },
+    80,
   );
-  const info3Line = tabParagraph(
-    `${run(`客户地址（选填）：${input.customerAddress ?? ''}`, { size: 19 })}`,
-    [],
-    { spacing: 280 },
-  );
+  const customerLine = infoLine([
+    { label: '客户单位全称：', value: input.customerName ?? '' },
+    { label: '对接人：', value: input.contact ?? '' },
+    { label: '联系电话：', value: input.phone ?? '' },
+  ]);
+  const addressLine = infoLine([{ label: '客户地址（选填）：', value: input.address ?? '' }]);
 
   const headerCells = [
     '物料编码',
@@ -303,7 +308,7 @@ function documentXml(input: QuoteDocxInput): string {
       ]),
       row([
         cell(`合计人民币（大写）：${rmbUppercase(input.totalAmount)}`, {
-          width: 14114,
+          width: PAGE_W,
           span: 2,
           size: 20,
         }),
@@ -311,38 +316,58 @@ function documentXml(input: QuoteDocxInput): string {
     ],
   );
 
-  const termLines = input.terms.split('\n').filter((l) => l.trim() !== '');
-  const noteTitle = paragraph(run('备注说明', { bold: true, size: 20 }), { spacing: 300, before: 120 });
-  const noteLines = termLines.map((line) =>
-    paragraph(run(line, { size: 18, color: '404040' }), { spacing: 280 }),
-  );
+  const notes = input.notes.filter((n) => n.trim() !== '');
+  const notesBlock =
+    notes.length === 0
+      ? ''
+      : `${paragraph(run('备注说明', { bold: true, size: 20 }), { spacing: 300, before: 120 })}${notes
+          .map((line) => paragraph(run(line, { size: 18, color: '404040' }), { spacing: 280 }))
+          .join('')}`;
 
-  const signLine = tabParagraph(
-    `${run(`报价人：${input.salesPerson ?? '____________'}`, { size: 20 })}${TAB}${run(
-      `联系电话：${input.salesPhone ?? '____________'}`,
-      { size: 20 },
-    )}${TAB}${run('（公司盖章处）', { size: 20, color: '808080' })}`,
-    [
-      { pos: 7500, val: 'left' },
-      { pos: 14114, val: 'right' },
-    ],
-    { spacing: 360, before: 420 },
-  );
+  const signFields: { label: string; value?: string | null }[] = [
+    { label: '报价人：', value: input.salesPerson ?? '' },
+    { label: '联系电话：', value: input.salesPhone ?? '' },
+  ];
+  const signItems = signFields.filter((f) => (f.value ?? '').trim() !== '');
+  const signLine =
+    signItems.length === 0
+      ? ''
+      : (() => {
+          const runs = signItems
+            .map((f, i) => `${i > 0 ? TAB : ''}${run(`${f.label}${f.value}`, { size: 20 })}`)
+            .join('');
+          const tabs: { pos: number; val?: 'left' | 'right' | 'center' }[] = signItems
+            .slice(1)
+            .map((_, i) => ({
+              pos: Math.floor((PAGE_W * (i + 1)) / (signItems.length + 1)),
+              val: 'left' as const,
+            }));
+          tabs.push({ pos: PAGE_W, val: 'right' });
+          return tabParagraph(
+            `${runs}${TAB}${run('（公司盖章处）', { size: 20, color: '808080' })}`,
+            tabs,
+            { spacing: 360, before: 420 },
+          );
+        })();
+
+  const footer = (input.footer ?? '').trim();
+  const footerLine = footer
+    ? paragraph(run(footer, { size: 17, color: '808080' }), { align: 'left', spacing: 260, before: 160 })
+    : '';
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <w:body>
 ${header}
-${info1Line}
-${info2Line}
-${info3Line}
+${dateLine}
+${customerLine}
+${addressLine}
 ${detailTable}
 ${totalTable}
-${noteTitle}
-${noteLines.join('')}
+${notesBlock}
 ${paragraph(run('', { size: 10 }), { spacing: 120 })}
 ${signLine}
-${paragraph(run(input.footer, { size: 17, color: '808080' }), { align: 'left', spacing: 260, before: 160 })}
+${footerLine}
 <w:sectPr>
   <w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>
   <w:pgMar w:top="850" w:right="1360" w:bottom="850" w:left="1360" w:header="425" w:footer="500" w:gutter="0"/>

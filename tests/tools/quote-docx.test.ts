@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import AdmZip from 'adm-zip';
 import { buildQuoteDocx, quoteDocxFileName, rmbUppercase } from '@erp/tools';
@@ -6,7 +6,13 @@ import { buildQuoteDocx, quoteDocxFileName, rmbUppercase } from '@erp/tools';
 const input = {
   companyName: '湖北长江光电子信息产业供应链有限公司',
   customerName: '长沙丹芬瑞电气技术有限公司',
-  orderNo: 'XS202610290001',
+  contact: '张工',
+  phone: '13800000000',
+  address: '长沙市岳麓区xx路xx号',
+  date: '2026-10-29',
+  validityDays: 30,
+  salesPerson: '李经理',
+  salesPhone: '13900000000',
   items: [
     {
       materialCode: 'RDDZX03001',
@@ -34,42 +40,107 @@ const input = {
     },
   ],
   totalAmount: 220.9,
-  terms: '1、交货周期：具体交货时间以合同约定时间为准\n2、付款方式：票到月结30天付现',
+  notes: ['1、交货周期：具体交货时间以合同约定时间为准', '2、付款方式：票到月结30天付现'],
   footer: '如果对上述条款有任何问题，请随时向我们垂询。',
 };
 
-describe('Word 报价单（V1.7）', () => {
+function xmlOf(buf: Buffer): string {
+  return new AdmZip(buf).getEntry('word/document.xml')!.getData().toString('utf8');
+}
+
+describe('Word 报价单（V1.8：可填写字段 + 空字段隐藏）', () => {
   it('生成合法的 docx 包结构', () => {
     const buf = buildQuoteDocx(input);
-    expect(buf[0]).toBe(0x50); // 'P'
-    expect(buf[1]).toBe(0x4b); // 'K'
-    const zip = new AdmZip(buf);
-    const names = zip.getEntries().map((e) => e.entryName).sort();
+    expect(buf[0]).toBe(0x50);
+    expect(buf[1]).toBe(0x4b);
+    const names = new AdmZip(buf)
+      .getEntries()
+      .map((e) => e.entryName)
+      .sort();
     expect(names).toContain('[Content_Types].xml');
     expect(names).toContain('word/document.xml');
     expect(names).toContain('word/styles.xml');
   });
 
-  it('内容包含公司抬头、客户、明细、合计与说明', () => {
-    const zip = new AdmZip(buildQuoteDocx(input));
-    const xml = zip.getEntry('word/document.xml')!.getData().toString('utf8');
+  it('完整信息：抬头、客户、8 列表头、合计、大写、备注、签章', () => {
+    const xml = xmlOf(buildQuoteDocx(input));
     expect(xml.includes('湖北长江光电子信息产业供应链有限公司')).toBe(true);
     expect(xml.includes('长沙丹芬瑞电气技术有限公司')).toBe(true);
-    expect(xml.includes('RDDZX03001')).toBe(true);
-    expect(xml.includes('GD32F407ZGT6')).toBe(true);
+    expect(xml.includes('张工')).toBe(true);
+    expect(xml.includes('13800000000')).toBe(true);
+    expect(xml.includes('长沙市岳麓区xx路xx号')).toBe(true);
+    expect(xml.includes('2026-10-29')).toBe(true);
+    expect(xml.includes('自报价之日起 30 天')).toBe(true);
+    expect(xml.includes('李经理')).toBe(true);
+    expect(xml.includes('13900000000')).toBe(true);
+    expect(xml.includes('交期 / 备注（选填）')).toBe(true);
     expect(xml.includes('146.20')).toBe(true);
     expect(xml.includes('220.90')).toBe(true);
     expect(xml.includes('合计（含税总金额）')).toBe(true);
     expect(xml.includes('贰佰贰拾元玖角整')).toBe(true);
-    expect(xml.includes('报价有效期')).toBe(true);
-    expect(xml.includes('交期 / 备注（选填）')).toBe(true);
-    expect(xml.includes('w:orient="landscape"')).toBe(true);
     expect(xml.includes('交货周期')).toBe(true);
     expect(xml.includes('请随时向我们垂询')).toBe(true);
+    expect(xml.includes('w:orient="landscape"')).toBe(true);
+  });
+
+  it('空字段不出现对应栏目', () => {
+    const xml = xmlOf(
+      buildQuoteDocx({
+        companyName: '测试公司',
+        customerName: null,
+        contact: null,
+        phone: null,
+        address: null,
+        date: null,
+        validityDays: null,
+        salesPerson: null,
+        salesPhone: null,
+        items: input.items,
+        totalAmount: 220.9,
+        notes: [],
+        footer: '',
+      }),
+    );
+    expect(xml.includes('客户单位全称')).toBe(false);
+    expect(xml.includes('对接人')).toBe(false);
+    expect(xml.includes('客户地址')).toBe(false);
+    expect(xml.includes('报价日期')).toBe(false);
+    expect(xml.includes('报价有效期')).toBe(false);
+    expect(xml.includes('报价人')).toBe(false);
+    expect(xml.includes('（公司盖章处）')).toBe(false);
+    expect(xml.includes('备注说明')).toBe(false);
+    // 明细与合计仍然存在
+    expect(xml.includes('合计（含税总金额）')).toBe(true);
+  });
+
+  it('部分字段为空：其余栏目正常且不残留空标签', () => {
+    const xml = xmlOf(
+      buildQuoteDocx({
+        ...input,
+        phone: '',
+        address: null,
+        validityDays: 0,
+        salesPhone: null,
+      }),
+    );
+    expect(xml.includes('对接人：张工')).toBe(true);
+    expect(xml.includes('联系电话')).toBe(false); // 客户电话为空
+    expect(xml.includes('报价有效期')).toBe(false); // 0 天不显示
+    expect(xml.includes('报价人：李经理')).toBe(true);
+    expect(xml.includes('（公司盖章处）')).toBe(true);
+  });
+
+  it('备注可增删：新增一行进入文档，删空后整块省略', () => {
+    const withExtra = xmlOf(
+      buildQuoteDocx({ ...input, notes: [...input.notes, '3、质保期：1 年'] }),
+    );
+    expect(withExtra.includes('3、质保期：1 年')).toBe(true);
+    const none = xmlOf(buildQuoteDocx({ ...input, notes: [] }));
+    expect(none.includes('备注说明')).toBe(false);
   });
 
   it('不含税价按税率换算为含税价', () => {
-    const zip = new AdmZip(
+    const xml = xmlOf(
       buildQuoteDocx({
         ...input,
         items: [
@@ -88,8 +159,7 @@ describe('Word 报价单（V1.7）', () => {
         totalAmount: 226,
       }),
     );
-    const xml = zip.getEntry('word/document.xml')!.getData().toString('utf8');
-    expect(xml.includes('113.00')).toBe(true); // 含税单价
+    expect(xml.includes('113.00')).toBe(true);
     expect(xml.includes('226.00')).toBe(true);
   });
 
