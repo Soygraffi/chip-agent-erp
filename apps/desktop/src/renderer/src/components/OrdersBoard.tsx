@@ -34,6 +34,8 @@ interface OrdersBoardProps {
   pageSize?: number;
   /** 只显示重点跟进订单 */
   onlyKey?: boolean;
+  /** 是否显示「报价单」按钮（首页看板不显示） */
+  showQuote?: boolean;
 }
 
 const ITEM_COLUMNS = [
@@ -50,7 +52,12 @@ const ITEM_COLUMNS = [
   },
 ];
 
-export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10, onlyKey = false }: OrdersBoardProps): JSX.Element {
+export function OrdersBoard({
+  showFilters = true,
+  pageSize: initialPageSize = 10,
+  onlyKey = false,
+  showQuote = true,
+}: OrdersBoardProps): JSX.Element {
   const navigate = useNavigate();
   const [rows, setRows] = useState<OrderWithDetails[]>([]);
   const [total, setTotal] = useState(0);
@@ -250,9 +257,11 @@ export function OrdersBoard({ showFilters = true, pageSize: initialPageSize = 10
                 <span style={{ color: '#666' }}>金额：<strong>{(o.totalAmount ?? 0).toFixed(2)}</strong></span>
                 <span style={{ color: '#999', fontSize: 12 }}>日期：{o.orderDate ?? '未填写'}</span>
                 <span style={{ color: '#999', fontSize: 12 }}>交期：{o.expectedDeliveryDate ?? '未填写'}</span>
-                <Button size="small" icon={<FileWordOutlined />} onClick={() => setQuoteOrder(o)}>
-                  报价单
-                </Button>
+                {showQuote && (
+                  <Button size="small" icon={<FileWordOutlined />} onClick={() => setQuoteOrder(o)}>
+                    报价单
+                  </Button>
+                )}
                 <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/orders/${o.id}/edit`)}>
                   编辑
                 </Button>

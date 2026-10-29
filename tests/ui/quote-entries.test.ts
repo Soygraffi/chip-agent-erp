@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+﻿import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,6 +18,13 @@ describe('报价单入口（V1.8.1）', () => {
     const src = read('apps/desktop/src/renderer/src/pages/OrderDetailPage.tsx');
     expect(src.includes('导出报价单（Word）')).toBe(true);
     expect(src.includes('QuoteModal')).toBe(true);
+  });
+
+  it('首页看板不显示报价单按钮，订单管理页保留', () => {
+    const dash = read('apps/desktop/src/renderer/src/pages/DashboardPage.tsx');
+    const orders = read('apps/desktop/src/renderer/src/pages/OrdersPage.tsx');
+    expect(dash.includes('showQuote={false}')).toBe(true);
+    expect(orders.includes('showQuote')).toBe(false);
   });
 
   it('新建订单页复用同一弹窗组件', () => {

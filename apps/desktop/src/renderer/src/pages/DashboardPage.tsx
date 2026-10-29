@@ -300,7 +300,7 @@ export function DashboardPage(): JSX.Element {
           </Button>
         }
       >
-        <OrdersBoard showFilters={false} pageSize={5} />
+        <OrdersBoard showFilters={false} pageSize={5} showQuote={false} />
       </Card>
     </div>
   );
