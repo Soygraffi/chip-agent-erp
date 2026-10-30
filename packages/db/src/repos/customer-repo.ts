@@ -130,11 +130,13 @@ export function findActiveCustomerIdByNorm(db: DatabaseSync, norm: string): numb
   return r ? r.id : null;
 }
 
-/** 订单下拉选项：仅未删除客户 */
-export function listCustomerOptions(db: DatabaseSync): { id: number; name: string }[] {
+/** 订单下拉选项：仅未删除客户（带简称，下拉优先显示简称） */
+export function listCustomerOptions(
+  db: DatabaseSync,
+): { id: number; name: string; shortName: string | null }[] {
   return db
-    .prepare('SELECT id, name FROM customer WHERE deleted_at IS NULL ORDER BY name')
-    .all() as { id: number; name: string }[];
+    .prepare('SELECT id, name, short_name AS shortName FROM customer WHERE deleted_at IS NULL ORDER BY name')
+    .all() as { id: number; name: string; shortName: string | null }[];
 }
 
 export interface CustomerFilter {

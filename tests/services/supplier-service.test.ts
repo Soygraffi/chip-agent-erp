@@ -1,4 +1,4 @@
-﻿import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import { supplierService, materialService, customerService, orderService } from '@erp/db';
@@ -103,5 +103,52 @@ describe('供应商管理（V1.6）', () => {
     expect(mats[0].code).toBe('RDDZX03001');
     expect(mats[0].orderCount).toBe(1);
     expect(() => supplierService.orders(db, 99999)).toThrowError(/供应商不存在/);
+  });
+
+  it('V1.9 订单明细指定供应商后，供应商详情能看到订单与物料', () => {
+    const sid = supplierService.create(db, { name: '深圳华强电子', shortName: '华强' });
+    // 物料本身未关联供应商，只在订单明细里指定
+    const mid = materialService.create(db, {
+      code: 'WGC3000008',
+      name: '聚丙烯电容',
+      purchasePrice: 2.5,
+      salePrice: 3.25,
+    });
+    const cid = customerService.create(db, { name: '长沙丹芬瑞' });
+    const oid = orderService.create(db, {
+      customerId: cid,
+      orderDate: '2026-10-30',
+      items: [
+        {
+          materialId: mid,
+          materialCode: 'WGC3000008',
+          materialName: '聚丙烯电容',
+          chipModel: 'C823A224KB0C000',
+          brand: '厦门法拉',
+          supplierId: sid,
+          packageSpec: null,
+          qty: 100,
+          unitPrice: 3.25,
+          purchasePrice: 2.5,
+          priceTaxIncluded: true,
+          purchaseTaxIncluded: true,
+          taxRate: 13,
+          subtotal: 325,
+          customerPn: null,
+          remark: null,
+        },
+      ],
+    });
+    const orders = supplierService.orders(db, sid);
+    expect(orders).toHaveLength(1);
+    expect(orders[0].orderId).toBe(oid);
+    expect(orders[0].itemCount).toBe(1);
+    const mats = supplierService.materials(db, sid);
+    expect(mats).toHaveLength(1);
+    expect(mats[0].code).toBe('WGC3000008');
+    expect(mats[0].orderCount).toBe(1);
+
+    const opts = supplierService.options(db);
+    expect(opts[0].shortName).toBe('华强');
   });
 });

@@ -233,13 +233,6 @@ export function OrderDetailPage(): JSX.Element {
           >
             导出订单详情
           </Button>
-          <Button
-            type="primary"
-            ghost
-            onClick={() => void api.exportQuote(detail.id).then((p) => (p ? void message.success(`报价单已导出：${p}`) : undefined))}
-          >
-            导出报价单
-          </Button>
           <Button icon={<FileWordOutlined />} onClick={() => setQuoteOpen(true)}>
             导出报价单（Word）
           </Button>

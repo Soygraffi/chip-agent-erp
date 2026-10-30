@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Select,
   Space,
+  Switch,
   Table,
   message,
 } from 'antd';
@@ -26,7 +27,10 @@ import { QuoteModal } from '../components/QuoteModal';
 interface OptionItem {
   id: number;
   name: string;
+  shortName?: string | null;
 }
+
+const labelOf = (o: OptionItem): string => (o.shortName ?? '').trim() || o.name;
 
 interface MaterialOption {
   id: number;
@@ -113,7 +117,7 @@ export function OrderFormPage(): JSX.Element {
   const [types, setTypes] = useState<OptionItem[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<OptionItem[]>([]);
   const [groups, setGroups] = useState<WechatGroup[]>([]);
-  const [materials, setMaterials] = useState<MaterialOption[]>([]);
+  
   const [suppliers, setSuppliers] = useState<OptionItem[]>([]);
   const [items, setItems] = useState<ItemRow[]>([{ key: 0, ...EMPTY_ITEM }]);
   const [manual, setManual] = useState(false);
@@ -134,7 +138,7 @@ export function OrderFormPage(): JSX.Element {
     void api.statuses.list().then((r) => setStatuses(r as OptionItem[]));
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
     void api.dicts.list('payment_method').then((r) => setPaymentMethods(r as OptionItem[]));
-    void api.materials.options().then((r) => setMaterials(r as MaterialOption[]));
+
     void api.suppliers.options().then((r) => setSuppliers(r as OptionItem[]));
   }, []);
 
@@ -211,30 +215,6 @@ export function OrderFormPage(): JSX.Element {
     const margin = pct ?? null;
     const sale = row.purchasePrice != null ? round4(row.purchasePrice * (1 + (margin ?? 0) / 100)) : null;
     updateItem(key, { margin, unitPrice: sale });
-  };
-
-  const onPickMaterial = (key: number, materialId: number): void => {
-    const m = materials.find((x) => x.id === materialId);
-    if (!m) {
-      updateItem(key, { materialId: null });
-      return;
-    }
-    const grossSale = grossPrice(m.salePrice, m.priceTaxIncluded, m.taxRate);
-    const grossCost = grossPrice(m.purchasePrice, m.purchaseTaxIncluded, m.taxRate);
-    updateItem(key, {
-      materialId: m.id,
-      materialCode: m.code,
-      materialName: m.name,
-      chipModel: m.spec ?? '',
-      brand: m.brand,
-      supplierId: m.supplierId ?? null,
-      purchasePrice: m.purchasePrice,
-      purchaseTaxIncluded: m.purchaseTaxIncluded,
-      unitPrice: m.salePrice,
-      priceTaxIncluded: m.priceTaxIncluded,
-      taxRate: m.taxRate,
-      margin: grossCost > 0 ? round2(((grossSale - grossCost) / grossCost) * 100) : null,
-    });
   };
 
   const submit = async (): Promise<void> => {
@@ -334,25 +314,6 @@ export function OrderFormPage(): JSX.Element {
 
   const itemColumns = [
     {
-      title: '从物料库选择',
-      width: 190,
-      render: (_: unknown, r: ItemRow) => (
-        <Select
-          showSearch
-          allowClear
-          placeholder="选择物料自动带出"
-          style={{ width: '100%' }}
-          value={r.materialId ?? undefined}
-          optionFilterProp="label"
-          options={materials.map((m) => ({
-            value: m.id,
-            label: `${m.code} ${m.name}${m.spec ? ' / ' + m.spec : ''}`,
-          }))}
-          onChange={(v) => onPickMaterial(r.key, v as number)}
-        />
-      ),
-    },
-    {
       title: '物料编码',
       width: 130,
       render: (_: unknown, r: ItemRow) => (
@@ -361,14 +322,14 @@ export function OrderFormPage(): JSX.Element {
     },
     {
       title: '物料名称',
-      width: 130,
+      width: 200,
       render: (_: unknown, r: ItemRow) => (
         <Input value={r.materialName ?? ''} onChange={(e) => updateItem(r.key, { materialName: e.target.value || null })} />
       ),
     },
     {
       title: '料号规格 *',
-      width: 140,
+      width: 220,
       render: (_: unknown, r: ItemRow) => (
         <Input value={r.chipModel} placeholder="如 GD32F407ZGT6" onChange={(e) => updateItem(r.key, { chipModel: e.target.value })} />
       ),
@@ -391,7 +352,7 @@ export function OrderFormPage(): JSX.Element {
           placeholder="该物料由哪家提供"
           style={{ width: '100%' }}
           value={r.supplierId ?? undefined}
-          options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+          options={suppliers.map((s) => ({ value: s.id, label: labelOf(s) }))}
           onChange={(v) => updateItem(r.key, { supplierId: (v as number | undefined) ?? null })}
         />
       ),
@@ -499,7 +460,7 @@ export function OrderFormPage(): JSX.Element {
       <Form form={form} layout="vertical">
         <Space size={24} align="start" wrap style={{ display: 'flex' }}>
           <Form.Item name="customerId" label="所属客户" rules={[{ required: true, message: '请选择客户' }]}>
-            <Select showSearch filterOption={(input, option) => pinyinFilterOption(input, option)} style={{ width: 240 }} placeholder="输入名称或拼音搜索客户" options={customers.map((c) => ({ value: c.id, label: c.name }))} onChange={(v) => onCustomerChange(v)} />
+            <Select showSearch filterOption={(input, option) => pinyinFilterOption(input, option)} style={{ width: 240 }} placeholder="输入名称或拼音搜索客户" options={customers.map((c) => ({ value: c.id, label: labelOf(c) }))} onChange={(v) => onCustomerChange(v)} />
           </Form.Item>
           <Form.Item name="orderNo" label="订单编号" extra="留空自动生成">
             <Input style={{ width: 180 }} placeholder="留空自动生成" />
@@ -519,8 +480,8 @@ export function OrderFormPage(): JSX.Element {
           <Form.Item name="paymentMethodId" label="付款方式">
             <Select allowClear style={{ width: 130 }} options={paymentMethods.map((p) => ({ value: p.id, label: p.name }))} />
           </Form.Item>
-          <Form.Item name="isKey" label="重点跟进" valuePropName="checked">
-            <Checkbox />
+          <Form.Item name="isKey" label="重点跟进" valuePropName="checked" style={{ minWidth: 120 }}>
+            <Switch checkedChildren="重点" unCheckedChildren="普通" style={{ marginTop: 4 }} />
           </Form.Item>
           <Form.Item name="wechatGroupIds" label="沟通微信群" style={{ width: 300 }} extra="从该客户的微信群中选择，可多选">
             <Select
@@ -565,7 +526,7 @@ export function OrderFormPage(): JSX.Element {
         rowKey="key"
         size="small"
         pagination={false}
-        scroll={{ x: 1900 }}
+        scroll={{ x: 2100 }}
         dataSource={items}
         columns={itemColumns}
         footer={() => (
