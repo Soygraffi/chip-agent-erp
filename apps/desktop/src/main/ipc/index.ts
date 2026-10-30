@@ -244,8 +244,8 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   });
 
   /* ---------------- 订单文档（PDF/Word/图片） ---------------- */
-  ipcMain.handle('orderDocs:list', (_e, orderId: number) =>
-    wrap(() => orderAttachmentService.list(db(), orderId)),
+  ipcMain.handle('orderDocs:list', (_e, orderId: number, kind?: 'file' | 'purchase_contract') =>
+    wrap(() => orderAttachmentService.list(db(), orderId, kind)),
   );
   ipcMain.handle('orderDocs:pickAndAdd', (_e, orderId: number) =>
     wrapAsync(async () => {
@@ -272,6 +272,38 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
       const id = orderAttachmentService.add(db(), orderId, { originalName, storedPath, size });
       changed();
       return { id, originalName, storedPath, size };
+    }),
+  );
+  // 采购合同：只允许图片，单独标注 kind，详情页单独展示
+  ipcMain.handle('orderDocs:pickAndAddImage', (_e, orderId: number) =>
+    wrapAsync(async () => {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      if (!win) throw new BizError('IO_ERROR', '没有可用窗口');
+      const r = await dialog.showOpenDialog(win, {
+        title: '上传采购合同图片',
+        filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] }],
+        properties: ['openFile', 'multiSelections'],
+      });
+      if (r.canceled || r.filePaths.length === 0) return null;
+      const saved: { id: number; originalName: string; storedPath: string; size: number }[] = [];
+      for (const sourcePath of r.filePaths) {
+        const { size } = statSync(sourcePath);
+        const { storedPath, originalName } = storeOrderAttachment(
+          ctxRef.ctx.attachmentsDir,
+          orderId,
+          sourcePath,
+          size,
+        );
+        const id = orderAttachmentService.add(db(), orderId, {
+          originalName,
+          storedPath,
+          size,
+          kind: 'purchase_contract',
+        });
+        saved.push({ id, originalName, storedPath, size });
+      }
+      changed();
+      return saved;
     }),
   );
   ipcMain.handle('orderDocs:delete', (_e, id: number) => {
@@ -637,14 +669,17 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
       return saveBufferWithDialog(quoteFileName(order.orderNo), buf);
     }),
   );
-  // 新建订单页：报价单信息由弹窗填写后导出 Word（V1.8；空字段不显示）
+  // 新建订单页：报价单信息由弹窗填写后导出 Word（V1.8；空字段不显示；V1.9 动态列/文件名）
   ipcMain.handle('export:quoteDocx', (_e, payload: {
     customerName?: string | null;
+    customerShortName?: string | null;
     contact?: string | null;
     phone?: string | null;
     address?: string | null;
     date?: string | null;
     validityDays?: number | null;
+    orderQty?: number | null;
+    deliveryDate?: string | null;
     salesPerson?: string | null;
     salesPhone?: string | null;
     notes?: string[];
@@ -653,7 +688,7 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
       materialName?: string | null;
       chipModel: string;
       brand?: string | null;
-      qty: number;
+      qty?: number | null;
       unitPrice?: number | null;
       priceTaxIncluded?: boolean;
       taxRate?: number;
@@ -675,6 +710,8 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
         address: payload.address ?? null,
         date: payload.date ?? null,
         validityDays: payload.validityDays ?? null,
+        orderQty: payload.orderQty ?? null,
+        deliveryDate: payload.deliveryDate ?? null,
         salesPerson: payload.salesPerson ?? null,
         salesPhone: payload.salesPhone ?? null,
         items: payload.items,
@@ -683,7 +720,7 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
         footer: getSetting(db(), 'quote_footer') || '',
       });
       return saveBufferWithDialog(
-        quoteDocxFileName(payload.customerName || '客户'),
+        quoteDocxFileName(payload.customerShortName || payload.customerName || '客户', payload.date),
         buf,
         'docx',
       );

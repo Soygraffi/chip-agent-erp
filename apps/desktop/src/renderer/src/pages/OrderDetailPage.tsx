@@ -5,6 +5,7 @@ import {
   Descriptions,
   Divider,
   Form,
+  Image as AntImage,
   Input,
   List,
   Modal,
@@ -59,10 +60,23 @@ export function OrderDetailPage(): JSX.Element {
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [types, setTypes] = useState<TypeItem[]>([]);
   const [docs, setDocs] = useState<OrderAttachment[]>([]);
+  const [contracts, setContracts] = useState<OrderAttachment[]>([]);
+  const [contractUrls, setContractUrls] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [nodeModal, setNodeModal] = useState<{ mode: 'edit' | 'create'; node: OrderNode | null } | null>(null);
   const [statusValue, setStatusValue] = useState<string>('pending');
   const [form] = Form.useForm();
+
+  const loadContracts = useCallback(async (): Promise<void> => {
+    const rows = (await api.orderDocs.list(orderId, 'purchase_contract')) as OrderAttachment[];
+    setContracts(rows);
+    const map: Record<number, string> = {};
+    for (const r of rows) {
+      const u = (await api.attachments.url(r.storedPath)) as { url: string };
+      map[r.id] = u.url;
+    }
+    setContractUrls(map);
+  }, [orderId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,6 +88,7 @@ export function OrderDetailPage(): JSX.Element {
       const c = (await api.customers.get(d.customerId)) as Customer;
       setCustomerName(c.deletedAt ? `${c.name}（已删除客户）` : c.name);
       setDocs((await api.orderDocs.list(orderId)) as OrderAttachment[]);
+      await loadContracts();
     } catch (e) {
       void message.error(errorMessage(e));
     } finally {
@@ -163,6 +178,24 @@ export function OrderDetailPage(): JSX.Element {
     try {
       await api.orderDocs.remove(doc.id);
       setDocs((await api.orderDocs.list(orderId)) as OrderAttachment[]);
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
+
+  const uploadContracts = async (): Promise<void> => {
+    try {
+      await api.orderDocs.pickAndAddImage(orderId);
+      await loadContracts();
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
+
+  const deleteContract = async (doc: OrderAttachment): Promise<void> => {
+    try {
+      await api.orderDocs.remove(doc.id);
+      await loadContracts();
     } catch (e) {
       void message.error(errorMessage(e));
     }
@@ -278,6 +311,42 @@ export function OrderDetailPage(): JSX.Element {
         />
       </Card>
 
+      <Card
+        size="small"
+        title={`采购合同（${contracts.length}）`}
+        extra={
+          <Button size="small" icon={<FileAddOutlined />} onClick={() => void uploadContracts()}>
+            上传采购合同图片
+          </Button>
+        }
+        style={{ marginBottom: 16 }}
+      >
+        {contracts.length === 0 ? (
+          <span style={{ color: '#999' }}>暂无采购合同，可上传合同照片或截图</span>
+        ) : (
+          <Space wrap size={16}>
+            {contracts.map((c) => (
+              <div key={c.id} style={{ width: 160 }}>
+                <AntImage
+                  src={contractUrls[c.id]}
+                  width={160}
+                  height={120}
+                  style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #f0f0f0' }}
+                />
+                <div style={{ fontSize: 12, marginTop: 4, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span title={c.originalName} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.originalName}
+                  </span>
+                  <Popconfirm title="删除该采购合同" onConfirm={() => void deleteContract(c)}>
+                    <a style={{ color: '#ff4d4f', flexShrink: 0 }}>删除</a>
+                  </Popconfirm>
+                </div>
+              </div>
+            ))}
+          </Space>
+        )}
+      </Card>
+
       <Divider orientation="left">物料明细</Divider>
       <Table
         rowKey="id"
@@ -290,6 +359,7 @@ export function OrderDetailPage(): JSX.Element {
           { title: '物料名称', dataIndex: 'materialName', width: 130, render: (v: string | null) => v ?? '-' },
           { title: '料号规格', dataIndex: 'chipModel', width: 150 },
           { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
+          { title: '供应商', dataIndex: 'supplierName', width: 140, render: (v: string | null) => v ?? '-' },
           { title: '数量', dataIndex: 'qty', width: 80, align: 'right' as const },
           {
             title: '进货价',
@@ -420,6 +490,8 @@ export function OrderDetailPage(): JSX.Element {
             remark: it.remark,
           }))}
           totalAmount={detail.totalAmount ?? 0}
+          orderQty={detail.orderQty}
+          deliveryDate={detail.expectedDeliveryDate}
         />
       )}
     </Card>

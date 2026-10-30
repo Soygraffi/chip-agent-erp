@@ -1,11 +1,11 @@
-import AdmZip from 'adm-zip';
+﻿import AdmZip from 'adm-zip';
 
 /**
- * 生成 Word（.docx）报价单（V1.8.0）
+ * 生成 Word（.docx）报价单（V1.9）
  * 版式对齐 PPT 模板《半导体元器件代理报价单模板A4横版3》：
- * A4 横版 · 公司抬头（中/英）· 报价单/QUOTATION · 报价信息栏 · 8 列明细表 ·
- * 合计（含税总金额）+ 大写 · 备注说明 · 签章区。
- * 报价信息栏与备注为“有值才显示”，空字段不出现。
+ * A4 横版 · 公司抬头 · 报价信息栏 · 明细表 · 合计 + 大写 · 备注 · 签章。
+ * V1.9：按填写内容动态显示栏目；未填写数量时不显示数量/金额/合计；
+ * 未税价时表头/合计显示“不含税”；去掉公司盖章处。
  */
 
 export interface QuoteDocxItem {
@@ -13,7 +13,7 @@ export interface QuoteDocxItem {
   materialName?: string | null;
   chipModel: string;
   brand?: string | null;
-  qty: number;
+  qty?: number | null;
   unitPrice?: number | null;
   priceTaxIncluded?: boolean;
   taxRate?: number;
@@ -28,20 +28,20 @@ export interface QuoteDocxInput {
   contact?: string | null;
   phone?: string | null;
   address?: string | null;
-  /** 报价日期（YYYY-MM-DD）；空则不显示 */
   date?: string | null;
-  /** 报价有效期天数；null/0 不显示 */
   validityDays?: number | null;
+  orderQty?: number | null;
+  deliveryDate?: string | null;
   salesPerson?: string | null;
   salesPhone?: string | null;
   items: QuoteDocxItem[];
   totalAmount: number;
-  /** 备注说明（空数组则整块省略） */
   notes: string[];
   footer?: string;
 }
 
 const EN_NAME = 'HUBEI CHANGJIANG OPTOELECTRONICS INFORMATION INDUSTRY SUPPLY CHAIN CO., LTD.';
+const PAGE_W = 14114; // A4 横版可打印宽度（twips）
 
 const esc = (s: string): string =>
   s
@@ -53,10 +53,11 @@ const esc = (s: string): string =>
 const money = (n: number | null | undefined): string =>
   (n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function grossPrice(it: QuoteDocxItem): number {
+/** 单行金额：报价单价已是所选口径（含税/不含税），金额 = 数量 × 单价 */
+export function lineAmount(it: QuoteDocxItem): number {
+  const qty = it.qty ?? 0;
   const p = it.unitPrice ?? 0;
-  const rate = it.taxRate ?? 13;
-  return it.priceTaxIncluded === false ? Math.round(p * (1 + rate / 100) * 10000) / 10000 : p;
+  return Math.round(qty * p * 100) / 100;
 }
 
 /** 人民币金额转中文大写 */
@@ -171,7 +172,7 @@ function tabParagraph(
 function cell(
   content: string,
   opts: {
-    width?: number;
+    width: number;
     align?: string;
     bold?: boolean;
     size?: number;
@@ -179,9 +180,9 @@ function cell(
     shade?: string;
     valign?: string;
     color?: string;
-  } = {},
+  },
 ): string {
-  const tcPr = `<w:tcPr><w:tcW w:w="${opts.width ?? 1200}" w:type="dxa"/>${
+  const tcPr = `<w:tcPr><w:tcW w:w="${opts.width}" w:type="dxa"/>${
     opts.span && opts.span > 1 ? `<w:gridSpan w:val="${opts.span}"/>` : ''
   }${opts.shade ? `<w:shd w:val="clear" w:color="auto" w:fill="${opts.shade}"/>` : ''}<w:vAlign w:val="${
     opts.valign ?? 'center'
@@ -216,10 +217,14 @@ function row(cells: string[], opts: { header?: boolean; height?: number } = {}):
   }</w:trPr>${cells.join('')}</w:tr>`;
 }
 
-const COL_W = [1460, 1400, 3710, 1155, 1095, 1310, 1550, 2434]; // 合计 14114 twips
-const PAGE_W = 14114;
+/** 按权重把列宽铺满可打印宽度 */
+function fitWidths(weights: number[]): number[] {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const widths = weights.map((w) => Math.floor((PAGE_W * w) / sum));
+  widths[widths.length - 1] += PAGE_W - widths.reduce((a, b) => a + b, 0);
+  return widths;
+}
 
-/** 一行信息：只显示有值的字段，按数量均分制表位 */
 function infoLine(fields: { label: string; value?: string | null }[], before = 0): string {
   const items = fields.filter((f) => (f.value ?? '').trim() !== '');
   if (items.length === 0) return '';
@@ -254,7 +259,8 @@ function documentXml(input: QuoteDocxInput): string {
       { label: '报价日期：', value: input.date ?? '' },
       {
         label: '报价有效期：',
-        value: input.validityDays && input.validityDays > 0 ? `自报价之日起 ${input.validityDays} 天` : '',
+        value:
+          input.validityDays && input.validityDays > 0 ? `自报价之日起 ${input.validityDays} 天` : '',
       },
     ],
     80,
@@ -265,56 +271,91 @@ function documentXml(input: QuoteDocxInput): string {
     { label: '联系电话：', value: input.phone ?? '' },
   ]);
   const addressLine = infoLine([{ label: '客户地址（选填）：', value: input.address ?? '' }]);
+  const orderLine = infoLine([
+    { label: '订单数量：', value: input.orderQty && input.orderQty > 0 ? String(input.orderQty) : '' },
+    { label: '交期：', value: input.deliveryDate ?? '' },
+  ]);
 
-  const headerCells = [
-    '物料编码',
-    '物料名称',
-    '料号规格',
-    '品牌',
-    '需求数量',
-    '含税单价（元）',
-    '含税总额（元）',
-    '交期 / 备注（选填）',
-  ].map((h, i) =>
-    cell(h, { width: COL_W[i], align: 'center', bold: true, size: 19, shade: 'D9E2F3' }),
+  // 动态列：有数量才显示数量/金额列；未税时表头写“不含税”
+  const hasQty = input.items.some((it) => (it.qty ?? 0) > 0);
+  const hasPrice = input.items.some((it) => (it.unitPrice ?? 0) > 0);
+  const untaxed = input.items.length > 0 && input.items.every((it) => it.priceTaxIncluded === false);
+  const priceLabel = untaxed ? '不含税单价（元）' : '含税单价（元）';
+  const amountLabel = untaxed ? '不含税总额（元）' : '含税总额（元）';
+
+  const columns: { title: string; weight: number; align?: string; value: (it: QuoteDocxItem) => string }[] = [
+    { title: '物料编码', weight: 8.5, value: (it) => it.materialCode ?? '' },
+    { title: '物料名称', weight: 8.5, value: (it) => it.materialName ?? it.chipModel },
+    { title: '料号规格', weight: 22, value: (it) => it.chipModel },
+    { title: '品牌', weight: 7, align: 'center', value: (it) => it.brand ?? '' },
+  ];
+  if (hasQty) {
+    columns.push({
+      title: '需求数量',
+      weight: 6.5,
+      align: 'right',
+      value: (it) => ((it.qty ?? 0) > 0 ? String(it.qty) : ''),
+    });
+  }
+  if (hasPrice) {
+    columns.push({
+      title: priceLabel,
+      weight: 8,
+      align: 'right',
+      value: (it) => ((it.unitPrice ?? 0) > 0 ? money(it.unitPrice ?? 0) : ''),
+    });
+  }
+  if (hasQty && hasPrice) {
+    columns.push({
+      title: amountLabel,
+      weight: 9,
+      align: 'right',
+      value: (it) => ((it.qty ?? 0) > 0 ? money(lineAmount(it)) : ''),
+    });
+  }
+  columns.push({ title: '交期 / 备注（选填）', weight: 14, value: (it) => it.remark ?? '' });
+
+  const widths = fitWidths(columns.map((c) => c.weight));
+
+  const headerCells = columns.map((c, i) =>
+    cell(c.title, { width: widths[i], align: 'center', bold: true, size: 19, shade: 'D9E2F3' }),
   );
 
-  const itemRows = input.items.map((it) => {
-    const gross = grossPrice(it);
-    const subtotal = it.subtotal != null ? it.subtotal : Math.round(it.qty * gross * 100) / 100;
-    return row(
-      [
-        cell(it.materialCode ?? '', { width: COL_W[0], size: 19 }),
-        cell(it.materialName ?? it.chipModel, { width: COL_W[1], size: 19 }),
-        cell(it.chipModel, { width: COL_W[2], size: 19 }),
-        cell(it.brand ?? '', { width: COL_W[3], size: 19, align: 'center' }),
-        cell(String(it.qty), { width: COL_W[4], size: 19, align: 'right' }),
-        cell(money(gross), { width: COL_W[5], size: 19, align: 'right' }),
-        cell(money(subtotal), { width: COL_W[6], size: 19, align: 'right' }),
-        cell(it.remark ?? '', { width: COL_W[7], size: 19 }),
-      ],
+  const itemRows = input.items.map((it) =>
+    row(
+      columns.map((c, i) => cell(c.value(it), { width: widths[i], size: 19, align: c.align })),
       { height: 560 },
-    );
-  });
-
-  const detailTable = table(COL_W, [row(headerCells, { header: true, height: 640 }), ...itemRows]);
-
-  const totalTable = table(
-    [11156, 2958],
-    [
-      row([
-        cell('合计（含税总金额）', { width: 11156, align: 'right', bold: true, size: 22 }),
-        cell(`¥ ${money(input.totalAmount)}`, { width: 2958, align: 'right', bold: true, size: 26 }),
-      ]),
-      row([
-        cell(`合计人民币（大写）：${rmbUppercase(input.totalAmount)}`, {
-          width: PAGE_W,
-          span: 2,
-          size: 20,
-        }),
-      ]),
-    ],
+    ),
   );
+
+  const detailTable = table(widths, [row(headerCells, { header: true, height: 640 }), ...itemRows]);
+
+  const totalLabel = untaxed ? '合计（不含税总金额）' : '合计（含税总金额）';
+  const computedTotal = hasQty
+    ? Math.round(input.items.reduce((acc, it) => acc + lineAmount(it), 0) * 100) / 100
+    : input.totalAmount;
+  const totalWidths = fitWidths([79, 21]);
+  const totalTable =
+    hasQty && hasPrice
+      ? table(totalWidths, [
+          row([
+            cell(totalLabel, { width: totalWidths[0], align: 'right', bold: true, size: 22 }),
+            cell(`¥ ${money(computedTotal)}`, {
+              width: totalWidths[1],
+              align: 'right',
+              bold: true,
+              size: 26,
+            }),
+          ]),
+          row([
+            cell(`合计人民币（大写）：${rmbUppercase(computedTotal)}`, {
+              width: PAGE_W,
+              span: 2,
+              size: 20,
+            }),
+          ]),
+        ])
+      : '';
 
   const notes = input.notes.filter((n) => n.trim() !== '');
   const notesBlock =
@@ -324,31 +365,23 @@ function documentXml(input: QuoteDocxInput): string {
           .map((line) => paragraph(run(line, { size: 18, color: '404040' }), { spacing: 280 }))
           .join('')}`;
 
-  const signFields: { label: string; value?: string | null }[] = [
+  const signFields = [
     { label: '报价人：', value: input.salesPerson ?? '' },
     { label: '联系电话：', value: input.salesPhone ?? '' },
-  ];
-  const signItems = signFields.filter((f) => (f.value ?? '').trim() !== '');
+  ].filter((f) => (f.value ?? '').trim() !== '');
   const signLine =
-    signItems.length === 0
+    signFields.length === 0
       ? ''
-      : (() => {
-          const runs = signItems
+      : tabParagraph(
+          signFields
             .map((f, i) => `${i > 0 ? TAB : ''}${run(`${f.label}${f.value}`, { size: 20 })}`)
-            .join('');
-          const tabs: { pos: number; val?: 'left' | 'right' | 'center' }[] = signItems
-            .slice(1)
-            .map((_, i) => ({
-              pos: Math.floor((PAGE_W * (i + 1)) / (signItems.length + 1)),
-              val: 'left' as const,
-            }));
-          tabs.push({ pos: PAGE_W, val: 'right' });
-          return tabParagraph(
-            `${runs}${TAB}${run('（公司盖章处）', { size: 20, color: '808080' })}`,
-            tabs,
-            { spacing: 360, before: 420 },
-          );
-        })();
+            .join(''),
+          signFields.slice(1).map((_, i) => ({
+            pos: Math.floor((PAGE_W * (i + 1)) / signFields.length),
+            val: 'left' as const,
+          })),
+          { spacing: 360, before: 420 },
+        );
 
   const footer = (input.footer ?? '').trim();
   const footerLine = footer
@@ -362,6 +395,7 @@ ${header}
 ${dateLine}
 ${customerLine}
 ${addressLine}
+${orderLine}
 ${detailTable}
 ${totalTable}
 ${notesBlock}
@@ -411,10 +445,11 @@ export function buildQuoteDocx(input: QuoteDocxInput): Buffer {
   return (zip as unknown as { toBuffer: () => Buffer }).toBuffer();
 }
 
-export function quoteDocxFileName(customerName: string): string {
-  const d = new Date();
-  const p = (n: number): string => String(n).padStart(2, '0');
-  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
-  const safe = customerName.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40) || '客户';
-  return `报价单_${safe}_${stamp}.docx`;
+/** 报价单文件名：客户简称 + 报价单 + _ + 日期（2026.5.7 形式） */
+export function quoteDocxFileName(customerShortName: string, date?: string | null): string {
+  const d = date ? new Date(`${date}T00:00:00`) : new Date();
+  const safeDate = Number.isNaN(d.getTime()) ? new Date() : d;
+  const datePart = `${safeDate.getFullYear()}.${safeDate.getMonth() + 1}.${safeDate.getDate()}`;
+  const safe = (customerShortName || '客户').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+  return `${safe}报价单_${datePart}.docx`;
 }

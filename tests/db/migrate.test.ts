@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(10);
+    expect(SCHEMA_VERSION).toBe(11);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -194,6 +194,23 @@ describe('数据库迁移与种子', () => {
     ).toBe(true);
     const menu = db.prepare("SELECT value FROM setting WHERE key='menu_order'").get() as { value: string };
     expect(menu.value).toBe('');
+    db.close();
+  });
+
+  it('V1.9 迁移：明细供应商、订单数量、文档类型', () => {
+    const db = createTestDb();
+    const itemCols = (db.prepare("SELECT name FROM pragma_table_info('order_item')").all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    const orderCols = (db.prepare("SELECT name FROM pragma_table_info('orders')").all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    const attCols = (
+      db.prepare("SELECT name FROM pragma_table_info('order_attachment')").all() as { name: string }[]
+    ).map((c) => c.name);
+    expect(itemCols).toContain('supplier_id');
+    expect(orderCols).toContain('order_qty');
+    expect(attCols).toContain('kind');
     db.close();
   });
 

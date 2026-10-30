@@ -1,4 +1,4 @@
-﻿/** 渲染层 API：window.api 的强类型封装，统一解包 {ok,data}|{ok:false,...} 信封 */
+/** 渲染层 API：window.api 的强类型封装，统一解包 {ok,data}|{ok:false,...} 信封 */
 import type { Api } from '../../preload/index';
 
 declare global {
@@ -93,10 +93,12 @@ export const api = {
     deleteMember: (id: number): Promise<void> => call('wechat:deleteMember', id),
   },
 
-  /* 订单文档 */
+  /* 订单文档 / 采购合同 */
   orderDocs: {
-    list: (orderId: number): Promise<unknown> => call('orderDocs:list', orderId),
+    list: (orderId: number, kind?: 'file' | 'purchase_contract'): Promise<unknown> =>
+      call('orderDocs:list', orderId, kind),
     pickAndAdd: (orderId: number): Promise<unknown> => call('orderDocs:pickAndAdd', orderId),
+    pickAndAddImage: (orderId: number): Promise<unknown> => call('orderDocs:pickAndAddImage', orderId),
     remove: (id: number): Promise<void> => call('orderDocs:delete', id),
   },
 

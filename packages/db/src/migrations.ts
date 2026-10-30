@@ -463,6 +463,15 @@ SET value = '湖北长江光电子信息产业供应链有限公司'
 WHERE key = 'company_name' AND (value IS NULL OR TRIM(value) = '');
 `;
 
+/**
+ * V1.9：订单明细可指定供应商；订单增加订单数量；订单文档区分采购合同。
+ */
+const V19 = `
+ALTER TABLE order_item ADD COLUMN supplier_id INTEGER REFERENCES supplier(id);
+ALTER TABLE orders ADD COLUMN order_qty INTEGER;
+ALTER TABLE order_attachment ADD COLUMN kind TEXT NOT NULL DEFAULT 'file';
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -474,5 +483,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 8, name: 'v1.6.1 backfill materials from order items', sql: V161 },
   { version: 9, name: 'v1.6.5 rename stock template', sql: V165 },
   { version: 10, name: 'v1.7.2 default quote company name', sql: V172 },
+  { version: 11, name: 'v1.9 item supplier, order qty, attachment kind', sql: V19 },
 ];
 

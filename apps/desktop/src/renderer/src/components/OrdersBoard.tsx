@@ -39,9 +39,9 @@ interface OrdersBoardProps {
 }
 
 const ITEM_COLUMNS = [
+  { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
   { title: '物料名称', dataIndex: 'materialName', width: 130, render: (v: string | null) => v ?? '-' },
   { title: '料号规格', dataIndex: 'chipModel', width: 150 },
-  { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
   { title: '数量', dataIndex: 'qty', width: 80, align: 'right' as const },
   {
     title: '含税金额',
@@ -359,6 +359,8 @@ export function OrdersBoard({
             remark: it.remark,
           }))}
           totalAmount={quoteOrder.totalAmount ?? 0}
+          orderQty={quoteOrder.orderQty}
+          deliveryDate={quoteOrder.expectedDeliveryDate}
         />
       )}
     </div>

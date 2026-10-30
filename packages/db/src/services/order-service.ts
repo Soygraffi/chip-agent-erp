@@ -36,6 +36,8 @@ export interface OrderCreateInput {
   statusId?: number | null;
   expectedDeliveryDate?: string | null;
   actualDeliveryDate?: string | null;
+  /** V1.9 订单数量（可选，报价单里有值才显示） */
+  orderQty?: number | null;
   totalAmount?: number | null;
   amountManual?: boolean;
   paymentMethodId?: number | null;
@@ -172,6 +174,7 @@ export const orderService = {
         statusId: input.statusId ?? null,
         expectedDeliveryDate: input.expectedDeliveryDate ?? null,
         actualDeliveryDate: input.actualDeliveryDate ?? null,
+        orderQty: input.orderQty ?? null,
         totalAmount,
         amountManual,
         paymentMethodId: input.paymentMethodId ?? null,
@@ -206,6 +209,7 @@ export const orderService = {
       patch.expectedDeliveryDate = input.expectedDeliveryDate ?? null;
     }
     if (input.actualDeliveryDate !== undefined) patch.actualDeliveryDate = input.actualDeliveryDate ?? null;
+    if (input.orderQty !== undefined) patch.orderQty = input.orderQty ?? null;
     if (input.statusId !== undefined) {
       if (input.statusId != null && !getStatus(db, input.statusId))
         throw bizError('VALIDATION', '订单状态不存在');

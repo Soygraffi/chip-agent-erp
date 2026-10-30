@@ -2,9 +2,18 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { OrderAttachment } from '@erp/shared';
 
 const COLS = `a.id, a.order_id AS orderId, a.original_name AS originalName,
-  a.stored_path AS storedPath, a.size, a.created_at AS createdAt`;
+  a.stored_path AS storedPath, a.size, a.kind, a.created_at AS createdAt`;
 
-export function listOrderAttachments(db: DatabaseSync, orderId: number): OrderAttachment[] {
+export function listOrderAttachments(
+  db: DatabaseSync,
+  orderId: number,
+  kind?: 'file' | 'purchase_contract',
+): OrderAttachment[] {
+  if (kind) {
+    return db
+      .prepare(`SELECT ${COLS} FROM order_attachment a WHERE a.order_id = ? AND a.kind = ? ORDER BY a.id`)
+      .all(orderId, kind) as unknown as OrderAttachment[];
+  }
   return db
     .prepare(`SELECT ${COLS} FROM order_attachment a WHERE a.order_id = ? ORDER BY a.id`)
     .all(orderId) as unknown as OrderAttachment[];
@@ -19,13 +28,19 @@ export function getOrderAttachment(db: DatabaseSync, id: number): OrderAttachmen
 
 export function addOrderAttachment(
   db: DatabaseSync,
-  a: { orderId: number; originalName: string; storedPath: string; size: number },
+  a: {
+    orderId: number;
+    originalName: string;
+    storedPath: string;
+    size: number;
+    kind?: 'file' | 'purchase_contract';
+  },
 ): number {
   const r = db
     .prepare(
-      'INSERT INTO order_attachment (order_id, original_name, stored_path, size) VALUES (?, ?, ?, ?)',
+      'INSERT INTO order_attachment (order_id, original_name, stored_path, size, kind) VALUES (?, ?, ?, ?, ?)',
     )
-    .run(a.orderId, a.originalName, a.storedPath, a.size);
+    .run(a.orderId, a.originalName, a.storedPath, a.size, a.kind ?? 'file');
   return Number(r.lastInsertRowid);
 }
 

@@ -158,6 +158,7 @@ export interface Order {
   statusId: number | null;
   expectedDeliveryDate: string | null;
   actualDeliveryDate: string | null;
+  orderQty: number | null;       // V1.9 订单数量（可选）
   totalAmount: number | null;
   amountManual: boolean;
   paymentMethodId: number | null;
@@ -175,6 +176,8 @@ export interface OrderItem {
   materialName: string | null; // 物料名称
   chipModel: string;           // 料号规格（如 GD32F407ZGT6）
   brand: string | null;
+  supplierId: number | null;   // V1.9 该物料由哪家供应商提供
+  supplierName: string | null; // 供应商名称（查询时联表带出）
   packageSpec: string | null;  // 封装规格（选填的补充说明）
   qty: number;
   unitPrice: number | null;    // 出货价
@@ -218,13 +221,15 @@ export interface NodeAttachment {
   createdAt: string;
 }
 
-/** 订单文档（PDF / Word / 图片） */
+/** 订单文档（PDF / Word / 图片；V1.9 区分采购合同） */
 export interface OrderAttachment {
   id: number;
   orderId: number;
   originalName: string;
   storedPath: string;
   size: number;
+  /** file=普通订单文档；purchase_contract=采购合同图片 */
+  kind: 'file' | 'purchase_contract';
   createdAt: string;
 }
 

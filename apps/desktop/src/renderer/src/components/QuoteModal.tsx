@@ -24,6 +24,8 @@ interface QuoteModalProps {
   customerName: string;
   items: QuoteModalItem[];
   totalAmount: number;
+  orderQty?: number | null;
+  deliveryDate?: string | null;
 }
 
 /**
@@ -35,6 +37,7 @@ export function QuoteModal(props: QuoteModalProps): JSX.Element {
   const [form] = Form.useForm();
   const [notes, setNotes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [shortName, setShortName] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -42,7 +45,11 @@ export function QuoteModal(props: QuoteModalProps): JSX.Element {
     void (async () => {
       try {
         const [customer, cfg] = await Promise.all([
-          api.customers.get(customerId) as Promise<{ contact?: string | null; address?: string | null }>,
+          api.customers.get(customerId) as Promise<{
+            contact?: string | null;
+            address?: string | null;
+            shortName?: string | null;
+          }>,
           api.settings.getQuoteConfig() as Promise<{
             salesPerson?: string;
             salesPhone?: string;
@@ -50,6 +57,7 @@ export function QuoteModal(props: QuoteModalProps): JSX.Element {
           }>,
         ]);
         if (!alive) return;
+        setShortName(customer.shortName ?? '');
         const terms = (cfg.quoteTerms ?? '').split('\n').filter((l) => l.trim() !== '');
         setNotes(
           terms.length > 0
@@ -81,6 +89,7 @@ export function QuoteModal(props: QuoteModalProps): JSX.Element {
     try {
       const p = await api.exportQuoteDocx({
         customerName: (values.customerName as string) || null,
+        customerShortName: shortName || (values.customerName as string) || null,
         contact: (values.contact as string) || null,
         phone: (values.phone as string) || null,
         address: (values.address as string) || null,
@@ -88,6 +97,8 @@ export function QuoteModal(props: QuoteModalProps): JSX.Element {
         validityDays: (values.validityDays as number) ?? null,
         salesPerson: (values.salesPerson as string) || null,
         salesPhone: (values.salesPhone as string) || null,
+        orderQty: props.orderQty ?? null,
+        deliveryDate: props.deliveryDate ?? null,
         notes: notes.map((n) => n.trim()).filter((n) => n !== ''),
         items,
         totalAmount,

@@ -1,7 +1,7 @@
 ﻿import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { orderService, orderAttachmentService, customerService, materialService, wechatService } from '@erp/db';
+import { orderService, orderAttachmentService, customerService, materialService, wechatService, supplierService } from '@erp/db';
 import { createTestDb, statusByName, dictIdByName, todayOrderNo } from '../db/helpers.ts';
 
 function baseInput(db: DatabaseSync) {
@@ -42,6 +42,21 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
     expect(detail.nodes[0].status).toBe('pending');
     expect(detail.nodes[9].name).toBe('收款完成');
     expect(detail.nodes.every((n) => n.planTime === null)).toBe(true);
+  });
+
+  it('V1.9 订单明细可指定供应商、订单数量可保存', () => {
+    const supplierId = supplierService.create(db, { name: '深圳华强电子' });
+    const input = baseInput(db);
+    const items = input.items.map((it, i) => (i === 0 ? { ...it, supplierId } : it));
+    const id = orderService.create(db, { ...input, items, orderQty: 12 });
+    const detail = orderService.get(db, id);
+    expect(detail.orderQty).toBe(12);
+    expect(detail.items[0].supplierId).toBe(supplierId);
+    expect(detail.items[0].supplierName).toBe('深圳华强电子');
+    expect(detail.items[1].supplierId).toBeNull();
+
+    orderService.update(db, id, { orderQty: 20 });
+    expect(orderService.get(db, id).orderQty).toBe(20);
   });
 
   it('日期/类型/状态均可留空：创建成功，详情显示未填写', () => {

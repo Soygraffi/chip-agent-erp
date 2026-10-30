@@ -15,6 +15,7 @@ export interface OrderInput {
   statusId: number | null;
   expectedDeliveryDate: string | null;
   actualDeliveryDate: string | null;
+  orderQty: number | null;
   totalAmount: number | null;
   amountManual: boolean;
   paymentMethodId: number | null;
@@ -26,8 +27,8 @@ export function insertOrder(db: DatabaseSync, o: OrderInput): number {
   const r = db
     .prepare(
       'INSERT INTO orders (order_no, customer_id, order_date, type_id, status_id, expected_delivery_date, ' +
-        'actual_delivery_date, total_amount, amount_manual, payment_method_id, is_key, remark) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'actual_delivery_date, order_qty, total_amount, amount_manual, payment_method_id, is_key, remark) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       o.orderNo,
@@ -37,6 +38,7 @@ export function insertOrder(db: DatabaseSync, o: OrderInput): number {
       o.statusId ?? null,
       o.expectedDeliveryDate ?? null,
       o.actualDeliveryDate ?? null,
+      o.orderQty ?? null,
       o.totalAmount ?? null,
       o.amountManual ? 1 : 0,
       o.paymentMethodId ?? null,
@@ -55,6 +57,7 @@ export function updateOrder(db: DatabaseSync, id: number, patch: Partial<OrderIn
     statusId: 'status_id',
     expectedDeliveryDate: 'expected_delivery_date',
     actualDeliveryDate: 'actual_delivery_date',
+    orderQty: 'order_qty',
     totalAmount: 'total_amount',
     paymentMethodId: 'payment_method_id',
     remark: 'remark',
@@ -94,7 +97,7 @@ export function setStatus(db: DatabaseSync, id: number, statusId: number): boole
 
 const ORDER_COLS = `o.id, o.order_no AS orderNo, o.customer_id AS customerId, o.order_date AS orderDate,
   o.type_id AS typeId, o.status_id AS statusId, o.expected_delivery_date AS expectedDeliveryDate,
-  o.actual_delivery_date AS actualDeliveryDate, o.total_amount AS totalAmount,
+  o.actual_delivery_date AS actualDeliveryDate, o.order_qty AS orderQty, o.total_amount AS totalAmount,
   o.amount_manual AS amountManual, o.payment_method_id AS paymentMethodId, o.is_key AS isKey,
   o.remark, o.created_at AS createdAt, o.updated_at AS updatedAt`;
 
@@ -257,16 +260,19 @@ export interface ItemInput {
   priceTaxIncluded?: boolean;
   purchaseTaxIncluded?: boolean;
   taxRate?: number;
+  /** V1.9：该物料由哪家供应商提供 */
+  supplierId?: number | null;
 }
 
 export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
   return db
     .prepare(
-      'SELECT id, order_id AS orderId, material_id AS materialId, material_code AS materialCode, ' +
-        'material_name AS materialName, chip_model AS chipModel, brand, package_spec AS packageSpec, ' +
-        'qty, unit_price AS unitPrice, purchase_price AS purchasePrice, price_tax_included AS priceTaxIncluded, ' +
-        'purchase_tax_included AS purchaseTaxIncluded, tax_rate AS taxRate, subtotal, customer_pn AS customerPn, remark, sort_order AS sortOrder ' +
-        'FROM order_item WHERE order_id = ? ORDER BY sort_order, id',
+      'SELECT i.id, i.order_id AS orderId, i.material_id AS materialId, i.material_code AS materialCode, ' +
+        'i.material_name AS materialName, i.chip_model AS chipModel, i.brand, i.package_spec AS packageSpec, ' +
+        'i.qty, i.unit_price AS unitPrice, i.purchase_price AS purchasePrice, i.price_tax_included AS priceTaxIncluded, ' +
+        'i.purchase_tax_included AS purchaseTaxIncluded, i.tax_rate AS taxRate, i.subtotal, i.customer_pn AS customerPn, ' +
+        'i.remark, i.sort_order AS sortOrder, i.supplier_id AS supplierId, s.name AS supplierName ' +
+        'FROM order_item i LEFT JOIN supplier s ON s.id = i.supplier_id WHERE i.order_id = ? ORDER BY i.sort_order, i.id',
     )
     .all(orderId)
     .map(
@@ -277,6 +283,8 @@ export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
           materialCode: (r.materialCode as string | null) ?? null,
           materialName: (r.materialName as string | null) ?? null,
           brand: (r.brand as string | null) ?? null,
+          supplierId: (r.supplierId as number | null) ?? null,
+          supplierName: (r.supplierName as string | null) ?? null,
           packageSpec: (r.packageSpec as string | null) ?? null,
           purchasePrice: (r.purchasePrice as number | null) ?? null,
           priceTaxIncluded: !!(r.priceTaxIncluded as number | null ?? 1),
@@ -293,7 +301,7 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
   const stmt = db.prepare(
     'INSERT INTO order_item (order_id, material_id, material_code, material_name, chip_model, brand, ' +
       'package_spec, qty, unit_price, purchase_price, price_tax_included, purchase_tax_included, tax_rate, subtotal, ' +
-      'customer_pn, remark, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'customer_pn, remark, sort_order, supplier_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   items.forEach((it, i) => {
     stmt.run(
@@ -314,6 +322,7 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
       it.customerPn,
       it.remark,
       i + 1,
+      it.supplierId ?? null,
     );
   });
 }

@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Collapse,
   DatePicker,
   Form,
   Input,
@@ -33,6 +34,7 @@ interface MaterialOption {
   name: string;
   spec: string | null;
   brand: string | null;
+  supplierId: number | null;
   purchasePrice: number | null;
   purchaseTaxIncluded: boolean;
   salePrice: number | null;
@@ -47,6 +49,7 @@ interface ItemRow {
   materialName: string | null;
   chipModel: string;
   brand: string | null;
+  supplierId: number | null;
   packageSpec: string | null;
   qty: number;
   unitPrice: number | null;
@@ -82,6 +85,7 @@ const EMPTY_ITEM: Omit<ItemRow, 'key'> = {
   materialName: null,
   chipModel: '',
   brand: null,
+  supplierId: null,
   packageSpec: null,
   qty: 1,
   unitPrice: null,
@@ -110,6 +114,7 @@ export function OrderFormPage(): JSX.Element {
   const [paymentMethods, setPaymentMethods] = useState<OptionItem[]>([]);
   const [groups, setGroups] = useState<WechatGroup[]>([]);
   const [materials, setMaterials] = useState<MaterialOption[]>([]);
+  const [suppliers, setSuppliers] = useState<OptionItem[]>([]);
   const [items, setItems] = useState<ItemRow[]>([{ key: 0, ...EMPTY_ITEM }]);
   const [manual, setManual] = useState(false);
   const [manualAmount, setManualAmount] = useState<number | null>(null);
@@ -119,6 +124,8 @@ export function OrderFormPage(): JSX.Element {
     customerName: string;
     items: QuoteModalItem[];
     totalAmount: number;
+    orderQty: number | null;
+    deliveryDate: string | null;
   } | null>(null);
   const [form] = Form.useForm();
 
@@ -128,6 +135,7 @@ export function OrderFormPage(): JSX.Element {
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
     void api.dicts.list('payment_method').then((r) => setPaymentMethods(r as OptionItem[]));
     void api.materials.options().then((r) => setMaterials(r as MaterialOption[]));
+    void api.suppliers.options().then((r) => setSuppliers(r as OptionItem[]));
   }, []);
 
   useEffect(() => {
@@ -142,6 +150,7 @@ export function OrderFormPage(): JSX.Element {
           statusId: detail.statusId,
           expectedDeliveryDate: detail.expectedDeliveryDate ? dayjs(detail.expectedDeliveryDate) : null,
           actualDeliveryDate: detail.actualDeliveryDate ? dayjs(detail.actualDeliveryDate) : null,
+          orderQty: detail.orderQty,
           paymentMethodId: detail.paymentMethodId,
           isKey: detail.isKey,
           remark: detail.remark,
@@ -158,6 +167,7 @@ export function OrderFormPage(): JSX.Element {
               materialName: it.materialName,
               chipModel: it.chipModel,
               brand: it.brand,
+              supplierId: it.supplierId,
               packageSpec: it.packageSpec,
               qty: it.qty,
               unitPrice: it.unitPrice,
@@ -217,6 +227,7 @@ export function OrderFormPage(): JSX.Element {
       materialName: m.name,
       chipModel: m.spec ?? '',
       brand: m.brand,
+      supplierId: m.supplierId ?? null,
       purchasePrice: m.purchasePrice,
       purchaseTaxIncluded: m.purchaseTaxIncluded,
       unitPrice: m.salePrice,
@@ -237,6 +248,7 @@ export function OrderFormPage(): JSX.Element {
         statusId: values.statusId ?? null,
         expectedDeliveryDate: values.expectedDeliveryDate ? (values.expectedDeliveryDate as dayjs.Dayjs).format('YYYY-MM-DD') : null,
         actualDeliveryDate: values.actualDeliveryDate ? (values.actualDeliveryDate as dayjs.Dayjs).format('YYYY-MM-DD') : null,
+        orderQty: values.orderQty ?? null,
         paymentMethodId: values.paymentMethodId ?? null,
         isKey: !!values.isKey,
         remark: values.remark ?? null,
@@ -252,6 +264,7 @@ export function OrderFormPage(): JSX.Element {
             materialName: it.materialName,
             chipModel: it.chipModel,
             brand: it.brand,
+            supplierId: it.supplierId,
             packageSpec: it.packageSpec,
             qty: it.qty,
             unitPrice: it.unitPrice,
@@ -312,6 +325,10 @@ export function OrderFormPage(): JSX.Element {
         remark: it.remark,
       })),
       totalAmount: manual ? (manualAmount ?? autoTotal) : autoTotal,
+      orderQty: (values.orderQty as number | undefined) ?? null,
+      deliveryDate: values.expectedDeliveryDate
+        ? (values.expectedDeliveryDate as dayjs.Dayjs).format('YYYY-MM-DD')
+        : null,
     });
   };
 
@@ -361,6 +378,22 @@ export function OrderFormPage(): JSX.Element {
       width: 90,
       render: (_: unknown, r: ItemRow) => (
         <Input value={r.brand ?? ''} onChange={(e) => updateItem(r.key, { brand: e.target.value || null })} />
+      ),
+    },
+    {
+      title: '供应商',
+      width: 150,
+      render: (_: unknown, r: ItemRow) => (
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="该物料由哪家提供"
+          style={{ width: '100%' }}
+          value={r.supplierId ?? undefined}
+          options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+          onChange={(v) => updateItem(r.key, { supplierId: (v as number | undefined) ?? null })}
+        />
       ),
     },
     {
@@ -480,9 +513,6 @@ export function OrderFormPage(): JSX.Element {
           <Form.Item name="statusId" label="订单状态" extra="可不填">
             <Select allowClear style={{ width: 130 }} options={statuses.map((s) => ({ value: s.id, label: s.name }))} />
           </Form.Item>
-          <Form.Item name="expectedDeliveryDate" label="预计交货日期">
-            <DatePicker style={{ width: 150 }} />
-          </Form.Item>
           <Form.Item name="actualDeliveryDate" label="实际交货日期">
             <DatePicker style={{ width: 150 }} />
           </Form.Item>
@@ -504,6 +534,28 @@ export function OrderFormPage(): JSX.Element {
             <Input style={{ width: 200 }} />
           </Form.Item>
         </Space>
+
+        <Collapse
+          size="small"
+          ghost
+          style={{ marginBottom: 8 }}
+          items={[
+            {
+              key: 'more',
+              label: '更多信息（订单数量 / 交期）',
+              children: (
+                <Space size={24} wrap>
+                  <Form.Item name="orderQty" label="订单数量" extra="选填；填写后报价单会显示">
+                    <InputNumber min={0} precision={0} style={{ width: 160 }} placeholder="可不填" />
+                  </Form.Item>
+                  <Form.Item name="expectedDeliveryDate" label="交期" extra="选填；填写后报价单会显示">
+                    <DatePicker style={{ width: 160 }} placeholder="可不填" />
+                  </Form.Item>
+                </Space>
+              ),
+            },
+          ]}
+        />
       </Form>
 
       <div style={{ marginBottom: 8, fontWeight: 600 }}>
@@ -576,6 +628,8 @@ export function OrderFormPage(): JSX.Element {
           customerName={quoteData.customerName}
           items={quoteData.items}
           totalAmount={quoteData.totalAmount}
+          orderQty={quoteData.orderQty}
+          deliveryDate={quoteData.deliveryDate}
         />
       )}
     </Card>
