@@ -62,6 +62,8 @@ export function OrderDetailPage(): JSX.Element {
   const [docs, setDocs] = useState<OrderAttachment[]>([]);
   const [contracts, setContracts] = useState<OrderAttachment[]>([]);
   const [contractUrls, setContractUrls] = useState<Record<number, string>>({});
+  const [remarkDraft, setRemarkDraft] = useState('');
+  const [savingRemark, setSavingRemark] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nodeModal, setNodeModal] = useState<{ mode: 'edit' | 'create'; node: OrderNode | null } | null>(null);
   const [statusValue, setStatusValue] = useState<string>('pending');
@@ -83,6 +85,7 @@ export function OrderDetailPage(): JSX.Element {
     try {
       const d = (await api.orders.get(orderId)) as OrderDetail;
       setDetail(d);
+      setRemarkDraft(d.remark ?? '');
       setStatuses((await api.statuses.list()) as StatusItem[]);
       setTypes((await api.dicts.list('order_type')) as TypeItem[]);
       const c = (await api.customers.get(d.customerId)) as Customer;
@@ -201,6 +204,19 @@ export function OrderDetailPage(): JSX.Element {
     }
   };
 
+  const saveRemark = async (): Promise<void> => {
+    setSavingRemark(true);
+    try {
+      await api.orders.update(orderId, { remark: remarkDraft.trim() || null });
+      void message.success('备注已保存');
+      await load();
+    } catch (e) {
+      void message.error(errorMessage(e));
+    } finally {
+      setSavingRemark(false);
+    }
+  };
+
   const doDeleteOrder = async (): Promise<void> => {
     try {
       await api.orders.remove(orderId);
@@ -264,43 +280,23 @@ export function OrderDetailPage(): JSX.Element {
             ? detail.wechatGroups.map((g) => <Tag key={g.id}>{g.name}</Tag>)
             : '未填写'}
         </Descriptions.Item>
-        <Descriptions.Item label="备注" span={4}>
-          {detail.remark ?? '未填写'}
-        </Descriptions.Item>
       </Descriptions>
 
       <Card
         size="small"
-        title={`订单文档（${docs.length}）`}
+        title="备注"
         extra={
-          <Button size="small" icon={<FileAddOutlined />} onClick={() => void uploadDoc()}>
-            上传 PDF / Word / 图片
+          <Button size="small" type="primary" loading={savingRemark} onClick={() => void saveRemark()}>
+            保存备注
           </Button>
         }
         style={{ marginBottom: 16 }}
       >
-        <List
-          size="small"
-          dataSource={docs}
-          locale={{ emptyText: '暂无订单文档，可上传 PDF、Word 或图片' }}
-          renderItem={(doc) => (
-            <List.Item
-              actions={[
-                <a key="open" onClick={() => void api.attachments.open(doc.storedPath)}>打开</a>,
-                <a key="folder" onClick={() => void api.attachments.openFolder(doc.storedPath)}>所在目录</a>,
-                <Popconfirm key="del" title="删除该文档" onConfirm={() => void deleteDoc(doc)}>
-                  <a style={{ color: '#ff4d4f' }}>删除</a>
-                </Popconfirm>,
-              ]}
-            >
-              <Space>
-                <PaperClipOutlined />
-                <span>{doc.originalName}</span>
-                <span style={{ color: '#999' }}>{fmtSize(doc.size)}</span>
-                <span style={{ color: '#999' }}>{doc.createdAt.replace('T', ' ').slice(0, 19)}</span>
-              </Space>
-            </List.Item>
-          )}
+        <Input.TextArea
+          value={remarkDraft}
+          onChange={(e) => setRemarkDraft(e.target.value)}
+          autoSize={{ minRows: 3, maxRows: 8 }}
+          placeholder="在这里输入订单备注，点右上角保存"
         />
       </Card>
 
@@ -420,6 +416,41 @@ export function OrderDetailPage(): JSX.Element {
       <div style={{ color: '#999', fontSize: 12, marginBottom: 8 }}>
         点击任意步骤即可编辑名称与「当前进度状态」（未开始 / 进行中 / 已完成 / 异常延误）。
       </div>
+
+      <Card
+        size="small"
+        title={`订单文档（${docs.length}）`}
+        extra={
+          <Button size="small" icon={<FileAddOutlined />} onClick={() => void uploadDoc()}>
+            上传 PDF / Word / 图片
+          </Button>
+        }
+        style={{ marginBottom: 16, marginTop: 16 }}
+      >
+        <List
+          size="small"
+          dataSource={docs}
+          locale={{ emptyText: '暂无订单文档，可上传 PDF、Word 或图片' }}
+          renderItem={(doc) => (
+            <List.Item
+              actions={[
+                <a key="open" onClick={() => void api.attachments.open(doc.storedPath)}>打开</a>,
+                <a key="folder" onClick={() => void api.attachments.openFolder(doc.storedPath)}>所在目录</a>,
+                <Popconfirm key="del" title="删除该文档" onConfirm={() => void deleteDoc(doc)}>
+                  <a style={{ color: '#ff4d4f' }}>删除</a>
+                </Popconfirm>,
+              ]}
+            >
+              <Space>
+                <PaperClipOutlined />
+                <span>{doc.originalName}</span>
+                <span style={{ color: '#999' }}>{fmtSize(doc.size)}</span>
+                <span style={{ color: '#999' }}>{doc.createdAt.replace('T', ' ').slice(0, 19)}</span>
+              </Space>
+            </List.Item>
+          )}
+        />
+      </Card>
 
       <Modal
         title={nodeModal?.mode === 'edit' ? '编辑节点' : '新增节点'}
