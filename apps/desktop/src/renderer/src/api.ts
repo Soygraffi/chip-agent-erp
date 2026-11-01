@@ -55,8 +55,9 @@ export const api = {
     create: (input: unknown): Promise<number> => call('orders:create', input),
     update: (id: number, input: unknown): Promise<void> => call('orders:update', id, input),
     restoreAutoAmount: (id: number): Promise<void> => call('orders:restoreAutoAmount', id),
-    updateItemProgress: (itemId: number, progress: number, progressLabel: string | null): Promise<void> =>
-      call('orders:updateItemProgress', itemId, progress, progressLabel),
+    updateItemStage: (itemId: number, stage: number): Promise<void> =>
+      call('orders:updateItemStage', itemId, stage),
+    reorder: (ids: number[]): Promise<void> => call('orders:reorder', ids),
     remove: (id: number): Promise<void> => call('orders:delete', id),
   },
 
@@ -170,8 +171,6 @@ export const api = {
     setQuoteConfig: (cfg: unknown): Promise<unknown> => call('settings:setQuoteConfig', cfg),
     getMenuOrder: (): Promise<string> => call('settings:getMenuOrder'),
     setMenuOrder: (order: string[]): Promise<string> => call('settings:setMenuOrder', order),
-    getOrderSort: (): Promise<string> => call('settings:getOrderSort'),
-    setOrderSort: (value: string): Promise<string> => call('settings:setOrderSort', value),
     storageInfo: (): Promise<unknown> => call('settings:storageInfo'),
     migrateDataDir: (dir: string): Promise<unknown> => call('settings:migrateDataDir', dir),
     setBackupDir: (dir: string): Promise<unknown> => call('settings:setBackupDir', dir),

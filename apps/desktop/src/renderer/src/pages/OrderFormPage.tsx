@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -65,8 +65,7 @@ interface ItemRow {
   customerPn: string | null;
   remark: string | null;
   actualDeliveryDate: string | null;
-  progress: number;
-  progressLabel: string | null;
+  stage: number;
 }
 
 function round2(n: number): number {
@@ -104,8 +103,7 @@ const EMPTY_ITEM: Omit<ItemRow, 'key'> = {
   customerPn: null,
   remark: null,
   actualDeliveryDate: null,
-  progress: 0,
-  progressLabel: null,
+  stage: 0,
 };
 
 const TAX_OPTIONS = [
@@ -189,8 +187,7 @@ export function OrderFormPage(): JSX.Element {
               customerPn: it.customerPn,
               remark: it.remark,
               actualDeliveryDate: it.actualDeliveryDate,
-              progress: it.progress,
-              progressLabel: it.progressLabel,
+              stage: it.stage,
             };
           }),
         );
@@ -265,8 +262,7 @@ export function OrderFormPage(): JSX.Element {
             customerPn: it.customerPn,
             remark: it.remark,
             actualDeliveryDate: it.actualDeliveryDate,
-            progress: it.progress,
-            progressLabel: it.progressLabel,
+            stage: it.stage,
           })),
       };
       if (isEdit) {
@@ -455,7 +451,6 @@ export function OrderFormPage(): JSX.Element {
       render: (_: unknown, r: ItemRow) => (
         <DatePicker
           style={{ width: '100%' }}
-          placeholder="每料可不同"
           value={r.actualDeliveryDate ? dayjs(r.actualDeliveryDate) : null}
           onChange={(v) => updateItem(r.key, { actualDeliveryDate: v ? v.format('YYYY-MM-DD') : null })}
         />

@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(12);
+    expect(SCHEMA_VERSION).toBe(13);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -222,6 +222,10 @@ describe('数据库迁移与种子', () => {
     expect(itemCols).toContain('actual_delivery_date');
     expect(itemCols).toContain('progress');
     expect(itemCols).toContain('progress_label');
+    const orderCols = (
+      db.prepare("SELECT name FROM pragma_table_info('orders')").all() as { name: string }[]
+    ).map((c) => c.name);
+    expect(orderCols).toContain('sort_order');
     db.close();
   });
 

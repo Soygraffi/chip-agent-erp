@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -605,30 +605,28 @@ function MenuOrderTab(): JSX.Element {
   );
 }
 
-const ORDER_SORT_OPTIONS = [
-  { value: 'order_date:desc', label: '订单日期 ↓（最新在前）' },
-  { value: 'order_date:asc', label: '订单日期 ↑（最早在前）' },
-  { value: 'progress:desc', label: '进度 ↓（最快在前）' },
-  { value: 'progress:asc', label: '进度 ↑（最慢在前）' },
-  { value: 'total_amount:desc', label: '金额 ↓（高到低）' },
-  { value: 'total_amount:asc', label: '金额 ↑（低到高）' },
-  { value: 'expected_delivery_date:asc', label: '交期 ↑（最近在前）' },
-  { value: 'expected_delivery_date:desc', label: '交期 ↓（最远在前）' },
-];
+interface OrderSortRow {
+  id: number;
+  orderNo: string;
+  customerName: string;
+}
 
 function OrderSortTab(): JSX.Element {
-  const [value, setValue] = useState('order_date:desc');
+  const [items, setItems] = useState<OrderSortRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    void api.settings.getOrderSort().then((v) => setValue(v || 'order_date:desc'));
+    void api.orders.list({ page: 1, pageSize: 500 }).then((r) => {
+      const rows = (r as { rows: OrderSortRow[] }).rows ?? [];
+      setItems(rows.map((x) => ({ id: x.id, orderNo: x.orderNo, customerName: x.customerName })));
+    });
   }, []);
 
   const save = async (): Promise<void> => {
     setLoading(true);
     try {
-      await api.settings.setOrderSort(value);
-      void message.success('订单展示顺序已保存，进入订单管理即生效');
+      await api.orders.reorder(items.map((x) => x.id));
+      void message.success('订单展示顺序已保存；订单管理选「按设置排序」即可看到');
     } catch (e) {
       void message.error(errorMessage(e));
     } finally {
@@ -637,16 +635,29 @@ function OrderSortTab(): JSX.Element {
   };
 
   return (
-    <Card size="small" title="订单展示顺序" style={{ maxWidth: 620 }}>
+    <Card size="small" title="订单展示顺序（拖动排序）" style={{ maxWidth: 720 }}>
       <div style={{ color: '#8c8c8c', marginBottom: 12 }}>
-        设置订单管理默认的排序方式；进入订单管理时按此顺序展示，页面里也可以临时切换。
+        直接拖动下面的订单调整先后顺序，保存后到「订单管理 → 排序 → 按设置排序（自定义）」查看。
       </div>
-      <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-        <Select style={{ width: 320 }} value={value} options={ORDER_SORT_OPTIONS} onChange={setValue} />
-        <Button type="primary" loading={loading} onClick={() => void save()}>
-          保存
-        </Button>
-      </Space>
+      <SortableList
+        items={items}
+        getKey={(o) => String(o.id)}
+        onReorder={(keys) => {
+          setItems((prev) => {
+            const map = new Map(prev.map((x) => [String(x.id), x]));
+            return keys.map((k) => map.get(String(k))).filter((x): x is OrderSortRow => !!x);
+          });
+        }}
+        renderMain={(o) => (
+          <Space>
+            <span style={{ color: '#999' }}>{o.orderNo}</span>
+            <span>{o.customerName}</span>
+          </Space>
+        )}
+      />
+      <Button type="primary" loading={loading} onClick={() => void save()} style={{ marginTop: 12 }}>
+        保存顺序
+      </Button>
     </Card>
   );
 }
@@ -736,8 +747,7 @@ export function SettingsPage(): JSX.Element {
           { key: 'menu', label: '菜单顺序', children: <MenuOrderTab /> },
           { key: 'numbering', label: '编号规则', children: <NumberingTab /> },
           { key: 'storage', label: '存储设置', children: <StorageTab /> },
-          { key: 'orderSort', label: '订单展示顺序', children: <OrderSortTab /> },
-          { key: 'danger', label: '删除客户', children: <DangerTab /> },
+          { key: 'orderSort', label: '订单展示顺序', children: <OrderSortTab /> },          { key: 'danger', label: '删除客户', children: <DangerTab /> },
         ]}
       />
     </Card>

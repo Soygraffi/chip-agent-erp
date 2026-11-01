@@ -59,42 +59,37 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
     expect(orderService.get(db, id).orderQty).toBe(20);
   });
 
-  it('V1.10 明细实际交货日期与进度可保存，进度可单独更新', () => {
+  it('V1.10.1 明细实际交货日期与时间轴阶段可保存，阶段可单独更新', () => {
     const input = baseInput(db);
     const id = orderService.create(db, {
       ...input,
       items: input.items.map((it, i) =>
         i === 0
-          ? { ...it, actualDeliveryDate: '2026-11-20', progress: 60, progressLabel: '已到货' }
+          ? { ...it, actualDeliveryDate: '2026-11-20', stage: 3 }
           : { ...it, actualDeliveryDate: '2026-11-25' },
       ),
     });
     let detail = orderService.get(db, id);
     expect(detail.items[0].actualDeliveryDate).toBe('2026-11-20');
-    expect(detail.items[0].progress).toBe(60);
-    expect(detail.items[0].progressLabel).toBe('已到货');
-    expect(detail.items[1].progress).toBe(0);
+    expect(detail.items[0].stage).toBe(3); // 下单
+    expect(detail.items[1].stage).toBe(0); // 需求沟通
 
-    orderService.updateItemProgress(db, detail.items[1].id, 100, '已出货');
+    orderService.updateItemStage(db, detail.items[1].id, 6);
     detail = orderService.get(db, id);
-    expect(detail.items[1].progress).toBe(100);
-    expect(detail.items[1].progressLabel).toBe('已出货');
-    // 越界自动收敛到 0-100
-    orderService.updateItemProgress(db, detail.items[1].id, 180, null);
-    expect(orderService.get(db, id).items[1].progress).toBe(100);
+    expect(detail.items[1].stage).toBe(6); // 出货
   });
 
-  it('V1.10 订单列表可按进度排序（最快在前）', () => {
+  it('V1.10.1 订单列表可按时间轴阶段排序（最快在前）', () => {
     const input = baseInput(db);
     const slow = orderService.create(db, {
       ...input,
       orderNo: 'P-SLOW',
-      items: input.items.map((it) => ({ ...it, progress: 10 })),
+      items: input.items.map((it) => ({ ...it, stage: 1 })),
     });
     const fast = orderService.create(db, {
       ...input,
       orderNo: 'P-FAST',
-      items: input.items.map((it) => ({ ...it, progress: 90 })),
+      items: input.items.map((it) => ({ ...it, stage: 7 })),
     });
     const page = orderService.list(db, {
       sortField: 'progress',
@@ -104,8 +99,24 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
       today: '2026-10-30',
     });
     expect(page.rows[0].id).toBe(fast);
-    expect(page.rows[0].progress).toBe(90);
+    expect(page.rows[0].stage).toBe(7);
     expect(page.rows[1].id).toBe(slow);
+  });
+
+  it('V1.10.1 订单手动排序：按设置排序返回拖动后的顺序', () => {
+    const input = baseInput(db);
+    const a = orderService.create(db, { ...input, orderNo: 'M-A' });
+    const b = orderService.create(db, { ...input, orderNo: 'M-B' });
+    const c = orderService.create(db, { ...input, orderNo: 'M-C' });
+    orderService.reorder(db, [c, a, b]);
+    const page = orderService.list(db, {
+      sortField: 'manual',
+      sortDir: 'asc',
+      page: 1,
+      pageSize: 10,
+      today: '2026-10-30',
+    });
+    expect(page.rows.map((r) => r.id)).toEqual([c, a, b]);
   });
 
   it('日期/类型/状态均可留空：创建成功，详情显示未填写', () => {

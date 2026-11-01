@@ -29,7 +29,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
 import type { Customer, OrderAttachment, OrderDetail, OrderItem, OrderNode } from '../models';
-import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
+import { ITEM_STAGES, NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 import { NodeStepper } from '../components/NodeStepper';
 import { QuoteModal } from '../components/QuoteModal';
 import type { QuoteModalItem } from '../components/QuoteModal';
@@ -67,8 +67,7 @@ export function OrderDetailPage(): JSX.Element {
   const [remarkDraft, setRemarkDraft] = useState('');
   const [savingRemark, setSavingRemark] = useState(false);
   const [progressItem, setProgressItem] = useState<OrderItem | null>(null);
-  const [progressPercent, setProgressPercent] = useState(0);
-  const [progressLabel, setProgressLabel] = useState('');
+  const [stageDraft, setStageDraft] = useState(0);
   const [loading, setLoading] = useState(false);
   const [nodeModal, setNodeModal] = useState<{ mode: 'edit' | 'create'; node: OrderNode | null } | null>(null);
   const [statusValue, setStatusValue] = useState<string>('pending');
@@ -223,15 +222,14 @@ export function OrderDetailPage(): JSX.Element {
 
   const openProgress = (item: OrderItem): void => {
     setProgressItem(item);
-    setProgressPercent(item.progress ?? 0);
-    setProgressLabel(item.progressLabel ?? '');
+    setStageDraft(item.stage ?? 0);
   };
 
   const saveProgress = async (): Promise<void> => {
     if (!progressItem) return;
     try {
-      await api.orders.updateItemProgress(progressItem.id, progressPercent, progressLabel.trim() || null);
-      void message.success('进度已保存');
+      await api.orders.updateItemStage(progressItem.id, stageDraft);
+      void message.success('时间轴阶段已更新');
       setProgressItem(null);
       await load();
     } catch (e) {
@@ -379,17 +377,14 @@ export function OrderDetailPage(): JSX.Element {
             render: (v: string | null) => v ?? '-',
           },
           {
-            title: '进度',
+            title: '时间轴进度',
             width: 190,
             render: (_: unknown, r) => (
               <Space size={6}>
-                <Progress
-                  percent={r.progress ?? 0}
-                  size="small"
-                  style={{ width: 90, marginBottom: 0 }}
-                  format={(p) => `${p ?? 0}%`}
-                />
-                <a onClick={() => openProgress(r)}>{r.progressLabel?.trim() || '设置'}</a>
+                <Tag color="blue">
+                  {ITEM_STAGES[r.stage] ?? ITEM_STAGES[0]}（第 {(r.stage ?? 0) + 1} 步）
+                </Tag>
+                <a onClick={() => openProgress(r)}>调整</a>
               </Space>
             ),
           },
@@ -540,7 +535,7 @@ export function OrderDetailPage(): JSX.Element {
       </Modal>
 
       <Modal
-        title="设置物料进度"
+        title="设置该物料的时间轴"
         open={!!progressItem}
         onOk={() => void saveProgress()}
         onCancel={() => setProgressItem(null)}
@@ -551,23 +546,20 @@ export function OrderDetailPage(): JSX.Element {
         <div style={{ color: '#666', marginBottom: 12 }}>
           {progressItem?.materialName ?? progressItem?.chipModel ?? ''}
         </div>
-        <div style={{ color: '#595959', marginBottom: 6 }}>进度名称（可自定义）</div>
-        <Input
-          value={progressLabel}
-          onChange={(e) => setProgressLabel(e.target.value)}
-          placeholder="例如：已下单 / 已到货 / 已出货"
-          style={{ marginBottom: 16 }}
-        />
-        <div style={{ color: '#595959', marginBottom: 6 }}>完成百分比</div>
-        <InputNumber
-          min={0}
-          max={100}
-          value={progressPercent}
-          onChange={(v) => setProgressPercent(v ?? 0)}
-          addonAfter="%"
-          style={{ width: 160 }}
-        />
-        <Progress percent={progressPercent} style={{ marginTop: 16 }} />
+        <div style={{ color: '#595959', marginBottom: 8 }}>当前进行到哪一步：</div>
+        <Space direction="vertical" size={6} style={{ display: 'flex' }}>
+          {ITEM_STAGES.map((name, i) => (
+            <Button
+              key={name}
+              type={stageDraft === i ? 'primary' : 'default'}
+              block
+              style={{ textAlign: 'left' }}
+              onClick={() => setStageDraft(i)}
+            >
+              {i + 1}. {name}
+            </Button>
+          ))}
+        </Space>
       </Modal>
 
       {detail && quoteOpen && (

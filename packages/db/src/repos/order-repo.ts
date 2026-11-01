@@ -1,4 +1,4 @@
-﻿import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import type { Order, OrderItem, OrderListRow, Page } from '@erp/shared';
 import { dateDiffDays } from '@erp/shared';
 import { escapeLike } from './customer-repo.js';
@@ -97,7 +97,8 @@ export function setStatus(db: DatabaseSync, id: number, statusId: number): boole
 
 const ORDER_COLS = `o.id, o.order_no AS orderNo, o.customer_id AS customerId, o.order_date AS orderDate,
   o.type_id AS typeId, o.status_id AS statusId, o.expected_delivery_date AS expectedDeliveryDate,
-  o.actual_delivery_date AS actualDeliveryDate, o.order_qty AS orderQty, o.total_amount AS totalAmount,
+  o.actual_delivery_date AS actualDeliveryDate, o.order_qty AS orderQty, o.sort_order AS sortOrder,
+  o.total_amount AS totalAmount,
   o.amount_manual AS amountManual, o.payment_method_id AS paymentMethodId, o.is_key AS isKey,
   o.remark, o.created_at AS createdAt, o.updated_at AS updatedAt`;
 
@@ -129,7 +130,7 @@ export interface OrderFilter {
   deliveryTo?: string | null;
   onlyOverdue?: boolean;
   onlyKey?: boolean;
-  sortField?: 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress';
+  sortField?: 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual';
   sortDir?: 'asc' | 'desc';
   page: number;
   pageSize: number;
@@ -198,6 +199,7 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
     total_amount: 'o.total_amount',
     expected_delivery_date: 'o.expected_delivery_date',
     progress: "COALESCE((SELECT AVG(i.progress) FROM order_item i WHERE i.order_id = o.id), 0)",
+    manual: 'o.sort_order',
   };
   const sortCol = sortMap[filter.sortField ?? 'order_date'];
   const dir = filter.sortDir === 'asc' ? 'ASC' : 'DESC';
@@ -209,7 +211,7 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
         c.name AS customerName, c.deleted_at AS customerDeleted, c.contact AS customerContact,
         t.name AS typeName, s.name AS statusName, s.color AS statusColor,
         s.is_terminal AS statusIsTerminal,
-        COALESCE((SELECT AVG(i.progress) FROM order_item i WHERE i.order_id = o.id), 0) AS progress
+        COALESCE((SELECT AVG(i.progress) FROM order_item i WHERE i.order_id = o.id), 0) AS stage
        FROM orders o
        JOIN customer c ON c.id = o.customer_id
        LEFT JOIN order_status s ON s.id = o.status_id
@@ -264,10 +266,9 @@ export interface ItemInput {
   taxRate?: number;
   /** V1.9：该物料由哪家供应商提供 */
   supplierId?: number | null;
-  /** V1.10：实际交货日期与自定义进度 */
+  /** V1.10：实际交货日期与时间轴阶段 */
   actualDeliveryDate?: string | null;
-  progress?: number;
-  progressLabel?: string | null;
+  stage?: number;
 }
 
 export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
@@ -278,7 +279,7 @@ export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
         'i.qty, i.unit_price AS unitPrice, i.purchase_price AS purchasePrice, i.price_tax_included AS priceTaxIncluded, ' +
         'i.purchase_tax_included AS purchaseTaxIncluded, i.tax_rate AS taxRate, i.subtotal, i.customer_pn AS customerPn, ' +
         'i.remark, i.sort_order AS sortOrder, i.supplier_id AS supplierId, s.name AS supplierName, ' +
-        'i.actual_delivery_date AS actualDeliveryDate, i.progress, i.progress_label AS progressLabel ' +
+        'i.actual_delivery_date AS actualDeliveryDate, i.progress AS stage ' +
         'FROM order_item i LEFT JOIN supplier s ON s.id = i.supplier_id WHERE i.order_id = ? ORDER BY i.sort_order, i.id',
     )
     .all(orderId)
@@ -300,8 +301,7 @@ export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
           customerPn: (r.customerPn as string | null) ?? null,
           remark: (r.remark as string | null) ?? null,
           actualDeliveryDate: (r.actualDeliveryDate as string | null) ?? null,
-          progress: Number(r.progress ?? 0),
-          progressLabel: (r.progressLabel as string | null) ?? null,
+          stage: Number(r.stage ?? 0),
         }) as OrderItem,
     );
 }
@@ -311,8 +311,8 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
   const stmt = db.prepare(
     'INSERT INTO order_item (order_id, material_id, material_code, material_name, chip_model, brand, ' +
       'package_spec, qty, unit_price, purchase_price, price_tax_included, purchase_tax_included, tax_rate, subtotal, ' +
-      'customer_pn, remark, sort_order, supplier_id, actual_delivery_date, progress, progress_label) ' +
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'customer_pn, remark, sort_order, supplier_id, actual_delivery_date, progress) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   items.forEach((it, i) => {
     stmt.run(
@@ -335,23 +335,19 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
       i + 1,
       it.supplierId ?? null,
       it.actualDeliveryDate ?? null,
-      it.progress ?? 0,
-      it.progressLabel ?? null,
+      it.stage ?? 0,
     );
   });
 }
 
-/** V1.10 更新单条明细的进度（0-100）与进度名称 */
-export function updateItemProgress(
-  db: DatabaseSync,
-  itemId: number,
-  progress: number,
-  progressLabel: string | null,
-): boolean {
-  const p = Math.max(0, Math.min(100, Math.round(progress)));
-  return (
-    db
-      .prepare('UPDATE order_item SET progress = ?, progress_label = ? WHERE id = ?')
-      .run(p, progressLabel, itemId).changes > 0
-  );
+/** V1.10.1 更新单条明细所处的时间轴阶段（0 起，见 ITEM_STAGES） */
+export function updateItemStage(db: DatabaseSync, itemId: number, stage: number): boolean {
+  const s = Math.max(0, Math.round(stage));
+  return db.prepare('UPDATE order_item SET progress = ? WHERE id = ?').run(s, itemId).changes > 0;
+}
+
+/** V1.10.1 批量保存订单手动排序（拖动顺序） */
+export function reorderOrders(db: DatabaseSync, ids: number[]): void {
+  const stmt = db.prepare('UPDATE orders SET sort_order = ? WHERE id = ?');
+  ids.forEach((id, i) => stmt.run(i + 1, id));
 }

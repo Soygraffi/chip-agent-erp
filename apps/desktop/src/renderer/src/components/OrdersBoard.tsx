@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
 import type { OrderItem, OrderNode, OrderWithDetails, Page } from '../models';
-import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
+import { ITEM_STAGES, NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 import { NodeStepper } from './NodeStepper';
 import { QuoteModal } from './QuoteModal';
 import type { QuoteModalItem } from './QuoteModal';
@@ -71,7 +71,7 @@ export function OrdersBoard({
   const [range, setRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
   const [onlyOverdue, setOnlyOverdue] = useState(false);
   const [sortField, setSortField] = useState<
-    'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress'
+    'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual'
   >('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statuses, setStatuses] = useState<OptionItem[]>([]);
@@ -119,17 +119,6 @@ export function OrdersBoard({
   useEffect(() => {
     void api.statuses.list().then((r) => setStatuses(r as OptionItem[]));
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
-  }, []);
-
-  // V1.10：应用系统设置里的默认展示顺序
-  useEffect(() => {
-    void api.settings.getOrderSort().then((saved) => {
-      const [f, d] = (saved || 'order_date:desc').split(':');
-      if (['order_date', 'total_amount', 'expected_delivery_date', 'progress'].includes(f)) {
-        setSortField(f as 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress');
-        setSortDir(d === 'asc' ? 'asc' : 'desc');
-      }
-    });
   }, []);
 
   const openNode = (n: OrderNode): void => {
@@ -231,10 +220,13 @@ export function OrdersBoard({
               { value: 'expected_delivery_date:desc', label: '按交期 ↓' },
               { value: 'progress:desc', label: '按进度 ↓（最快在前）' },
               { value: 'progress:asc', label: '按进度 ↑（最慢在前）' },
+              { value: 'manual:asc', label: '按设置排序（自定义）' },
             ]}
             onChange={(v) => {
               const [f, d] = (v as string).split(':');
-              setSortField(f as 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress');
+              setSortField(
+                f as 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual',
+              );
               setSortDir(d as 'asc' | 'desc');
             }}
           />
@@ -264,7 +256,7 @@ export function OrdersBoard({
                 ))}
                 {o.daysOverdue > 0 && <Tag color="red">逾期 {o.daysOverdue} 天</Tag>}
                 {o.isKey && <Tag color="gold">重点</Tag>}
-                <Tag color="blue">进度 {Math.round(o.progress ?? 0)}%</Tag>
+                <Tag color="blue">阶段 {ITEM_STAGES[Math.floor(o.stage ?? 0)] ?? ITEM_STAGES[0]}</Tag>
                 <Tag>{o.typeName ?? '未分类'}</Tag>
               </Space>
             }

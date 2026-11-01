@@ -20,7 +20,8 @@ import {
   listTemplates,
   replaceItems,
   setOrderGroups,
-  updateItemProgress,
+  reorderOrders,
+  updateItemStage,
   updateOrder,
   type ItemInput,
   type OrderFilter,
@@ -269,15 +270,15 @@ export const orderService = {
     });
   },
 
-  /** V1.10：更新单条物料明细的进度条（名称 + 百分比） */
-  updateItemProgress(
-    db: DatabaseSync,
-    itemId: number,
-    progress: number,
-    progressLabel: string | null,
-  ): boolean {
-    if (!Number.isFinite(progress)) throw bizError('VALIDATION', '进度必须是 0-100 的数字');
-    return updateItemProgress(db, itemId, progress, progressLabel);
+  /** V1.10.1：更新单条物料明细所处的时间轴阶段 */
+  updateItemStage(db: DatabaseSync, itemId: number, stage: number): boolean {
+    if (!Number.isFinite(stage)) throw bizError('VALIDATION', '进度阶段不正确');
+    return updateItemStage(db, itemId, stage);
+  },
+
+  /** V1.10.1：保存订单手动排序 */
+  reorder(db: DatabaseSync, ids: number[]): void {
+    reorderOrders(db, ids);
   },
 
   /** 一键恢复自动汇总（PRD 4.3.1） */

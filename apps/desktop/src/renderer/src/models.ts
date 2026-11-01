@@ -68,3 +68,5 @@ export const NODE_STATUS_COLORS: Record<string, string> = {
   done: '#52C41A',
   delayed: '#FF4D4F',
 };
+
+export { ITEM_STAGES } from '@erp/shared';

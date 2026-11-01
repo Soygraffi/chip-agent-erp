@@ -159,6 +159,7 @@ export interface Order {
   expectedDeliveryDate: string | null;
   actualDeliveryDate: string | null;
   orderQty: number | null;       // V1.9 订单数量（可选）
+  sortOrder: number;             // V1.10.1 手动排序（拖动设置）
   totalAmount: number | null;
   amountManual: boolean;
   paymentMethodId: number | null;
@@ -188,12 +189,25 @@ export interface OrderItem {
   subtotal: number | null;     // 含税金额 = 数量 × 含税出货单价
   customerPn: string | null;
   remark: string | null;
-  /** V1.10 该明细的实际交货日期与自定义进度（0-100） */
+  /** V1.10 该明细的实际交货日期 */
   actualDeliveryDate: string | null;
-  progress: number;
-  progressLabel: string | null;
+  /** V1.10.1 该明细当前所处时间轴阶段（0 起，见 ITEM_STAGES） */
+  stage: number;
   sortOrder: number;
 }
+
+/** 每颗物料的时间轴阶段（订单详情里逐条设置） */
+export const ITEM_STAGES = [
+  '需求沟通',
+  '报价中',
+  '客户确认',
+  '下单',
+  '供应商备货',
+  '到货',
+  '出货',
+  '客户签收',
+  '收款完成',
+] as const;
 
 export interface OrderNode {
   id: number;
@@ -253,8 +267,8 @@ export interface OrderListRow extends Order {
   statusColor: string;
   statusIsTerminal: boolean;
   daysOverdue: number; // 0=未逾期
-  /** V1.10 订单整体进度（明细进度平均值，0-100） */
-  progress: number;
+  /** V1.10.1 订单整体时间轴阶段（明细阶段平均值，向下取整） */
+  stage: number;
 }
 
 export interface CustomerListRow extends Customer {

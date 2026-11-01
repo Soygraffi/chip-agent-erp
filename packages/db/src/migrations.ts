@@ -481,6 +481,17 @@ ALTER TABLE order_item ADD COLUMN progress INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE order_item ADD COLUMN progress_label TEXT;
 `;
 
+/**
+ * V1.10.1：明细进度改为固定时间轴阶段（0=需求沟通 … 8=收款完成）；
+ * 订单支持手动拖动排序（sort_order）。
+ */
+const V1101 = `
+UPDATE order_item SET progress = 0 WHERE progress > 8 OR progress < 0;
+UPDATE order_item SET progress_label = NULL;
+ALTER TABLE orders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+UPDATE orders SET sort_order = id WHERE sort_order = 0;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -494,5 +505,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 10, name: 'v1.7.2 default quote company name', sql: V172 },
   { version: 11, name: 'v1.9 item supplier, order qty, attachment kind', sql: V19 },
   { version: 12, name: 'v1.10 item delivery date & progress', sql: V110 },
+  { version: 13, name: 'v1.10.1 item stage & manual order sort', sql: V1101 },
 ];
 

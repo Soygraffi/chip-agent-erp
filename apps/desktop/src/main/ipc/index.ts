@@ -188,8 +188,13 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
-  ipcMain.handle('orders:updateItemProgress', (_e, itemId: number, progress: number, progressLabel: string | null) => {
-    const r = wrap(() => orderService.updateItemProgress(db(), itemId, progress, progressLabel));
+  ipcMain.handle('orders:updateItemStage', (_e, itemId: number, stage: number) => {
+    const r = wrap(() => orderService.updateItemStage(db(), itemId, stage));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('orders:reorder', (_e, ids: number[]) => {
+    const r = wrap(() => orderService.reorder(db(), ids));
     if (r.ok) changed();
     return r;
   });
@@ -581,15 +586,6 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     const r = wrap(() => {
       setSetting(db(), 'menu_order', order.join(','));
       return order.join(',');
-    });
-    if (r.ok) changed();
-    return r;
-  });
-  ipcMain.handle('settings:getOrderSort', () => wrap(() => getSetting(db(), 'order_sort') ?? 'order_date:desc'));
-  ipcMain.handle('settings:setOrderSort', (_e, value: string) => {
-    const r = wrap(() => {
-      setSetting(db(), 'order_sort', value || 'order_date:desc');
-      return value || 'order_date:desc';
     });
     if (r.ok) changed();
     return r;
