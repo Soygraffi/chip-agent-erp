@@ -36,7 +36,23 @@ interface OrdersBoardProps {
   onlyKey?: boolean;
   /** 是否显示「报价单」按钮（首页看板不显示） */
   showQuote?: boolean;
+  /** 是否显示排序选择（首页看板也显示） */
+  showSort?: boolean;
 }
+
+type SortField = 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual';
+
+const SORT_OPTIONS = [
+  { value: 'order_date:desc', label: '按日期 ↓' },
+  { value: 'order_date:asc', label: '按日期 ↑' },
+  { value: 'manual:asc', label: '按设置排序（自定义）' },
+  { value: 'total_amount:desc', label: '按金额 ↓' },
+  { value: 'total_amount:asc', label: '按金额 ↑' },
+  { value: 'expected_delivery_date:asc', label: '按交期 ↑' },
+  { value: 'expected_delivery_date:desc', label: '按交期 ↓' },
+  { value: 'progress:desc', label: '按进度 ↓（最快在前）' },
+  { value: 'progress:asc', label: '按进度 ↑（最慢在前）' },
+];
 
 const ITEM_COLUMNS = [
   { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
@@ -57,6 +73,7 @@ export function OrdersBoard({
   pageSize: initialPageSize = 10,
   onlyKey = false,
   showQuote = true,
+  showSort = true,
 }: OrdersBoardProps): JSX.Element {
   const navigate = useNavigate();
   const [rows, setRows] = useState<OrderWithDetails[]>([]);
@@ -159,6 +176,19 @@ export function OrdersBoard({
     };
   };
 
+  const sortSelect = (
+    <Select
+      value={`${sortField}:${sortDir}`}
+      style={{ width: 170 }}
+      options={SORT_OPTIONS}
+      onChange={(v) => {
+        const [f, d] = (v as string).split(':');
+        setSortField(f as SortField);
+        setSortDir(d as 'asc' | 'desc');
+      }}
+    />
+  );
+
   return (
     <div>
       {showFilters && (
@@ -208,32 +238,20 @@ export function OrdersBoard({
               setOnlyOverdue(v === 'overdue');
             }}
           />
-          <Select
-            value={`${sortField}:${sortDir}`}
-            style={{ width: 170 }}
-            options={[
-              { value: 'order_date:desc', label: '按日期 ↓' },
-              { value: 'order_date:asc', label: '按日期 ↑' },
-              { value: 'manual:asc', label: '按设置排序（自定义）' },
-              { value: 'total_amount:desc', label: '按金额 ↓' },
-              { value: 'total_amount:asc', label: '按金额 ↑' },
-              { value: 'expected_delivery_date:asc', label: '按交期 ↑' },
-              { value: 'expected_delivery_date:desc', label: '按交期 ↓' },
-              { value: 'progress:desc', label: '按进度 ↓（最快在前）' },
-              { value: 'progress:asc', label: '按进度 ↑（最慢在前）' },
-            ]}
-            onChange={(v) => {
-              const [f, d] = (v as string).split(':');
-              setSortField(
-                f as 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual',
-              );
-              setSortDir(d as 'asc' | 'desc');
-            }}
-          />
+          {sortSelect}
           <Button icon={<ReloadOutlined />} onClick={() => void load()}>
             刷新
           </Button>
         </Space>
+      )}
+
+      {!showFilters && showSort && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <Space>
+            <span style={{ color: '#8c8c8c' }}>排序</span>
+            {sortSelect}
+          </Space>
+        </div>
       )}
 
       <Space direction="vertical" style={{ width: '100%' }} size={12}>

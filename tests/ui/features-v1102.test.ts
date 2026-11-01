@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+﻿import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -52,6 +52,9 @@ describe('V1.10.1 客户删除/明细交货/时间轴/排序/拖动设置', () =
     expect(board.indexOf("'order_date:asc'")).toBeLessThan(board.indexOf("'manual:asc'"));
     expect(board.indexOf("'manual:asc'")).toBeLessThan(board.indexOf("'total_amount:desc'"));
     expect(board.includes('阶段')).toBe(true);
+    // 首页看板（无筛选）也显示排序选择
+    expect(board.includes('!showFilters && showSort')).toBe(true);
+    expect(board.includes('SORT_OPTIONS')).toBe(true);
   });
 
   it('系统设置通过拖动订单设置顺序并保存', () => {
