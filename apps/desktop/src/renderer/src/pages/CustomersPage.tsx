@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -155,16 +155,6 @@ export function CustomersPage(): JSX.Element {
     }
   };
 
-  const clearLogo = async (row: CustomerListRow, forEdit = false): Promise<void> => {
-    try {
-      await api.customers.clearLogo(row.id);
-      if (forEdit) setEditLogoUrl(null);
-      void load();
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
   const onDrop = async (index: number): Promise<void> => {
     const from = dragIndex.current;
     dragIndex.current = null;
@@ -299,11 +289,6 @@ export function CustomersPage(): JSX.Element {
                       <Tooltip title="上传/更换 Logo">
                         <Button size="small" icon={<PictureOutlined />} onClick={() => void uploadLogo(c)} />
                       </Tooltip>
-                      {c.logoPath && (
-                        <Popconfirm title="移除 Logo" onConfirm={() => void clearLogo(c)}>
-                          <Button size="small" danger icon={<DeleteOutlined />} />
-                        </Popconfirm>
-                      )}
                       <Button size="small" onClick={() => navigate(`/customers/${c.id}`)}>
                         查看
                       </Button>
@@ -350,13 +335,6 @@ export function CustomersPage(): JSX.Element {
                 <Button size="small" icon={<PictureOutlined />} onClick={() => void uploadLogo(editing, true)}>
                   上传/更换 Logo
                 </Button>
-                {editLogoUrl && (
-                  <Popconfirm title="移除 Logo" onConfirm={() => void clearLogo(editing, true)}>
-                    <Button size="small" danger>
-                      移除
-                    </Button>
-                  </Popconfirm>
-                )}
               </Space>
             </div>
           )}
