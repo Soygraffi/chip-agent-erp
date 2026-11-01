@@ -188,6 +188,10 @@ export interface OrderItem {
   subtotal: number | null;     // 含税金额 = 数量 × 含税出货单价
   customerPn: string | null;
   remark: string | null;
+  /** V1.10 该明细的实际交货日期与自定义进度（0-100） */
+  actualDeliveryDate: string | null;
+  progress: number;
+  progressLabel: string | null;
   sortOrder: number;
 }
 
@@ -249,6 +253,8 @@ export interface OrderListRow extends Order {
   statusColor: string;
   statusIsTerminal: boolean;
   daysOverdue: number; // 0=未逾期
+  /** V1.10 订单整体进度（明细进度平均值，0-100） */
+  progress: number;
 }
 
 export interface CustomerListRow extends Customer {

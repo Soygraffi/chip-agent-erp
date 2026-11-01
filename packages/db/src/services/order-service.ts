@@ -20,6 +20,7 @@ import {
   listTemplates,
   replaceItems,
   setOrderGroups,
+  updateItemProgress,
   updateOrder,
   type ItemInput,
   type OrderFilter,
@@ -266,6 +267,17 @@ export const orderService = {
         setOrderGroups(db, id, input.wechatGroupIds);
       }
     });
+  },
+
+  /** V1.10：更新单条物料明细的进度条（名称 + 百分比） */
+  updateItemProgress(
+    db: DatabaseSync,
+    itemId: number,
+    progress: number,
+    progressLabel: string | null,
+  ): boolean {
+    if (!Number.isFinite(progress)) throw bizError('VALIDATION', '进度必须是 0-100 的数字');
+    return updateItemProgress(db, itemId, progress, progressLabel);
   },
 
   /** 一键恢复自动汇总（PRD 4.3.1） */

@@ -7,9 +7,11 @@ import {
   Form,
   Image as AntImage,
   Input,
+  InputNumber,
   List,
   Modal,
   Popconfirm,
+  Progress,
   Select,
   Space,
   Table,
@@ -26,7 +28,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
-import type { Customer, OrderAttachment, OrderDetail, OrderNode } from '../models';
+import type { Customer, OrderAttachment, OrderDetail, OrderItem, OrderNode } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 import { NodeStepper } from '../components/NodeStepper';
 import { QuoteModal } from '../components/QuoteModal';
@@ -64,6 +66,9 @@ export function OrderDetailPage(): JSX.Element {
   const [contractUrls, setContractUrls] = useState<Record<number, string>>({});
   const [remarkDraft, setRemarkDraft] = useState('');
   const [savingRemark, setSavingRemark] = useState(false);
+  const [progressItem, setProgressItem] = useState<OrderItem | null>(null);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [progressLabel, setProgressLabel] = useState('');
   const [loading, setLoading] = useState(false);
   const [nodeModal, setNodeModal] = useState<{ mode: 'edit' | 'create'; node: OrderNode | null } | null>(null);
   const [statusValue, setStatusValue] = useState<string>('pending');
@@ -204,8 +209,7 @@ export function OrderDetailPage(): JSX.Element {
     }
   };
 
-  const saveRemark = async (): Promise<void> => {
-    setSavingRemark(true);
+  const saveRemark = async (): Promise<void> => {    setSavingRemark(true);
     try {
       await api.orders.update(orderId, { remark: remarkDraft.trim() || null });
       void message.success('备注已保存');
@@ -214,6 +218,24 @@ export function OrderDetailPage(): JSX.Element {
       void message.error(errorMessage(e));
     } finally {
       setSavingRemark(false);
+    }
+  };
+
+  const openProgress = (item: OrderItem): void => {
+    setProgressItem(item);
+    setProgressPercent(item.progress ?? 0);
+    setProgressLabel(item.progressLabel ?? '');
+  };
+
+  const saveProgress = async (): Promise<void> => {
+    if (!progressItem) return;
+    try {
+      await api.orders.updateItemProgress(progressItem.id, progressPercent, progressLabel.trim() || null);
+      void message.success('进度已保存');
+      setProgressItem(null);
+      await load();
+    } catch (e) {
+      void message.error(errorMessage(e));
     }
   };
 
@@ -350,6 +372,27 @@ export function OrderDetailPage(): JSX.Element {
           { title: '品牌', dataIndex: 'brand', width: 100, render: (v: string | null) => v ?? '-' },
           { title: '供应商', dataIndex: 'supplierName', width: 140, render: (v: string | null) => v ?? '-' },
           { title: '数量', dataIndex: 'qty', width: 80, align: 'right' as const },
+          {
+            title: '实际交货日期',
+            dataIndex: 'actualDeliveryDate',
+            width: 120,
+            render: (v: string | null) => v ?? '-',
+          },
+          {
+            title: '进度',
+            width: 190,
+            render: (_: unknown, r) => (
+              <Space size={6}>
+                <Progress
+                  percent={r.progress ?? 0}
+                  size="small"
+                  style={{ width: 90, marginBottom: 0 }}
+                  format={(p) => `${p ?? 0}%`}
+                />
+                <a onClick={() => openProgress(r)}>{r.progressLabel?.trim() || '设置'}</a>
+              </Space>
+            ),
+          },
           {
             title: '进货价',
             dataIndex: 'purchasePrice',
@@ -495,6 +538,38 @@ export function OrderDetailPage(): JSX.Element {
           ))}
         </Space>
       </Modal>
+
+      <Modal
+        title="设置物料进度"
+        open={!!progressItem}
+        onOk={() => void saveProgress()}
+        onCancel={() => setProgressItem(null)}
+        okText="保存"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <div style={{ color: '#666', marginBottom: 12 }}>
+          {progressItem?.materialName ?? progressItem?.chipModel ?? ''}
+        </div>
+        <div style={{ color: '#595959', marginBottom: 6 }}>进度名称（可自定义）</div>
+        <Input
+          value={progressLabel}
+          onChange={(e) => setProgressLabel(e.target.value)}
+          placeholder="例如：已下单 / 已到货 / 已出货"
+          style={{ marginBottom: 16 }}
+        />
+        <div style={{ color: '#595959', marginBottom: 6 }}>完成百分比</div>
+        <InputNumber
+          min={0}
+          max={100}
+          value={progressPercent}
+          onChange={(v) => setProgressPercent(v ?? 0)}
+          addonAfter="%"
+          style={{ width: 160 }}
+        />
+        <Progress percent={progressPercent} style={{ marginTop: 16 }} />
+      </Modal>
+
       {detail && quoteOpen && (
         <QuoteModal
           open

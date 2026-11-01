@@ -1,4 +1,4 @@
-﻿import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import { orderService, orderAttachmentService, customerService, materialService, wechatService, supplierService } from '@erp/db';
@@ -57,6 +57,55 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
 
     orderService.update(db, id, { orderQty: 20 });
     expect(orderService.get(db, id).orderQty).toBe(20);
+  });
+
+  it('V1.10 明细实际交货日期与进度可保存，进度可单独更新', () => {
+    const input = baseInput(db);
+    const id = orderService.create(db, {
+      ...input,
+      items: input.items.map((it, i) =>
+        i === 0
+          ? { ...it, actualDeliveryDate: '2026-11-20', progress: 60, progressLabel: '已到货' }
+          : { ...it, actualDeliveryDate: '2026-11-25' },
+      ),
+    });
+    let detail = orderService.get(db, id);
+    expect(detail.items[0].actualDeliveryDate).toBe('2026-11-20');
+    expect(detail.items[0].progress).toBe(60);
+    expect(detail.items[0].progressLabel).toBe('已到货');
+    expect(detail.items[1].progress).toBe(0);
+
+    orderService.updateItemProgress(db, detail.items[1].id, 100, '已出货');
+    detail = orderService.get(db, id);
+    expect(detail.items[1].progress).toBe(100);
+    expect(detail.items[1].progressLabel).toBe('已出货');
+    // 越界自动收敛到 0-100
+    orderService.updateItemProgress(db, detail.items[1].id, 180, null);
+    expect(orderService.get(db, id).items[1].progress).toBe(100);
+  });
+
+  it('V1.10 订单列表可按进度排序（最快在前）', () => {
+    const input = baseInput(db);
+    const slow = orderService.create(db, {
+      ...input,
+      orderNo: 'P-SLOW',
+      items: input.items.map((it) => ({ ...it, progress: 10 })),
+    });
+    const fast = orderService.create(db, {
+      ...input,
+      orderNo: 'P-FAST',
+      items: input.items.map((it) => ({ ...it, progress: 90 })),
+    });
+    const page = orderService.list(db, {
+      sortField: 'progress',
+      sortDir: 'desc',
+      page: 1,
+      pageSize: 10,
+      today: '2026-10-30',
+    });
+    expect(page.rows[0].id).toBe(fast);
+    expect(page.rows[0].progress).toBe(90);
+    expect(page.rows[1].id).toBe(slow);
   });
 
   it('日期/类型/状态均可留空：创建成功，详情显示未填写', () => {

@@ -7,7 +7,7 @@ describe('数据库迁移与种子', () => {
   it('迁移后 schema_version 为最新版本', () => {
     const db = createTestDb();
     expect(currentSchemaVersion(db)).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(11);
+    expect(SCHEMA_VERSION).toBe(12);
   });
 
   it('迁移幂等：重复执行不报错、种子不重复', () => {
@@ -211,6 +211,17 @@ describe('数据库迁移与种子', () => {
     expect(itemCols).toContain('supplier_id');
     expect(orderCols).toContain('order_qty');
     expect(attCols).toContain('kind');
+    db.close();
+  });
+
+  it('V1.10 迁移：明细实际交货日期与进度字段', () => {
+    const db = createTestDb();
+    const itemCols = (
+      db.prepare("SELECT name FROM pragma_table_info('order_item')").all() as { name: string }[]
+    ).map((c) => c.name);
+    expect(itemCols).toContain('actual_delivery_date');
+    expect(itemCols).toContain('progress');
+    expect(itemCols).toContain('progress_label');
     db.close();
   });
 

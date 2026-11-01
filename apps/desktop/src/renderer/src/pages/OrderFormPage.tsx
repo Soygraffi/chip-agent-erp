@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -64,6 +64,9 @@ interface ItemRow {
   margin: number | null;
   customerPn: string | null;
   remark: string | null;
+  actualDeliveryDate: string | null;
+  progress: number;
+  progressLabel: string | null;
 }
 
 function round2(n: number): number {
@@ -100,6 +103,9 @@ const EMPTY_ITEM: Omit<ItemRow, 'key'> = {
   margin: null,
   customerPn: null,
   remark: null,
+  actualDeliveryDate: null,
+  progress: 0,
+  progressLabel: null,
 };
 
 const TAX_OPTIONS = [
@@ -182,6 +188,9 @@ export function OrderFormPage(): JSX.Element {
               margin: grossCost > 0 ? round2(((grossSale - grossCost) / grossCost) * 100) : null,
               customerPn: it.customerPn,
               remark: it.remark,
+              actualDeliveryDate: it.actualDeliveryDate,
+              progress: it.progress,
+              progressLabel: it.progressLabel,
             };
           }),
         );
@@ -255,6 +264,9 @@ export function OrderFormPage(): JSX.Element {
             subtotal: itemAmount(it),
             customerPn: it.customerPn,
             remark: it.remark,
+            actualDeliveryDate: it.actualDeliveryDate,
+            progress: it.progress,
+            progressLabel: it.progressLabel,
           })),
       };
       if (isEdit) {
@@ -438,6 +450,18 @@ export function OrderFormPage(): JSX.Element {
       render: (_: unknown, r: ItemRow) => itemAmount(r).toFixed(2),
     },
     {
+      title: '实际交货日期',
+      width: 150,
+      render: (_: unknown, r: ItemRow) => (
+        <DatePicker
+          style={{ width: '100%' }}
+          placeholder="每料可不同"
+          value={r.actualDeliveryDate ? dayjs(r.actualDeliveryDate) : null}
+          onChange={(v) => updateItem(r.key, { actualDeliveryDate: v ? v.format('YYYY-MM-DD') : null })}
+        />
+      ),
+    },
+    {
       title: '备注',
       width: 110,
       render: (_: unknown, r: ItemRow) => (
@@ -526,7 +550,7 @@ export function OrderFormPage(): JSX.Element {
         rowKey="key"
         size="small"
         pagination={false}
-        scroll={{ x: 2100 }}
+        scroll={{ x: 2300 }}
         dataSource={items}
         columns={itemColumns}
         footer={() => (

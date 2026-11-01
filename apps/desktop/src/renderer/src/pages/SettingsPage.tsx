@@ -605,6 +605,123 @@ function MenuOrderTab(): JSX.Element {
   );
 }
 
+const ORDER_SORT_OPTIONS = [
+  { value: 'order_date:desc', label: '订单日期 ↓（最新在前）' },
+  { value: 'order_date:asc', label: '订单日期 ↑（最早在前）' },
+  { value: 'progress:desc', label: '进度 ↓（最快在前）' },
+  { value: 'progress:asc', label: '进度 ↑（最慢在前）' },
+  { value: 'total_amount:desc', label: '金额 ↓（高到低）' },
+  { value: 'total_amount:asc', label: '金额 ↑（低到高）' },
+  { value: 'expected_delivery_date:asc', label: '交期 ↑（最近在前）' },
+  { value: 'expected_delivery_date:desc', label: '交期 ↓（最远在前）' },
+];
+
+function OrderSortTab(): JSX.Element {
+  const [value, setValue] = useState('order_date:desc');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    void api.settings.getOrderSort().then((v) => setValue(v || 'order_date:desc'));
+  }, []);
+
+  const save = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      await api.settings.setOrderSort(value);
+      void message.success('订单展示顺序已保存，进入订单管理即生效');
+    } catch (e) {
+      void message.error(errorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card size="small" title="订单展示顺序" style={{ maxWidth: 620 }}>
+      <div style={{ color: '#8c8c8c', marginBottom: 12 }}>
+        设置订单管理默认的排序方式；进入订单管理时按此顺序展示，页面里也可以临时切换。
+      </div>
+      <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+        <Select style={{ width: 320 }} value={value} options={ORDER_SORT_OPTIONS} onChange={setValue} />
+        <Button type="primary" loading={loading} onClick={() => void save()}>
+          保存
+        </Button>
+      </Space>
+    </Card>
+  );
+}
+
+function DangerTab(): JSX.Element {
+  const [customers, setCustomers] = useState<{ id: number; name: string; shortName?: string | null }[]>([]);
+  const [target, setTarget] = useState<number | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async (): Promise<void> => {
+    setCustomers((await api.customers.options()) as { id: number; name: string; shortName?: string | null }[]);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const doDelete = async (): Promise<void> => {
+    if (!target) return;
+    setLoading(true);
+    try {
+      await api.customers.softDelete(target);
+      void message.success('客户已删除（历史订单保留）');
+      setTarget(null);
+      setConfirmText('');
+      await load();
+    } catch (e) {
+      void message.error(errorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const canDelete = !!target && confirmText.trim() === '确认删除';
+
+  return (
+    <Card size="small" title="删除客户（危险操作）" style={{ maxWidth: 720 }}>
+      <div style={{ color: '#8c8c8c', marginBottom: 12 }}>
+        删除后该客户不再出现在客户列表，但历史订单会保留。为防止误删，请选择客户并手动输入「确认删除」。
+      </div>
+      <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+        <Select
+          showSearch
+          optionFilterProp="label"
+          style={{ width: 380 }}
+          placeholder="选择要删除的客户"
+          value={target ?? undefined}
+          onChange={(v) => setTarget(v as number)}
+          options={customers.map((c) => ({ value: c.id, label: (c.shortName ?? '').trim() || c.name }))}
+        />
+        <Input
+          style={{ width: 380 }}
+          placeholder="输入：确认删除"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+        />
+        <Popconfirm
+          title="确认删除该客户？"
+          description="历史订单会保留，客户将从列表中移除。"
+          okText="删除"
+          cancelText="取消"
+          okButtonProps={{ danger: true }}
+          onConfirm={() => void doDelete()}
+          disabled={!canDelete}
+        >
+          <Button danger disabled={!canDelete} loading={loading}>
+            删除客户
+          </Button>
+        </Popconfirm>
+      </Space>
+    </Card>
+  );
+}
+
 export function SettingsPage(): JSX.Element {
   return (
     <Card title="系统设置">
@@ -619,6 +736,8 @@ export function SettingsPage(): JSX.Element {
           { key: 'menu', label: '菜单顺序', children: <MenuOrderTab /> },
           { key: 'numbering', label: '编号规则', children: <NumberingTab /> },
           { key: 'storage', label: '存储设置', children: <StorageTab /> },
+          { key: 'orderSort', label: '订单展示顺序', children: <OrderSortTab /> },
+          { key: 'danger', label: '删除客户', children: <DangerTab /> },
         ]}
       />
     </Card>

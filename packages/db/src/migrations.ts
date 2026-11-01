@@ -472,6 +472,15 @@ ALTER TABLE orders ADD COLUMN order_qty INTEGER;
 ALTER TABLE order_attachment ADD COLUMN kind TEXT NOT NULL DEFAULT 'file';
 `;
 
+/**
+ * V1.10：明细行支持实际交货日期与自定义进度条（名称+百分比）。
+ */
+const V110 = `
+ALTER TABLE order_item ADD COLUMN actual_delivery_date TEXT;
+ALTER TABLE order_item ADD COLUMN progress INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE order_item ADD COLUMN progress_label TEXT;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -484,5 +493,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 9, name: 'v1.6.5 rename stock template', sql: V165 },
   { version: 10, name: 'v1.7.2 default quote company name', sql: V172 },
   { version: 11, name: 'v1.9 item supplier, order qty, attachment kind', sql: V19 },
+  { version: 12, name: 'v1.10 item delivery date & progress', sql: V110 },
 ];
 

@@ -129,16 +129,6 @@ export function CustomersPage(): JSX.Element {
     }
   };
 
-  const doDelete = async (row: CustomerListRow): Promise<void> => {
-    try {
-      const r = await api.customers.softDelete(row.id);
-      void message.success(`已删除客户（保留 ${r.orderCount} 个订单）`);
-      void load();
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
   const uploadLogo = async (row: CustomerListRow, forEdit = false): Promise<void> => {
     try {
       const r = await api.customers.uploadLogo(row.id);
@@ -295,16 +285,6 @@ export function CustomersPage(): JSX.Element {
                     </Space>
                     <Space size={4}>
                       <Button size="small" icon={<EditOutlined />} onClick={() => void openEdit(c)} />
-                      <Popconfirm
-                        title={`删除客户「${c.name}」`}
-                        description={`该客户下存在 ${c.orderCount} 个订单，删除后订单数据将保留。`}
-                        okText="确认删除"
-                        cancelText="取消"
-                        okButtonProps={{ danger: true }}
-                        onConfirm={() => void doDelete(c)}
-                      >
-                        <Button size="small" danger icon={<DeleteOutlined />} />
-                      </Popconfirm>
                     </Space>
                   </div>
                 </Card>

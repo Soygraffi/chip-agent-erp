@@ -70,7 +70,9 @@ export function OrdersBoard({
   const [typeId, setTypeId] = useState<number | null>(null);
   const [range, setRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
   const [onlyOverdue, setOnlyOverdue] = useState(false);
-  const [sortField, setSortField] = useState<'order_date' | 'total_amount' | 'expected_delivery_date'>('order_date');
+  const [sortField, setSortField] = useState<
+    'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress'
+  >('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statuses, setStatuses] = useState<OptionItem[]>([]);
   const [types, setTypes] = useState<OptionItem[]>([]);
@@ -117,6 +119,17 @@ export function OrdersBoard({
   useEffect(() => {
     void api.statuses.list().then((r) => setStatuses(r as OptionItem[]));
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
+  }, []);
+
+  // V1.10：应用系统设置里的默认展示顺序
+  useEffect(() => {
+    void api.settings.getOrderSort().then((saved) => {
+      const [f, d] = (saved || 'order_date:desc').split(':');
+      if (['order_date', 'total_amount', 'expected_delivery_date', 'progress'].includes(f)) {
+        setSortField(f as 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress');
+        setSortDir(d === 'asc' ? 'asc' : 'desc');
+      }
+    });
   }, []);
 
   const openNode = (n: OrderNode): void => {
@@ -216,10 +229,12 @@ export function OrdersBoard({
               { value: 'total_amount:asc', label: '按金额 ↑' },
               { value: 'expected_delivery_date:asc', label: '按交期 ↑' },
               { value: 'expected_delivery_date:desc', label: '按交期 ↓' },
+              { value: 'progress:desc', label: '按进度 ↓（最快在前）' },
+              { value: 'progress:asc', label: '按进度 ↑（最慢在前）' },
             ]}
             onChange={(v) => {
               const [f, d] = (v as string).split(':');
-              setSortField(f as 'order_date' | 'total_amount' | 'expected_delivery_date');
+              setSortField(f as 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress');
               setSortDir(d as 'asc' | 'desc');
             }}
           />
@@ -249,6 +264,7 @@ export function OrdersBoard({
                 ))}
                 {o.daysOverdue > 0 && <Tag color="red">逾期 {o.daysOverdue} 天</Tag>}
                 {o.isKey && <Tag color="gold">重点</Tag>}
+                <Tag color="blue">进度 {Math.round(o.progress ?? 0)}%</Tag>
                 <Tag>{o.typeName ?? '未分类'}</Tag>
               </Space>
             }

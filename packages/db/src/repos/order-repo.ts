@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+﻿import type { DatabaseSync } from 'node:sqlite';
 import type { Order, OrderItem, OrderListRow, Page } from '@erp/shared';
 import { dateDiffDays } from '@erp/shared';
 import { escapeLike } from './customer-repo.js';
@@ -129,7 +129,7 @@ export interface OrderFilter {
   deliveryTo?: string | null;
   onlyOverdue?: boolean;
   onlyKey?: boolean;
-  sortField?: 'order_date' | 'total_amount' | 'expected_delivery_date';
+  sortField?: 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress';
   sortDir?: 'asc' | 'desc';
   page: number;
   pageSize: number;
@@ -197,6 +197,7 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
     order_date: 'o.order_date',
     total_amount: 'o.total_amount',
     expected_delivery_date: 'o.expected_delivery_date',
+    progress: "COALESCE((SELECT AVG(i.progress) FROM order_item i WHERE i.order_id = o.id), 0)",
   };
   const sortCol = sortMap[filter.sortField ?? 'order_date'];
   const dir = filter.sortDir === 'asc' ? 'ASC' : 'DESC';
@@ -207,7 +208,8 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
       `SELECT ${ORDER_COLS},
         c.name AS customerName, c.deleted_at AS customerDeleted, c.contact AS customerContact,
         t.name AS typeName, s.name AS statusName, s.color AS statusColor,
-        s.is_terminal AS statusIsTerminal
+        s.is_terminal AS statusIsTerminal,
+        COALESCE((SELECT AVG(i.progress) FROM order_item i WHERE i.order_id = o.id), 0) AS progress
        FROM orders o
        JOIN customer c ON c.id = o.customer_id
        LEFT JOIN order_status s ON s.id = o.status_id
@@ -262,6 +264,10 @@ export interface ItemInput {
   taxRate?: number;
   /** V1.9：该物料由哪家供应商提供 */
   supplierId?: number | null;
+  /** V1.10：实际交货日期与自定义进度 */
+  actualDeliveryDate?: string | null;
+  progress?: number;
+  progressLabel?: string | null;
 }
 
 export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
@@ -271,7 +277,8 @@ export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
         'i.material_name AS materialName, i.chip_model AS chipModel, i.brand, i.package_spec AS packageSpec, ' +
         'i.qty, i.unit_price AS unitPrice, i.purchase_price AS purchasePrice, i.price_tax_included AS priceTaxIncluded, ' +
         'i.purchase_tax_included AS purchaseTaxIncluded, i.tax_rate AS taxRate, i.subtotal, i.customer_pn AS customerPn, ' +
-        'i.remark, i.sort_order AS sortOrder, i.supplier_id AS supplierId, s.name AS supplierName ' +
+        'i.remark, i.sort_order AS sortOrder, i.supplier_id AS supplierId, s.name AS supplierName, ' +
+        'i.actual_delivery_date AS actualDeliveryDate, i.progress, i.progress_label AS progressLabel ' +
         'FROM order_item i LEFT JOIN supplier s ON s.id = i.supplier_id WHERE i.order_id = ? ORDER BY i.sort_order, i.id',
     )
     .all(orderId)
@@ -292,6 +299,9 @@ export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
           taxRate: Number(r.taxRate ?? 13),
           customerPn: (r.customerPn as string | null) ?? null,
           remark: (r.remark as string | null) ?? null,
+          actualDeliveryDate: (r.actualDeliveryDate as string | null) ?? null,
+          progress: Number(r.progress ?? 0),
+          progressLabel: (r.progressLabel as string | null) ?? null,
         }) as OrderItem,
     );
 }
@@ -301,7 +311,8 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
   const stmt = db.prepare(
     'INSERT INTO order_item (order_id, material_id, material_code, material_name, chip_model, brand, ' +
       'package_spec, qty, unit_price, purchase_price, price_tax_included, purchase_tax_included, tax_rate, subtotal, ' +
-      'customer_pn, remark, sort_order, supplier_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'customer_pn, remark, sort_order, supplier_id, actual_delivery_date, progress, progress_label) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   items.forEach((it, i) => {
     stmt.run(
@@ -323,6 +334,24 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
       it.remark,
       i + 1,
       it.supplierId ?? null,
+      it.actualDeliveryDate ?? null,
+      it.progress ?? 0,
+      it.progressLabel ?? null,
     );
   });
+}
+
+/** V1.10 更新单条明细的进度（0-100）与进度名称 */
+export function updateItemProgress(
+  db: DatabaseSync,
+  itemId: number,
+  progress: number,
+  progressLabel: string | null,
+): boolean {
+  const p = Math.max(0, Math.min(100, Math.round(progress)));
+  return (
+    db
+      .prepare('UPDATE order_item SET progress = ?, progress_label = ? WHERE id = ?')
+      .run(p, progressLabel, itemId).changes > 0
+  );
 }
