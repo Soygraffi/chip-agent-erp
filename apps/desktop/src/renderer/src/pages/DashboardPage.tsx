@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Card, Col, Row, Space, Statistic, message } from 'antd';
+import { Button, Card, Col, Row, Select, Space, Statistic, message } from 'antd';
 import {
   AppstoreAddOutlined,
   ClockCircleOutlined,
@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts';
 import { api, errorMessage } from '../api';
 import type { DashboardStats } from '../models';
-import { OrdersBoard } from '../components/OrdersBoard';
+import { OrdersBoard, SORT_OPTIONS } from '../components/OrdersBoard';
 
 interface MetricProps {
   title: string;
@@ -81,6 +81,7 @@ export function DashboardPage(): JSX.Element {
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [orderSort, setOrderSort] = useState('order_date:desc');
   const pieRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -295,12 +296,27 @@ export function DashboardPage(): JSX.Element {
         bordered={false}
         style={{ marginTop: 16, borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}
         extra={
-          <Button size="small" onClick={() => navigate('/orders')}>
-            查看全部订单
-          </Button>
+          <Space>
+            <Select
+              size="small"
+              style={{ width: 170 }}
+              value={orderSort}
+              options={SORT_OPTIONS}
+              onChange={(v) => setOrderSort(v as string)}
+            />
+            <Button size="small" onClick={() => navigate('/orders')}>
+              查看全部订单
+            </Button>
+          </Space>
         }
       >
-        <OrdersBoard showFilters={false} pageSize={5} showQuote={false} />
+        <OrdersBoard
+          showFilters={false}
+          pageSize={5}
+          showQuote={false}
+          showSort={false}
+          externalSort={orderSort}
+        />
       </Card>
     </div>
   );

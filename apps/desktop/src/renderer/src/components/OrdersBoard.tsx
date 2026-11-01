@@ -38,11 +38,14 @@ interface OrdersBoardProps {
   showQuote?: boolean;
   /** 是否显示排序选择（首页看板也显示） */
   showSort?: boolean;
+  /** 外部受控排序（如首页把排序放在卡片右上角），格式 field:dir */
+  externalSort?: string;
+  onSortChange?: (value: string) => void;
 }
 
-type SortField = 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual';
+export type SortField = 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual';
 
-const SORT_OPTIONS = [
+export const SORT_OPTIONS = [
   { value: 'order_date:desc', label: '按日期 ↓' },
   { value: 'order_date:asc', label: '按日期 ↑' },
   { value: 'manual:asc', label: '按设置排序（自定义）' },
@@ -74,6 +77,8 @@ export function OrdersBoard({
   onlyKey = false,
   showQuote = true,
   showSort = true,
+  externalSort,
+  onSortChange,
 }: OrdersBoardProps): JSX.Element {
   const navigate = useNavigate();
   const [rows, setRows] = useState<OrderWithDetails[]>([]);
@@ -138,6 +143,14 @@ export function OrdersBoard({
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
   }, []);
 
+  // 外部受控排序（首页把排序放在卡片右上角时使用）
+  useEffect(() => {
+    if (!externalSort) return;
+    const [f, d] = externalSort.split(':');
+    setSortField(f as SortField);
+    setSortDir(d === 'asc' ? 'asc' : 'desc');
+  }, [externalSort]);
+
   const openNode = (n: OrderNode): void => {
     setNodeModal(n);
   };
@@ -185,6 +198,7 @@ export function OrdersBoard({
         const [f, d] = (v as string).split(':');
         setSortField(f as SortField);
         setSortDir(d as 'asc' | 'desc');
+        onSortChange?.(v as string);
       }}
     />
   );

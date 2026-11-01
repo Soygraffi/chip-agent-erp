@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -55,6 +55,11 @@ describe('V1.10.1 客户删除/明细交货/时间轴/排序/拖动设置', () =
     // 首页看板（无筛选）也显示排序选择
     expect(board.includes('!showFilters && showSort')).toBe(true);
     expect(board.includes('SORT_OPTIONS')).toBe(true);
+    // 首页排序与“查看全部订单”并列在卡片右上角
+    const dash = read('apps/desktop/src/renderer/src/pages/DashboardPage.tsx');
+    expect(dash.includes('externalSort={orderSort}')).toBe(true);
+    expect(dash.indexOf('<Select')).toBeLessThan(dash.indexOf('查看全部订单'));
+    expect(dash.includes('showSort={false}')).toBe(true);
   });
 
   it('系统设置通过拖动订单设置顺序并保存', () => {
