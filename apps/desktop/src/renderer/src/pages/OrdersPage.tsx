@@ -17,7 +17,7 @@ export function OrdersPage(): JSX.Element {
         </Space>
       }
     >
-      <OrdersBoard showFilters pageSize={10} />
+      <OrdersBoard showFilters pageSize={50} />
     </Card>
   );
 }

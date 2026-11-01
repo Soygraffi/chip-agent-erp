@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Row, Select, Space, Statistic, message } from 'antd';
 import {
   AppstoreAddOutlined,
@@ -312,7 +312,7 @@ export function DashboardPage(): JSX.Element {
       >
         <OrdersBoard
           showFilters={false}
-          pageSize={5}
+          pageSize={50}
           showQuote={false}
           showSort={false}
           externalSort={orderSort}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -73,7 +73,7 @@ const ITEM_COLUMNS = [
 
 export function OrdersBoard({
   showFilters = true,
-  pageSize: initialPageSize = 10,
+  pageSize: initialPageSize = 50,
   onlyKey = false,
   showQuote = true,
   showSort = true,
