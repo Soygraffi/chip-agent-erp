@@ -214,13 +214,13 @@ export function OrdersBoard({
             options={[
               { value: 'order_date:desc', label: '按日期 ↓' },
               { value: 'order_date:asc', label: '按日期 ↑' },
+              { value: 'manual:asc', label: '按设置排序（自定义）' },
               { value: 'total_amount:desc', label: '按金额 ↓' },
               { value: 'total_amount:asc', label: '按金额 ↑' },
               { value: 'expected_delivery_date:asc', label: '按交期 ↑' },
               { value: 'expected_delivery_date:desc', label: '按交期 ↓' },
               { value: 'progress:desc', label: '按进度 ↓（最快在前）' },
               { value: 'progress:asc', label: '按进度 ↑（最慢在前）' },
-              { value: 'manual:asc', label: '按设置排序（自定义）' },
             ]}
             onChange={(v) => {
               const [f, d] = (v as string).split(':');

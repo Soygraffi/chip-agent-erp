@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -49,6 +49,8 @@ describe('V1.10.1 客户删除/明细交货/时间轴/排序/拖动设置', () =
     expect(board.includes('按进度 ↓（最快在前）')).toBe(true);
     expect(board.includes('按设置排序（自定义）')).toBe(true);
     expect(board.includes('manual:asc')).toBe(true);
+    expect(board.indexOf("'order_date:asc'")).toBeLessThan(board.indexOf("'manual:asc'"));
+    expect(board.indexOf("'manual:asc'")).toBeLessThan(board.indexOf("'total_amount:desc'"));
     expect(board.includes('阶段')).toBe(true);
   });
 
