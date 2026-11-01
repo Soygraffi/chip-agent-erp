@@ -132,6 +132,22 @@ export function OrderDetailPage(): JSX.Element {
 
   const sortedNodes = [...detail.nodes].sort((a, b) => a.sortOrder - b.sortOrder);
 
+  /** 把某颗物料的当前阶段映射成一条可点击的步骤条 */
+  const stageNodesFor = (item: OrderItem): OrderNode[] =>
+    ITEM_STAGES.map((name, i) => ({
+      id: i,
+      orderId: detail.id,
+      templateId: null,
+      templateCode: null,
+      name,
+      status: i < (item.stage ?? 0) ? 'done' : i === (item.stage ?? 0) ? 'in_progress' : 'pending',
+      planTime: null,
+      actualTime: null,
+      sortOrder: i,
+      createdAt: '',
+      updatedAt: '',
+    }));
+
   const openNodeModal = (mode: 'edit' | 'create', node: OrderNode | null): void => {
     setNodeModal({ mode, node });
   };
@@ -377,18 +393,6 @@ export function OrderDetailPage(): JSX.Element {
             render: (v: string | null) => v ?? '-',
           },
           {
-            title: '时间轴进度',
-            width: 190,
-            render: (_: unknown, r) => (
-              <Space size={6}>
-                <Tag color="blue">
-                  {ITEM_STAGES[r.stage] ?? ITEM_STAGES[0]}（第 {(r.stage ?? 0) + 1} 步）
-                </Tag>
-                <a onClick={() => openProgress(r)}>调整</a>
-              </Space>
-            ),
-          },
-          {
             title: '进货价',
             dataIndex: 'purchasePrice',
             width: 100,
@@ -443,6 +447,35 @@ export function OrderDetailPage(): JSX.Element {
           { title: '备注', dataIndex: 'remark', width: 120, render: (v: string | null) => v ?? '' },
         ]}
       />
+
+      <Divider orientation="left">物料进度（每颗料一条时间轴，点击步骤可调整）</Divider>
+      {detail.items.map((it) => (
+        <Card
+          key={it.id}
+          size="small"
+          style={{ marginBottom: 12 }}
+          title={
+            <Space wrap>
+              <Tag>{it.brand ?? '-'}</Tag>
+              <span>{it.materialName ?? it.chipModel}</span>
+              <span style={{ color: '#999' }}>{it.chipModel}</span>
+            </Space>
+          }
+          extra={
+            <Tag color="blue">
+              第 {(it.stage ?? 0) + 1} 步 · {ITEM_STAGES[it.stage] ?? ITEM_STAGES[0]}
+            </Tag>
+          }
+        >
+          <NodeStepper
+            nodes={stageNodesFor(it)}
+            onSelect={(n) => {
+              setProgressItem(it);
+              setStageDraft(n.sortOrder);
+            }}
+          />
+        </Card>
+      ))}
 
       <Divider orientation="left">
         进度（{sortedNodes.filter((n) => n.status === 'done').length}/{sortedNodes.length} 已完成，点击节点可编辑）

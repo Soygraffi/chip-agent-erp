@@ -29,6 +29,9 @@ describe('V1.10.1 客户删除/明细交货/时间轴/排序/拖动设置', () =
   it('每颗料使用固定时间轴（需求沟通/报价中/客户确认…），不再用百分比', () => {
     const detail = read('apps/desktop/src/renderer/src/pages/OrderDetailPage.tsx');
     expect(detail.includes('设置该物料的时间轴')).toBe(true);
+    expect(detail.includes('物料进度（每颗料一条时间轴')).toBe(true);
+    expect(detail.includes('stageNodesFor')).toBe(true);
+    expect(detail.includes("title: '时间轴进度'")).toBe(false);
     expect(detail.includes('ITEM_STAGES')).toBe(true);
     expect(detail.includes('updateItemStage')).toBe(true);
     expect(detail.includes('完成百分比')).toBe(false);
