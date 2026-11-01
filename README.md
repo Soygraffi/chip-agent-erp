@@ -1,4 +1,4 @@
-﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.10.2）
+﻿# 芯片代理商客户订单进度管理系统（本地桌面版 V1.10.3）
 
 以客户为中心的芯片代理商订单全流程管理工具：客户 → 订单 → 进度节点三级数据，替代碎片化的 Excel 记录。
 数据 100% 本地存储（SQLite），支持 Excel 导入导出与一键备份恢复（含附件）。
@@ -34,11 +34,12 @@
 - **V1.10**：去掉Logo移除按钮、删除客户移到系统设置、明细实际交货日期、按物料设置进度条、按进度排序、设置订单默认展示顺序
 - **V1.10.1**：去掉交货日期占位文字、进度改为每颗料固定时间轴（无百分比）、按时间轴阶段排序、系统设置拖动订单排序并支持按设置排序
 - **V1.10.2**：每颗物料各有一条完整进度线（不再只在表格里显示一栏），点击步骤即可调整
+- **V1.10.3**：订单总进度置顶、各物料进度下移并做视觉区分，避免混淆
 - 升级自动迁移数据库（v2 → v3 → v4），原有客户/订单/节点数据完整保留
 
 ## 文档
 
-- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md) / [V1.5](docs/PRD-v1.5-delta.md) / [V1.6](docs/PRD-v1.6-delta.md) / [V1.6.1](docs/PRD-v1.6.1-delta.md) / [V1.6.2](docs/PRD-v1.6.2-delta.md) / [V1.6.3](docs/PRD-v1.6.3-delta.md) / [V1.6.4](docs/PRD-v1.6.4-delta.md) / [V1.6.5](docs/PRD-v1.6.5-delta.md) / [V1.6.6](docs/PRD-v1.6.6-delta.md) / [V1.7](docs/PRD-v1.7-delta.md) / [V1.7.1](docs/PRD-v1.7.1-delta.md) / [V1.7.2](docs/PRD-v1.7.2-delta.md) / [V1.8](docs/PRD-v1.8-delta.md) / [V1.8.1](docs/PRD-v1.8.1-delta.md) / [V1.8.2](docs/PRD-v1.8.2-delta.md) / [V1.9](docs/PRD-v1.9-delta.md) / [V1.9.1](docs/PRD-v1.9.1-delta.md) / [V1.9.2](docs/PRD-v1.9.2-delta.md) / [V1.10](docs/PRD-v1.10-delta.md) / [V1.10.1](docs/PRD-v1.10.1-delta.md) / [V1.10.2](docs/PRD-v1.10.2-delta.md)）
+- 产品需求：[docs/PRD-v1.1.md](docs/PRD-v1.1.md)（增量：[V1.2](docs/PRD-v1.2-delta.md) / [V1.3](docs/PRD-v1.3-delta.md) / [V1.4](docs/PRD-v1.4-delta.md) / [V1.5](docs/PRD-v1.5-delta.md) / [V1.6](docs/PRD-v1.6-delta.md) / [V1.6.1](docs/PRD-v1.6.1-delta.md) / [V1.6.2](docs/PRD-v1.6.2-delta.md) / [V1.6.3](docs/PRD-v1.6.3-delta.md) / [V1.6.4](docs/PRD-v1.6.4-delta.md) / [V1.6.5](docs/PRD-v1.6.5-delta.md) / [V1.6.6](docs/PRD-v1.6.6-delta.md) / [V1.7](docs/PRD-v1.7-delta.md) / [V1.7.1](docs/PRD-v1.7.1-delta.md) / [V1.7.2](docs/PRD-v1.7.2-delta.md) / [V1.8](docs/PRD-v1.8-delta.md) / [V1.8.1](docs/PRD-v1.8.1-delta.md) / [V1.8.2](docs/PRD-v1.8.2-delta.md) / [V1.9](docs/PRD-v1.9-delta.md) / [V1.9.1](docs/PRD-v1.9.1-delta.md) / [V1.9.2](docs/PRD-v1.9.2-delta.md) / [V1.10](docs/PRD-v1.10-delta.md) / [V1.10.1](docs/PRD-v1.10.1-delta.md) / [V1.10.2](docs/PRD-v1.10.2-delta.md) / [V1.10.3](docs/PRD-v1.10.3-delta.md)）
 - 数据模型：[docs/data-model.md](docs/data-model.md)
 - 开发计划：[docs/dev-plan.md](docs/dev-plan.md)
 - 使用说明：[docs/USAGE.md](docs/USAGE.md)

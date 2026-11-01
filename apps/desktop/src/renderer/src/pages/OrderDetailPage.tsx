@@ -320,6 +320,29 @@ export function OrderDetailPage(): JSX.Element {
 
       <Card
         size="small"
+        title={
+          <Space>
+            <span style={{ fontWeight: 600 }}>订单总进度</span>
+            <Tag color="blue">
+              {sortedNodes.filter((n) => n.status === 'done').length}/{sortedNodes.length} 已完成
+            </Tag>
+          </Space>
+        }
+        extra={
+          <Button size="small" type="link" onClick={() => openNodeModal('create', null)}>
+            新增节点
+          </Button>
+        }
+        style={{ marginBottom: 16, background: '#f0f7ff', borderColor: '#bae0ff' }}
+      >
+        <NodeStepper nodes={sortedNodes} onSelect={(n) => openNodeModal('edit', n)} />
+        <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 8 }}>
+          整张订单共用的总进度；点击任意步骤可编辑名称与状态。下方「各物料进度」是每颗料单独的时间轴。
+        </div>
+      </Card>
+
+      <Card
+        size="small"
         title="备注"
         extra={
           <Button size="small" type="primary" loading={savingRemark} onClick={() => void saveRemark()}>
@@ -448,45 +471,61 @@ export function OrderDetailPage(): JSX.Element {
         ]}
       />
 
-      <Divider orientation="left">物料进度（每颗料一条时间轴，点击步骤可调整）</Divider>
-      {detail.items.map((it) => (
-        <Card
-          key={it.id}
-          size="small"
-          style={{ marginBottom: 12 }}
-          title={
-            <Space wrap>
-              <Tag>{it.brand ?? '-'}</Tag>
-              <span>{it.materialName ?? it.chipModel}</span>
-              <span style={{ color: '#999' }}>{it.chipModel}</span>
-            </Space>
-          }
-          extra={
-            <Tag color="blue">
-              第 {(it.stage ?? 0) + 1} 步 · {ITEM_STAGES[it.stage] ?? ITEM_STAGES[0]}
-            </Tag>
-          }
-        >
-          <NodeStepper
-            nodes={stageNodesFor(it)}
-            onSelect={(n) => {
-              setProgressItem(it);
-              setStageDraft(n.sortOrder);
-            }}
-          />
-        </Card>
-      ))}
-
-      <Divider orientation="left">
-        进度（{sortedNodes.filter((n) => n.status === 'done').length}/{sortedNodes.length} 已完成，点击节点可编辑）
-        <Button size="small" type="link" onClick={() => openNodeModal('create', null)}>
-          新增节点
-        </Button>
-      </Divider>
-      <NodeStepper nodes={sortedNodes} onSelect={(n) => openNodeModal('edit', n)} />
-      <div style={{ color: '#999', fontSize: 12, marginBottom: 8 }}>
-        点击任意步骤即可编辑名称与「当前进度状态」（未开始 / 进行中 / 已完成 / 异常延误）。
-      </div>
+      <Card
+        size="small"
+        title={
+          <Space>
+            <span style={{ fontWeight: 600 }}>各物料进度</span>
+            <Tag>{detail.items.length} 颗料</Tag>
+          </Space>
+        }
+        extra={<span style={{ color: '#8c8c8c', fontSize: 12 }}>每颗料一条进度线，点步骤单独调整</span>}
+        style={{ marginTop: 16, marginBottom: 16 }}
+      >
+        {detail.items.length === 0 && <div style={{ color: '#999' }}>暂无物料明细</div>}
+        {detail.items.map((it) => {
+          const stage = it.stage ?? 0;
+          const color = stage >= ITEM_STAGES.length - 1 ? '#52c41a' : '#1677ff';
+          return (
+            <div
+              key={it.id}
+              style={{
+                borderLeft: `4px solid ${color}`,
+                background: '#fafafa',
+                borderRadius: 8,
+                padding: '10px 14px',
+                marginBottom: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 6,
+                  gap: 8,
+                }}
+              >
+                <Space wrap>
+                  <Tag>{it.brand ?? '无品牌'}</Tag>
+                  <strong>{it.materialName ?? it.chipModel}</strong>
+                  <span style={{ color: '#999' }}>{it.chipModel}</span>
+                </Space>
+                <Tag color={color}>
+                  第 {stage + 1} 步 · {ITEM_STAGES[stage] ?? ITEM_STAGES[0]}
+                </Tag>
+              </div>
+              <NodeStepper
+                nodes={stageNodesFor(it)}
+                onSelect={(n) => {
+                  setProgressItem(it);
+                  setStageDraft(n.sortOrder);
+                }}
+              />
+            </div>
+          );
+        })}
+      </Card>
 
       <Card
         size="small"
