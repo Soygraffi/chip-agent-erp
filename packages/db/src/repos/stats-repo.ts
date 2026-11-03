@@ -37,13 +37,15 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
     .get(monthStart, monthEnd, monthStart, monthEnd) as { cnt: number; totalAmount: number };
 
   // 本年订单金额：只统计「客户确认」节点已完成的订单（取消不计）
+  // 订单日期没填时用创建日期判断年份，避免漏算
   const year = today.slice(0, 4);
   const yearTotalAmount = (
     db
       .prepare(
         'SELECT ROUND(COALESCE(SUM(o.total_amount), 0), 2) AS totalAmount ' +
           'FROM orders o LEFT JOIN order_status s ON o.status_id = s.id ' +
-          'WHERE o.order_date >= ? AND o.order_date <= ? ' +
+          'WHERE COALESCE(o.order_date, substr(o.created_at, 1, 10)) >= ? ' +
+          '  AND COALESCE(o.order_date, substr(o.created_at, 1, 10)) <= ? ' +
           "AND NOT (COALESCE(s.is_terminal, 0) = 1 AND s.terminal_result = 'cancelled') " +
           'AND EXISTS (SELECT 1 FROM order_node n LEFT JOIN node_template t ON t.id = n.template_id ' +
           "  WHERE n.order_id = o.id AND n.status = 'done' AND (t.code = 'confirm' OR n.name LIKE '客户确认%'))",
