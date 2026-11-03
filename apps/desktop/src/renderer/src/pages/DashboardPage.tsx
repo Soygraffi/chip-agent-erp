@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Row, Select, Space, Statistic, message } from 'antd';
 import {
   AppstoreAddOutlined,
@@ -17,6 +17,8 @@ import * as echarts from 'echarts';
 import { api, errorMessage } from '../api';
 import type { DashboardStats } from '../models';
 import { OrdersBoard, SORT_OPTIONS } from '../components/OrdersBoard';
+
+let statsCache: DashboardStats | null = null;
 
 const PIE_LEGEND_KEY = 'chip-agent.dashboard.pie.legend.selected';
 
@@ -196,8 +198,8 @@ function MetricCard({ title, value, icon, color, money }: MetricProps): JSX.Elem
 
 export function DashboardPage(): JSX.Element {
   const navigate = useNavigate();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState<DashboardStats | null>(statsCache);
+  const [loading, setLoading] = useState(!statsCache);
   const [orderSort, setOrderSort] = useState('order_date:desc');
 
   useEffect(() => {
@@ -210,7 +212,9 @@ export function DashboardPage(): JSX.Element {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setStats((await api.stats.dashboard()) as DashboardStats);
+      const data = (await api.stats.dashboard()) as DashboardStats;
+      statsCache = data;
+      setStats(data);
     } catch (e) {
       void message.error(errorMessage(e));
     } finally {
@@ -457,6 +461,7 @@ export function DashboardPage(): JSX.Element {
           showSort={false}
           externalSort={orderSort}
           noneLast
+          cacheKey="dashboard"
         />
       </Card>
     </div>

@@ -43,6 +43,8 @@ interface OrdersBoardProps {
   onSortChange?: (value: string) => void;
   /** 「未下单」的订单排到最后（首页看板） */
   noneLast?: boolean;
+  /** 列表缓存键：返回首页时先用上次数据渲染，避免高度变化导致滚动位置跳动 */
+  cacheKey?: string;
 }
 
 export type SortField = 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual';
@@ -73,6 +75,8 @@ const ITEM_COLUMNS = [
   },
 ];
 
+const BOARD_CACHE = new Map<string, { rows: OrderWithDetails[]; total: number }>();
+
 export function OrdersBoard({
   showFilters = true,
   pageSize: initialPageSize = 50,
@@ -82,13 +86,15 @@ export function OrdersBoard({
   externalSort,
   onSortChange,
   noneLast = false,
+  cacheKey,
 }: OrdersBoardProps): JSX.Element {
   const navigate = useNavigate();
-  const [rows, setRows] = useState<OrderWithDetails[]>([]);
-  const [total, setTotal] = useState(0);
+  const cached = cacheKey ? BOARD_CACHE.get(cacheKey) : undefined;
+  const [rows, setRows] = useState<OrderWithDetails[]>(cached?.rows ?? []);
+  const [total, setTotal] = useState(cached?.total ?? 0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!cached);
   const [search, setSearch] = useState('');
   const [quoteOrder, setQuoteOrder] = useState<OrderWithDetails | null>(null);
   const [typeId, setTypeId] = useState<number | null>(null);
@@ -128,12 +134,13 @@ export function OrdersBoard({
       })) as Page<OrderWithDetails>;
       setRows(r.rows);
       setTotal(r.total);
+      if (cacheKey) BOARD_CACHE.set(cacheKey, { rows: r.rows, total: r.total });
     } catch (e) {
       void message.error(errorMessage(e));
     } finally {
       setLoading(false);
     }
-  }, [search, typeId, range, onlyOverdue, onlyKey, noneLast, sortField, sortDir, page, pageSize]);
+  }, [search, typeId, range, onlyOverdue, onlyKey, noneLast, sortField, sortDir, page, pageSize, cacheKey]);
 
   useEffect(() => {
     void load();
