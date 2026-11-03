@@ -168,9 +168,13 @@ function Shell(): JSX.Element {
           <ReminderBell />
         </Header>
         <Content className="app-content">
+          {/* 首页看板常驻不卸载：进入订单再返回时直接显示原页面，保证滚动位置零闪跳 */}
+          <div style={{ display: location.pathname === '/dashboard' ? 'block' : 'none' }}>
+            <DashboardPage />
+          </div>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<span style={{ display: 'none' }} />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />

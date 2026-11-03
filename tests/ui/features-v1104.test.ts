@@ -38,6 +38,7 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(app.includes('scrollPositions')).toBe(true);
     expect(app.includes('useLayoutEffect')).toBe(true);
     expect(app.includes('MemoryRouter')).toBe(true);
+    expect(app.includes("location.pathname === '/dashboard' ? 'block' : 'none'")).toBe(true);
   });
 
   it('窗口默认最大化且单实例运行', () => {
