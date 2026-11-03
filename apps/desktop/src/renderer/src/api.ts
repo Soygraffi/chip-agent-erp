@@ -1,4 +1,4 @@
-﻿/** 渲染层 API：window.api 的强类型封装，统一解包 {ok,data}|{ok:false,...} 信封 */
+/** 渲染层 API：window.api 的强类型封装，统一解包 {ok,data}|{ok:false,...} 信封 */
 import type { Api } from '../../preload/index';
 
 declare global {
@@ -57,6 +57,8 @@ export const api = {
     restoreAutoAmount: (id: number): Promise<void> => call('orders:restoreAutoAmount', id),
     updateItemStage: (itemId: number, stage: number): Promise<void> =>
       call('orders:updateItemStage', itemId, stage),
+    updateItemNodes: (itemId: number, nodes: unknown): Promise<void> =>
+      call('orders:updateItemNodes', itemId, nodes),
     reorder: (ids: number[]): Promise<void> => call('orders:reorder', ids),
     remove: (id: number): Promise<void> => call('orders:delete', id),
   },

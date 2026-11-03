@@ -20,7 +20,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
 import { pinyinFilterOption } from '../utils/pinyin';
-import type { OrderDetail, WechatGroup } from '../models';
+import type { ItemProgressNode, OrderDetail, WechatGroup } from '../models';
 import type { QuoteModalItem } from '../components/QuoteModal';
 import { QuoteModal } from '../components/QuoteModal';
 
@@ -66,6 +66,7 @@ interface ItemRow {
   remark: string | null;
   actualDeliveryDate: string | null;
   stage: number;
+  progressNodes: ItemProgressNode[] | null;
 }
 
 function round2(n: number): number {
@@ -104,6 +105,7 @@ const EMPTY_ITEM: Omit<ItemRow, 'key'> = {
   remark: null,
   actualDeliveryDate: null,
   stage: 0,
+  progressNodes: null,
 };
 
 const TAX_OPTIONS = [
@@ -186,6 +188,7 @@ export function OrderFormPage(): JSX.Element {
               remark: it.remark,
               actualDeliveryDate: it.actualDeliveryDate,
               stage: it.stage,
+              progressNodes: it.progressNodes,
             };
           }),
         );
@@ -260,6 +263,7 @@ export function OrderFormPage(): JSX.Element {
             remark: it.remark,
             actualDeliveryDate: it.actualDeliveryDate,
             stage: it.stage,
+            progressNodes: it.progressNodes,
           })),
       };
       if (isEdit) {

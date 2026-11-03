@@ -119,6 +119,23 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
     expect(page.rows.map((r) => r.id)).toEqual([c, a, b]);
   });
 
+  it('V1.10.6 物料进度节点可逐节点保存（名称/状态）', () => {
+    const input = baseInput(db);
+    const id = orderService.create(db, input);
+    const item = orderService.get(db, id).items[0];
+    const nodes = [
+      { name: '需求沟通', status: 'done' as const },
+      { name: '报价中', status: 'in_progress' as const },
+      { name: '客户确认', status: 'pending' as const },
+    ];
+    orderService.updateItemNodes(db, item.id, nodes);
+    const after = orderService.get(db, id).items[0];
+    expect(after.progressNodes).toHaveLength(3);
+    expect(after.progressNodes?.[0].name).toBe('需求沟通');
+    expect(after.progressNodes?.[1].status).toBe('in_progress');
+    expect(after.stage).toBe(1);
+  });
+
   it('未下单订单在首页看板排序中排到最后', () => {
     const input = baseInput(db);
     const normal = orderService.create(db, { ...input, orderNo: 'N-NORMAL', orderDate: '2026-10-01' });

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -28,7 +28,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api, errorMessage } from '../api';
-import type { Customer, OrderAttachment, OrderDetail, OrderItem, OrderNode } from '../models';
+import type { Customer, ItemProgressNode, OrderAttachment, OrderDetail, OrderItem, OrderNode } from '../models';
 import { ITEM_STAGES, NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 import { NodeStepper } from '../components/NodeStepper';
 import { QuoteModal } from '../components/QuoteModal';
@@ -58,8 +58,13 @@ export function OrderDetailPage(): JSX.Element {
   const [contractUrls, setContractUrls] = useState<Record<number, string>>({});
   const [remarkDraft, setRemarkDraft] = useState('');
   const [savingRemark, setSavingRemark] = useState(false);
-  const [progressItem, setProgressItem] = useState<OrderItem | null>(null);
-  const [stageDraft, setStageDraft] = useState(0);
+  const [itemNodeEdit, setItemNodeEdit] = useState<{
+    item: OrderItem;
+    index: number;
+    nodes: ItemProgressNode[];
+  } | null>(null);
+  const [itemNodeName, setItemNodeName] = useState('');
+  const [itemNodeStatus, setItemNodeStatus] = useState<string>('pending');
   const [loading, setLoading] = useState(false);
   const [nodeModal, setNodeModal] = useState<{ mode: 'edit' | 'create'; node: OrderNode | null } | null>(null);
   const [statusValue, setStatusValue] = useState<string>('pending');
@@ -124,15 +129,25 @@ export function OrderDetailPage(): JSX.Element {
       ? dayjs(today).diff(dayjs(detail.expectedDeliveryDate), 'day')
       : 0;
 
-  /** 把某颗物料的当前阶段映射成一条可点击的步骤条 */
+  /** 某颗物料的进度节点：优先使用它自己保存的节点，没有则按阶段生成默认节点 */
+  const itemNodesFor = (item: OrderItem): ItemProgressNode[] => {
+    if (item.progressNodes && item.progressNodes.length > 0) return item.progressNodes;
+    const stage = item.stage ?? 0;
+    return ITEM_STAGES.map((name, i) => ({
+      name,
+      status: i < stage ? 'done' : i === stage ? 'in_progress' : 'pending',
+    }));
+  };
+
+  /** 把某颗物料的节点映射成可点击的步骤条 */
   const stageNodesFor = (item: OrderItem): OrderNode[] =>
-    ITEM_STAGES.map((name, i) => ({
+    itemNodesFor(item).map((n, i) => ({
       id: i,
       orderId: detail.id,
       templateId: null,
       templateCode: null,
-      name,
-      status: i < (item.stage ?? 0) ? 'done' : i === (item.stage ?? 0) ? 'in_progress' : 'pending',
+      name: n.name,
+      status: n.status,
       planTime: null,
       actualTime: null,
       sortOrder: i,
@@ -230,17 +245,23 @@ export function OrderDetailPage(): JSX.Element {
     }
   };
 
-  const openProgress = (item: OrderItem): void => {
-    setProgressItem(item);
-    setStageDraft(item.stage ?? 0);
+  const openItemNode = (item: OrderItem, index: number): void => {
+    const nodes = itemNodesFor(item).map((n) => ({ ...n }));
+    setItemNodeEdit({ item, index, nodes });
+    setItemNodeName(nodes[index]?.name ?? '');
+    setItemNodeStatus(nodes[index]?.status ?? 'pending');
   };
 
-  const saveProgress = async (): Promise<void> => {
-    if (!progressItem) return;
+  const saveItemNode = async (): Promise<void> => {
+    if (!itemNodeEdit) return;
+    const { item, index, nodes } = itemNodeEdit;
+    const next = nodes.map((n, i) =>
+      i === index ? { name: itemNodeName.trim() || n.name, status: itemNodeStatus as never } : n,
+    );
     try {
-      await api.orders.updateItemStage(progressItem.id, stageDraft);
-      void message.success('时间轴阶段已更新');
-      setProgressItem(null);
+      await api.orders.updateItemNodes(item.id, next);
+      void message.success('物料进度节点已更新');
+      setItemNodeEdit(null);
       await load();
     } catch (e) {
       void message.error(errorMessage(e));
@@ -473,13 +494,16 @@ export function OrderDetailPage(): JSX.Element {
             <Tag>{detail.items.length} 颗料</Tag>
           </Space>
         }
-        extra={<span style={{ color: '#8c8c8c', fontSize: 12 }}>每颗料一条进度线，点步骤单独调整</span>}
+        extra={<span style={{ color: '#8c8c8c', fontSize: 12 }}>点任意节点可改名称/状态</span>}
         style={{ marginTop: 16, marginBottom: 16 }}
       >
         {detail.items.length === 0 && <div style={{ color: '#999' }}>暂无物料明细</div>}
         {detail.items.map((it) => {
-          const stage = it.stage ?? 0;
-          const color = stage >= ITEM_STAGES.length - 1 ? '#52c41a' : '#1677ff';
+          const nodes = itemNodesFor(it);
+          const currentIdx = nodes.findIndex((n) => n.status !== 'done');
+          const stepNo = currentIdx === -1 ? nodes.length : currentIdx + 1;
+          const currentName = currentIdx === -1 ? '已完成' : nodes[currentIdx]?.name ?? '';
+          const color = currentIdx === -1 ? '#52c41a' : '#1677ff';
           return (
             <div
               key={it.id}
@@ -506,15 +530,12 @@ export function OrderDetailPage(): JSX.Element {
                   <span style={{ color: '#999' }}>{it.chipModel}</span>
                 </Space>
                 <Tag color={color}>
-                  第 {stage + 1} 步 · {ITEM_STAGES[stage] ?? ITEM_STAGES[0]}
+                  第 {stepNo} 步 · {currentName}
                 </Tag>
               </div>
               <NodeStepper
                 nodes={stageNodesFor(it)}
-                onSelect={(n) => {
-                  setProgressItem(it);
-                  setStageDraft(n.sortOrder);
-                }}
+                onSelect={(n) => openItemNode(it, n.sortOrder)}
               />
             </div>
           );
@@ -601,28 +622,33 @@ export function OrderDetailPage(): JSX.Element {
       </Modal>
 
       <Modal
-        title="设置该物料的时间轴"
-        open={!!progressItem}
-        onOk={() => void saveProgress()}
-        onCancel={() => setProgressItem(null)}
+        title="设置物料进度节点"
+        open={!!itemNodeEdit}
+        onOk={() => void saveItemNode()}
+        onCancel={() => setItemNodeEdit(null)}
         okText="保存"
         cancelText="取消"
         destroyOnClose
       >
         <div style={{ color: '#666', marginBottom: 12 }}>
-          {progressItem?.materialName ?? progressItem?.chipModel ?? ''}
+          {itemNodeEdit?.item.materialName ?? itemNodeEdit?.item.chipModel ?? ''}
         </div>
-        <div style={{ color: '#595959', marginBottom: 8 }}>当前进行到哪一步：</div>
-        <Space direction="vertical" size={6} style={{ display: 'flex' }}>
-          {ITEM_STAGES.map((name, i) => (
+        <div style={{ color: '#595959', marginBottom: 6 }}>节点名称</div>
+        <Input value={itemNodeName} onChange={(e) => setItemNodeName(e.target.value)} />
+        <div style={{ color: '#595959', margin: '14px 0 8px' }}>当前进度状态</div>
+        <Space wrap>
+          {Object.entries(NODE_STATUS_LABELS).map(([value, label]) => (
             <Button
-              key={name}
-              type={stageDraft === i ? 'primary' : 'default'}
-              block
-              style={{ textAlign: 'left' }}
-              onClick={() => setStageDraft(i)}
+              key={value}
+              type={itemNodeStatus === value ? 'primary' : 'default'}
+              style={
+                itemNodeStatus === value
+                  ? { background: NODE_STATUS_COLORS[value], borderColor: NODE_STATUS_COLORS[value] }
+                  : undefined
+              }
+              onClick={() => setItemNodeStatus(value)}
             >
-              {i + 1}. {name}
+              {label}
             </Button>
           ))}
         </Space>

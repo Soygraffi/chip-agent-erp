@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,16 +26,16 @@ describe('V1.10.1 客户删除/明细交货/时间轴/排序/拖动设置', () =
     expect(detail.includes("title: '实际交货日期'")).toBe(true);
   });
 
-  it('每颗料使用固定时间轴（需求沟通/报价中/客户确认…），不再用百分比', () => {
+  it('每颗料有自己的时间轴，且每个节点可单独改名/设状态', () => {
     const detail = read('apps/desktop/src/renderer/src/pages/OrderDetailPage.tsx');
-    expect(detail.includes('设置该物料的时间轴')).toBe(true);
+    expect(detail.includes('设置物料进度节点')).toBe(true);
     expect(detail.includes('各物料进度')).toBe(true);
     expect(detail.includes('订单总进度')).toBe(true);
     expect(detail.indexOf('订单总进度')).toBeLessThan(detail.indexOf('各物料进度'));
     expect(detail.includes('stageNodesFor')).toBe(true);
+    expect(detail.includes('updateItemNodes')).toBe(true);
     expect(detail.includes("title: '时间轴进度'")).toBe(false);
     expect(detail.includes('ITEM_STAGES')).toBe(true);
-    expect(detail.includes('updateItemStage')).toBe(true);
     expect(detail.includes('完成百分比')).toBe(false);
     expect(detail.includes('progressPercent')).toBe(false);
     const shared = read('packages/shared/src/types.ts');

@@ -189,6 +189,11 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
+  ipcMain.handle('orders:updateItemNodes', (_e, itemId: number, nodes: { name: string; status: NodeStatus }[]) => {
+    const r = wrap(() => orderService.updateItemNodes(db(), itemId, nodes));
+    if (r.ok) changed();
+    return r;
+  });
   ipcMain.handle('orders:updateItemStage', (_e, itemId: number, stage: number) => {
     const r = wrap(() => orderService.updateItemStage(db(), itemId, stage));
     if (r.ok) changed();

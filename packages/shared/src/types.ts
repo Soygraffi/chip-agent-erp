@@ -171,6 +171,11 @@ export interface Order {
   updatedAt: string;
 }
 
+export interface ItemProgressNode {
+  name: string;
+  status: NodeStatus;
+}
+
 export interface OrderItem {
   id: number;
   orderId: number;
@@ -195,6 +200,8 @@ export interface OrderItem {
   actualDeliveryDate: string | null;
   /** V1.10.1 该明细当前所处时间轴阶段（0 起，见 ITEM_STAGES） */
   stage: number;
+  /** V1.10.6 该明细自己的进度节点（可逐节点改名/设状态） */
+  progressNodes: ItemProgressNode[] | null;
   sortOrder: number;
 }
 

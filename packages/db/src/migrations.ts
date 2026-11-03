@@ -550,6 +550,10 @@ const V15_SUPPLIER_LOGO = `;
 ALTER TABLE supplier ADD COLUMN logo_path TEXT;
 `;
 
+const V16_ITEM_NODES = `;
+ALTER TABLE order_item ADD COLUMN progress_nodes TEXT;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -566,5 +570,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 13, name: 'v1.10.1 item stage & manual order sort', sql: V1101 },
   { version: 14, name: 'v1.10.4 node status none', sql: V1104 },
   { version: 15, name: 'v1.10.5 supplier logo', sql: V15_SUPPLIER_LOGO },
+  { version: 16, name: 'v1.10.6 item progress nodes', sql: V16_ITEM_NODES },
 ];
 

@@ -22,6 +22,7 @@ import {
   setOrderGroups,
   reorderOrders,
   updateItemStage,
+  updateItemNodes,
   updateOrder,
   type ItemInput,
   type OrderFilter,
@@ -274,6 +275,17 @@ export const orderService = {
   updateItemStage(db: DatabaseSync, itemId: number, stage: number): boolean {
     if (!Number.isFinite(stage)) throw bizError('VALIDATION', '进度阶段不正确');
     return updateItemStage(db, itemId, stage);
+  },
+
+  /** V1.10.6：保存某条物料明细自己的进度节点（逐节点名称/状态） */
+  updateItemNodes(
+    db: DatabaseSync,
+    itemId: number,
+    nodes: { name: string; status: OrderNode['status'] }[],
+  ): boolean {
+    if (!Array.isArray(nodes) || nodes.length === 0)
+      throw bizError('VALIDATION', '进度节点不能为空');
+    return updateItemNodes(db, itemId, nodes);
   },
 
   /** V1.10.1：保存订单手动排序 */

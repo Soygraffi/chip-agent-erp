@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { Order, OrderItem, OrderListRow, Page } from '@erp/shared';
+import type { ItemProgressNode, Order, OrderItem, OrderListRow, Page } from '@erp/shared';
 import { dateDiffDays } from '@erp/shared';
 import { escapeLike } from './customer-repo.js';
 
@@ -275,6 +275,38 @@ export interface ItemInput {
   /** V1.10：实际交货日期与时间轴阶段 */
   actualDeliveryDate?: string | null;
   stage?: number;
+  /** V1.10.6：该明细自己的进度节点 */
+  progressNodes?: ItemProgressNode[] | null;
+}
+
+function parseProgressNodes(v: unknown): ItemProgressNode[] | null {
+  if (typeof v !== 'string' || !v) return null;
+  try {
+    const arr = JSON.parse(v) as unknown;
+    if (!Array.isArray(arr)) return null;
+    const nodes: ItemProgressNode[] = [];
+    for (const n of arr) {
+      if (!n || typeof n !== 'object') continue;
+      const rec = n as Record<string, unknown>;
+      if (typeof rec.name !== 'string' || typeof rec.status !== 'string') continue;
+      nodes.push({ name: rec.name, status: rec.status as ItemProgressNode['status'] });
+    }
+    return nodes.length > 0 ? nodes : null;
+  } catch {
+    return null;
+  }
+}
+
+function serializeProgressNodes(nodes: ItemProgressNode[] | null | undefined): string | null {
+  if (!nodes || nodes.length === 0) return null;
+  return JSON.stringify(nodes.map((n) => ({ name: n.name, status: n.status })));
+}
+
+/** 根据节点状态推导当前阶段序号（第一个未完成节点；全部完成则为节点数） */
+function stageFromNodes(nodes: ItemProgressNode[], fallback: number): number {
+  if (nodes.length === 0) return fallback;
+  const idx = nodes.findIndex((n) => n.status !== 'done');
+  return idx === -1 ? nodes.length : idx;
 }
 
 export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
@@ -285,7 +317,7 @@ export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
         'i.qty, i.unit_price AS unitPrice, i.purchase_price AS purchasePrice, i.price_tax_included AS priceTaxIncluded, ' +
         'i.purchase_tax_included AS purchaseTaxIncluded, i.tax_rate AS taxRate, i.subtotal, i.customer_pn AS customerPn, ' +
         'i.remark, i.sort_order AS sortOrder, i.supplier_id AS supplierId, s.name AS supplierName, ' +
-        'i.actual_delivery_date AS actualDeliveryDate, i.progress AS stage ' +
+        'i.actual_delivery_date AS actualDeliveryDate, i.progress AS stage, i.progress_nodes AS progressNodes ' +
         'FROM order_item i LEFT JOIN supplier s ON s.id = i.supplier_id WHERE i.order_id = ? ORDER BY i.sort_order, i.id',
     )
     .all(orderId)
@@ -308,6 +340,7 @@ export function listItems(db: DatabaseSync, orderId: number): OrderItem[] {
           remark: (r.remark as string | null) ?? null,
           actualDeliveryDate: (r.actualDeliveryDate as string | null) ?? null,
           stage: Number(r.stage ?? 0),
+          progressNodes: parseProgressNodes(r.progressNodes),
         }) as OrderItem,
     );
 }
@@ -317,8 +350,8 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
   const stmt = db.prepare(
     'INSERT INTO order_item (order_id, material_id, material_code, material_name, chip_model, brand, ' +
       'package_spec, qty, unit_price, purchase_price, price_tax_included, purchase_tax_included, tax_rate, subtotal, ' +
-      'customer_pn, remark, sort_order, supplier_id, actual_delivery_date, progress) ' +
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'customer_pn, remark, sort_order, supplier_id, actual_delivery_date, progress, progress_nodes) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   items.forEach((it, i) => {
     stmt.run(
@@ -341,7 +374,10 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
       i + 1,
       it.supplierId ?? null,
       it.actualDeliveryDate ?? null,
-      it.stage ?? 0,
+      it.progressNodes && it.progressNodes.length > 0
+        ? stageFromNodes(it.progressNodes, it.stage ?? 0)
+        : it.stage ?? 0,
+      serializeProgressNodes(it.progressNodes),
     );
   });
 }
@@ -350,6 +386,21 @@ export function replaceItems(db: DatabaseSync, orderId: number, items: ItemInput
 export function updateItemStage(db: DatabaseSync, itemId: number, stage: number): boolean {
   const s = Math.max(0, Math.round(stage));
   return db.prepare('UPDATE order_item SET progress = ? WHERE id = ?').run(s, itemId).changes > 0;
+}
+
+/** V1.10.6 保存某条明细自己的进度节点（逐节点名称/状态） */
+export function updateItemNodes(
+  db: DatabaseSync,
+  itemId: number,
+  nodes: ItemProgressNode[],
+): boolean {
+  if (nodes.length === 0) return false;
+  const progress = stageFromNodes(nodes, 0);
+  return (
+    db
+      .prepare('UPDATE order_item SET progress = ?, progress_nodes = ? WHERE id = ?')
+      .run(progress, serializeProgressNodes(nodes), itemId).changes > 0
+  );
 }
 
 /** V1.10.1 批量保存订单手动排序（拖动顺序） */
