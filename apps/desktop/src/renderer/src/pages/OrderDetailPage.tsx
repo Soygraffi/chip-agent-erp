@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -148,7 +148,7 @@ export function OrderDetailPage(): JSX.Element {
   const deriveStatus = (): { label: string; color: string } => {
     if (sortedNodes.length === 0) return { label: '未填写', color: '#BFBFBF' };
     if (sortedNodes.some((n) => n.status === 'none'))
-      return { label: '无 · 客户未继续下单', color: '#BFBFBF' };
+      return { label: '未下单', color: '#BFBFBF' };
     if (sortedNodes.every((n) => n.status === 'done')) return { label: '已完结', color: '#52C41A' };
     const current = sortedNodes.find((n) => n.status !== 'done')!;
     return {

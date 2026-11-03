@@ -1,5 +1,6 @@
-﻿import React from 'react';
+import React from 'react';
 import { Steps, Tag } from 'antd';
+import { CloseOutlined } from '@ant-design/icons';
 import type { OrderNode } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
 
@@ -7,6 +8,27 @@ interface NodeStepperProps {
   nodes: OrderNode[];
   onSelect: (node: OrderNode) => void;
   compact?: boolean;
+}
+
+/** 「未下单」标记：浅灰空心圆 + 灰色叉，与异常延误的红色实心叉区分 */
+function NoneIcon(): JSX.Element {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        width: 24,
+        height: 24,
+        borderRadius: '50%',
+        background: '#FAFAFA',
+        border: '1px solid #BFBFBF',
+        color: '#8C8C8C',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <CloseOutlined style={{ fontSize: 12 }} />
+    </span>
+  );
 }
 
 function stepStatus(n: OrderNode): 'wait' | 'process' | 'finish' | 'error' {
@@ -33,6 +55,7 @@ export function NodeStepper({ nodes, onSelect }: NodeStepperProps): JSX.Element 
         items={sorted.map((n) => ({
           title: n.name,
           status: stepStatus(n),
+          icon: n.status === 'none' ? <NoneIcon /> : undefined,
           description: <Tag color={NODE_STATUS_COLORS[n.status]}>{NODE_STATUS_LABELS[n.status]}</Tag>,
         }))}
       />

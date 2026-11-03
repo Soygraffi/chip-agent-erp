@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -190,7 +190,7 @@ export function OrdersBoard({
     if (nodes.length === 0) return { label: '未填写', color: '#BFBFBF' };
     const sorted = [...nodes].sort((a, b) => a.sortOrder - b.sortOrder);
     const stopped = sorted.find((n) => n.status === 'none');
-    if (stopped) return { label: '无 · 客户未继续下单', color: '#BFBFBF' };
+    if (stopped) return { label: '未下单', color: '#BFBFBF' };
     if (sorted.every((n) => n.status === 'done')) return { label: '已完结', color: '#52C41A' };
     const current = sorted.find((n) => n.status !== 'done')!;
     return {

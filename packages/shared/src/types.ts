@@ -1,4 +1,4 @@
-/** 字典类别（可配置字典） */
+﻿/** 字典类别（可配置字典） */
 export type DictCategory = 'customer_type' | 'order_type' | 'payment_method' | 'currency';
 
 export const DICT_CATEGORIES: DictCategory[] = [
@@ -17,7 +17,7 @@ export const NODE_STATUS_LABELS: Record<NodeStatus, string> = {
   in_progress: '进行中',
   done: '已完成',
   delayed: '异常延误',
-  none: '无（客户未继续）',
+  none: '未下单',
 };
 
 export const NODE_STATUS_COLORS: Record<NodeStatus, string> = {

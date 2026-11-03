@@ -25,7 +25,7 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(form.includes('订单状态')).toBe(false);
     const board = read('apps/desktop/src/renderer/src/components/OrdersBoard.tsx');
     expect(board.includes('placeholder="订单状态"')).toBe(false);
-    expect(board.includes('无 · 客户未继续下单')).toBe(true);
+    expect(board.includes('未下单')).toBe(true);
     const settings = read('apps/desktop/src/renderer/src/pages/SettingsPage.tsx');
     expect(settings.includes("key: 'status'")).toBe(false);
   });
@@ -38,9 +38,12 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(repo.includes('currentNodeName')).toBe(true);
   });
 
-  it('节点状态含「无」选项与颜色', () => {
+  it('节点状态含「未下单」选项与专属叉叉图标', () => {
     const shared = read('packages/shared/src/types.ts');
-    expect(shared.includes("none: '无（客户未继续）'")).toBe(true);
+    expect(shared.includes("none: '未下单'")).toBe(true);
     expect(shared.includes("'none'")).toBe(true);
+    const stepper = read('apps/desktop/src/renderer/src/components/NodeStepper.tsx');
+    expect(stepper.includes('NoneIcon')).toBe(true);
+    expect(stepper.includes('CloseOutlined')).toBe(true);
   });
 });

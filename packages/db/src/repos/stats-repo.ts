@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+﻿import type { DatabaseSync } from 'node:sqlite';
 import type { DashboardStats, OrderListRow, ReminderItem, StatusDistributionItem } from '@erp/shared';
 import { monthRange, NODE_STATUS_COLORS } from '@erp/shared';
 import { listOrders, UNFILLED_STATUS_COLOR } from './order-repo.js';
@@ -93,7 +93,7 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
       name = '未填写';
       color = UNFILLED_STATUS_COLOR;
     } else if (r.noneCount > 0) {
-      name = '无（客户未继续下单）';
+      name = '未下单';
       color = '#BFBFBF';
     } else if (!r.currentNodeName) {
       name = '已完结';

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Row, Select, Space, Statistic, message } from 'antd';
 import {
   AppstoreAddOutlined,
@@ -30,7 +30,7 @@ interface MetricProps {
 const STATUS_MEANINGS: Record<string, string> = {
   已完结: '订单所有节点都已完成',
   未填写: '订单还没有进度节点',
-  '无（客户未继续下单）': '客户在沟通/报价后没有继续下单',
+  '未下单': '客户在沟通/报价后没有继续下单',
 };
 
 function statusMeaning(name: string): string {
