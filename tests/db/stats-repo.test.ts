@@ -87,10 +87,11 @@ describe('首页看板口径（SQL 实现，对照 PRD 4.1.3 / data-model 6.6，
     expect(s.keyOrderCount).toBe(1); // O1
   });
 
-  it('状态分布饼图数据（含 0 单状态与“未填写”扇区）', () => {
+  it('当前节点分布（按节点统计，无节点为未填写）', () => {
     const s = dashboard(db, TODAY);
     const byName = Object.fromEntries(s.statusDistribution.map((x) => [x.statusName, x.count]));
-    expect(byName).toEqual({ 待确认: 0, 进行中: 2, 已发货: 1, 已完结: 1, 已取消: 1, 未填写: 1 });
+    // O1 当前在“发货中”，O2 全部完成，其余订单没有节点
+    expect(byName).toEqual({ 发货中: 1, 已完结: 1, 未填写: 4 });
   });
 
   it('逾期订单列表：按逾期天数倒序（交期越早越靠前）', () => {

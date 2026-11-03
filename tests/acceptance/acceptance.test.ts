@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 第九章验收标准自动化验收（PRD 9.1 功能 15 条 + V1.2 微信群/订单文档 + 9.2 非功能可度量项）
  * 沙箱内无法验证的 GUI/安装包项以注释标注，交由真机验收（见 docs/dev-plan.md M9）。
  */
@@ -214,7 +214,8 @@ describe('第九章验收标准', () => {
     expect(s.keyOrderCount).toBe(1);
     expect(s.overdueOrders[0].daysOverdue).toBe(8);
     expect(s.statusDistribution.map((x) => x.count).reduce((a, b) => a + b, 0)).toBe(2);
-    expect(s.statusDistribution.some((x) => x.statusName === '未填写')).toBe(true);
+    // V1.10.4：分布按订单当前节点统计（新建订单都停在第一个节点「需求沟通」）
+    expect(s.statusDistribution.some((x) => x.statusName === '需求沟通')).toBe(true);
   });
 
   it('9.1.9 提醒识别正确（仅非终态 × 三状态 × 已填计划；3 天内含今天）', () => {

@@ -87,7 +87,6 @@ export function OrdersBoard({
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [statusId, setStatusId] = useState<number | null>(null);
   const [quoteOrder, setQuoteOrder] = useState<OrderWithDetails | null>(null);
   const [typeId, setTypeId] = useState<number | null>(null);
   const [range, setRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
@@ -96,7 +95,6 @@ export function OrdersBoard({
     'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual'
   >('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [statuses, setStatuses] = useState<OptionItem[]>([]);
   const [types, setTypes] = useState<OptionItem[]>([]);
   const [nodeModal, setNodeModal] = useState<OrderNode | null>(null);
   const [statusValue, setStatusValue] = useState<string>('pending');
@@ -114,7 +112,6 @@ export function OrdersBoard({
     try {
       const r = (await api.orders.overview({
         search: search || undefined,
-        statusId,
         typeId,
         dateFrom: range?.[0]?.format('YYYY-MM-DD') ?? undefined,
         dateTo: range?.[1]?.format('YYYY-MM-DD') ?? undefined,
@@ -132,14 +129,13 @@ export function OrdersBoard({
     } finally {
       setLoading(false);
     }
-  }, [search, statusId, typeId, range, onlyOverdue, onlyKey, sortField, sortDir, page, pageSize]);
+  }, [search, typeId, range, onlyOverdue, onlyKey, sortField, sortDir, page, pageSize]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    void api.statuses.list().then((r) => setStatuses(r as OptionItem[]));
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
   }, []);
 
@@ -189,10 +185,12 @@ export function OrdersBoard({
     }
   };
 
-  /** 订单状态与时间轴联动：取当前（第一个未完成）节点的状态；全部完成则为已完结 */
+  /** 订单状态由节点推导：无 → 客户未继续；全部完成 → 已完结；否则当前节点 */
   const deriveStatus = (nodes: OrderNode[]): { label: string; color: string } => {
     if (nodes.length === 0) return { label: '未填写', color: '#BFBFBF' };
     const sorted = [...nodes].sort((a, b) => a.sortOrder - b.sortOrder);
+    const stopped = sorted.find((n) => n.status === 'none');
+    if (stopped) return { label: '无 · 客户未继续下单', color: '#BFBFBF' };
     if (sorted.every((n) => n.status === 'done')) return { label: '已完结', color: '#52C41A' };
     const current = sorted.find((n) => n.status !== 'done')!;
     return {
@@ -227,16 +225,6 @@ export function OrdersBoard({
             onSearch={(v) => {
               setPage(1);
               setSearch(v);
-            }}
-          />
-          <Select
-            allowClear
-            placeholder="订单状态"
-            style={{ width: 125 }}
-            options={statuses.map((s) => ({ value: s.id, label: s.name }))}
-            onChange={(v) => {
-              setPage(1);
-              setStatusId(v ?? null);
             }}
           />
           <Select

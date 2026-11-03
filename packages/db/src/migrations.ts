@@ -492,6 +492,60 @@ ALTER TABLE orders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 UPDATE orders SET sort_order = id WHERE sort_order = 0;
 `;
 
+/**
+ * V1.10.4：节点状态新增「无」（客户未继续下单）；重建节点相关表以放宽 CHECK 约束。
+ */
+const V1104 = `
+ALTER TABLE order_node RENAME TO order_node_old;
+CREATE TABLE order_node (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id    INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  template_id INTEGER REFERENCES node_template(id),
+  name        TEXT    NOT NULL,
+  status      TEXT    NOT NULL DEFAULT 'pending'
+              CHECK (status IN ('pending','in_progress','done','delayed','none')),
+  plan_time   TEXT,
+  actual_time TEXT,
+  owner       TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT INTO order_node (id, order_id, template_id, name, status, plan_time, actual_time, sort_order, created_at, updated_at)
+  SELECT id, order_id, template_id, name, status, plan_time, actual_time, sort_order, created_at, updated_at FROM order_node_old;
+
+CREATE TABLE node_follow_up_new (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  node_id    INTEGER NOT NULL REFERENCES order_node(id) ON DELETE CASCADE,
+  content    TEXT    NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT INTO node_follow_up_new (id, node_id, content, created_at)
+  SELECT id, node_id, content, created_at FROM node_follow_up;
+DROP TABLE node_follow_up;
+ALTER TABLE node_follow_up_new RENAME TO node_follow_up;
+
+CREATE TABLE node_attachment_new (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  node_id       INTEGER NOT NULL REFERENCES order_node(id) ON DELETE CASCADE,
+  original_name TEXT    NOT NULL,
+  stored_path   TEXT    NOT NULL,
+  size          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT INTO node_attachment_new (id, node_id, original_name, stored_path, size, created_at)
+  SELECT id, node_id, original_name, stored_path, size, created_at FROM node_attachment;
+DROP TABLE node_attachment;
+ALTER TABLE node_attachment_new RENAME TO node_attachment;
+
+DROP TABLE order_node_old;
+
+CREATE INDEX idx_node_order ON order_node(order_id, sort_order);
+CREATE INDEX idx_node_plan  ON order_node(plan_time) WHERE status IN ('pending','in_progress','delayed');
+CREATE INDEX idx_follow_up_node ON node_follow_up(node_id, created_at);
+CREATE INDEX idx_attachment_node ON node_attachment(node_id);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -506,5 +560,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 11, name: 'v1.9 item supplier, order qty, attachment kind', sql: V19 },
   { version: 12, name: 'v1.10 item delivery date & progress', sql: V110 },
   { version: 13, name: 'v1.10.1 item stage & manual order sort', sql: V1101 },
+  { version: 14, name: 'v1.10.4 node status none', sql: V1104 },
 ];
 

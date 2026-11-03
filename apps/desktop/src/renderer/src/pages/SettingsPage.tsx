@@ -769,7 +769,6 @@ export function SettingsPage(): JSX.Element {
           { key: 'dict', label: '客户类型', children: <DictTab category="customer_type" /> },
           { key: 'order_type', label: '订单类型', children: <DictTab category="order_type" /> },
           { key: 'payment_method', label: '付款方式', children: <DictTab category="payment_method" /> },
-          { key: 'status', label: '订单状态（语义）', children: <StatusTab /> },
           { key: 'template', label: '节点顺序 / 模板', children: <TemplateTab /> },
           { key: 'quote', label: '报价单', children: <QuoteTab /> },
           { key: 'menu', label: '菜单顺序', children: <MenuOrderTab /> },

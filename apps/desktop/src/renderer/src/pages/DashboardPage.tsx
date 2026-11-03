@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Row, Select, Space, Statistic, message } from 'antd';
 import {
   AppstoreAddOutlined,
@@ -26,18 +26,15 @@ interface MetricProps {
   money?: boolean;
 }
 
-/** 订单状态的含义（用于饼图悬浮说明与图表下方图例） */
+/** 当前节点分布的含义（用于饼图悬浮说明与图表下方图例） */
 const STATUS_MEANINGS: Record<string, string> = {
-  待确认: '客户还未下单完成（询价 / 规格确认中）',
-  进行中: '客户下单完成后的执行状态',
-  已发货: '已发货，等待签收 / 对账',
-  已完结: '订单全部完成',
-  已取消: '订单已取消',
-  未填写: '尚未设置订单状态',
+  已完结: '订单所有节点都已完成',
+  未填写: '订单还没有进度节点',
+  '无（客户未继续下单）': '客户在沟通/报价后没有继续下单',
 };
 
 function statusMeaning(name: string): string {
-  return STATUS_MEANINGS[name] ?? '自定义状态';
+  return STATUS_MEANINGS[name] ?? `当前进行到「${name}」节点`;
 }
 
 function MetricCard({ title, value, icon, color, money }: MetricProps): JSX.Element {
@@ -211,7 +208,7 @@ export function DashboardPage(): JSX.Element {
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={10}>
           <Card
-            title="订单状态分布"
+            title="订单进度分布（按当前节点）"
             size="small"
             bordered={false}
             loading={loading}

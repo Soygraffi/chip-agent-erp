@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Steps, Tag } from 'antd';
 import type { OrderNode } from '../models';
 import { NODE_STATUS_COLORS, NODE_STATUS_LABELS } from '../models';
@@ -12,6 +12,7 @@ interface NodeStepperProps {
 function stepStatus(n: OrderNode): 'wait' | 'process' | 'finish' | 'error' {
   if (n.status === 'done') return 'finish';
   if (n.status === 'delayed') return 'error';
+  if (n.status === 'none') return 'wait';
   if (n.status === 'in_progress') return 'process';
   return 'wait';
 }

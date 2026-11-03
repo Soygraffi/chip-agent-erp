@@ -117,7 +117,6 @@ export function OrderFormPage(): JSX.Element {
   const isEdit = !!id;
   const navigate = useNavigate();
   const [customers, setCustomers] = useState<OptionItem[]>([]);
-  const [statuses, setStatuses] = useState<OptionItem[]>([]);
   const [types, setTypes] = useState<OptionItem[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<OptionItem[]>([]);
   const [groups, setGroups] = useState<WechatGroup[]>([]);
@@ -139,7 +138,6 @@ export function OrderFormPage(): JSX.Element {
 
   useEffect(() => {
     void api.customers.options().then((r) => setCustomers(r as OptionItem[]));
-    void api.statuses.list().then((r) => setStatuses(r as OptionItem[]));
     void api.dicts.list('order_type').then((r) => setTypes(r as OptionItem[]));
     void api.dicts.list('payment_method').then((r) => setPaymentMethods(r as OptionItem[]));
 
@@ -231,7 +229,6 @@ export function OrderFormPage(): JSX.Element {
         customerId: values.customerId,
         orderDate: values.orderDate ? (values.orderDate as dayjs.Dayjs).format('YYYY-MM-DD') : null,
         typeId: values.typeId ?? null,
-        statusId: values.statusId ?? null,
         expectedDeliveryDate: values.expectedDeliveryDate ? (values.expectedDeliveryDate as dayjs.Dayjs).format('YYYY-MM-DD') : null,
         actualDeliveryDate: values.actualDeliveryDate ? (values.actualDeliveryDate as dayjs.Dayjs).format('YYYY-MM-DD') : null,
         orderQty: values.orderQty ?? null,
@@ -489,9 +486,6 @@ export function OrderFormPage(): JSX.Element {
           </Form.Item>
           <Form.Item name="typeId" label="订单类型" extra="可不填">
             <Select allowClear style={{ width: 130 }} options={types.map((t) => ({ value: t.id, label: t.name }))} />
-          </Form.Item>
-          <Form.Item name="statusId" label="订单状态" extra="可不填">
-            <Select allowClear style={{ width: 130 }} options={statuses.map((s) => ({ value: s.id, label: s.name }))} />
           </Form.Item>
           <Form.Item name="actualDeliveryDate" label="实际交货日期">
             <DatePicker style={{ width: 150 }} />

@@ -34,13 +34,6 @@ import { NodeStepper } from '../components/NodeStepper';
 import { QuoteModal } from '../components/QuoteModal';
 import type { QuoteModalItem } from '../components/QuoteModal';
 
-interface StatusItem {
-  id: number;
-  name: string;
-  color: string;
-  isTerminal: boolean;
-}
-
 interface TypeItem {
   id: number;
   name: string;
@@ -59,7 +52,6 @@ export function OrderDetailPage(): JSX.Element {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
-  const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [types, setTypes] = useState<TypeItem[]>([]);
   const [docs, setDocs] = useState<OrderAttachment[]>([]);
   const [contracts, setContracts] = useState<OrderAttachment[]>([]);
@@ -90,7 +82,6 @@ export function OrderDetailPage(): JSX.Element {
       const d = (await api.orders.get(orderId)) as OrderDetail;
       setDetail(d);
       setRemarkDraft(d.remark ?? '');
-      setStatuses((await api.statuses.list()) as StatusItem[]);
       setTypes((await api.dicts.list('order_type')) as TypeItem[]);
       const c = (await api.customers.get(d.customerId)) as Customer;
       setCustomerName(c.deletedAt ? `${c.name}（已删除客户）` : c.name);
@@ -123,14 +114,15 @@ export function OrderDetailPage(): JSX.Element {
     return <Card loading={loading} />;
   }
 
-  const status = statuses.find((s) => s.id === detail.statusId);
+  const sortedNodes = [...detail.nodes].sort((a, b) => a.sortOrder - b.sortOrder);
+
   const today = dayjs().format('YYYY-MM-DD');
+  const allNodesDone =
+    sortedNodes.length > 0 && sortedNodes.every((n) => n.status === 'done');
   const daysOverdue =
-    !status?.isTerminal && detail.expectedDeliveryDate && detail.expectedDeliveryDate < today
+    !allNodesDone && detail.expectedDeliveryDate && detail.expectedDeliveryDate < today
       ? dayjs(today).diff(dayjs(detail.expectedDeliveryDate), 'day')
       : 0;
-
-  const sortedNodes = [...detail.nodes].sort((a, b) => a.sortOrder - b.sortOrder);
 
   /** 把某颗物料的当前阶段映射成一条可点击的步骤条 */
   const stageNodesFor = (item: OrderItem): OrderNode[] =>
@@ -155,6 +147,8 @@ export function OrderDetailPage(): JSX.Element {
   /** 订单状态与时间轴联动：当前（第一个未完成）节点 */
   const deriveStatus = (): { label: string; color: string } => {
     if (sortedNodes.length === 0) return { label: '未填写', color: '#BFBFBF' };
+    if (sortedNodes.some((n) => n.status === 'none'))
+      return { label: '无 · 客户未继续下单', color: '#BFBFBF' };
     if (sortedNodes.every((n) => n.status === 'done')) return { label: '已完结', color: '#52C41A' };
     const current = sortedNodes.find((n) => n.status !== 'done')!;
     return {
@@ -270,7 +264,7 @@ export function OrderDetailPage(): JSX.Element {
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/orders')} />
           <span>{customerName}</span>
-          {status ? <Tag color={deriveStatus().color}>{deriveStatus().label}</Tag> : <Tag color="#BFBFBF">未填写</Tag>}
+          <Tag color={deriveStatus().color}>{deriveStatus().label}</Tag>
           {daysOverdue > 0 && <Tag color="red">逾期 {daysOverdue} 天</Tag>}
           {detail.isKey && <Tag color="gold">重点跟进</Tag>}
         </Space>

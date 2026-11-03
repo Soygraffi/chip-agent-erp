@@ -1,4 +1,4 @@
-﻿/** 渲染层用到的领域模型（与 @erp/shared 一致的类型别名） */
+/** 渲染层用到的领域模型（与 @erp/shared 一致的类型别名） */
 import type {
   Customer,
   CustomerListRow,
@@ -60,6 +60,7 @@ export const NODE_STATUS_LABELS: Record<string, string> = {
   in_progress: '进行中',
   done: '已完成',
   delayed: '异常延误',
+  none: '无（客户未继续）',
 };
 
 export const NODE_STATUS_COLORS: Record<string, string> = {
@@ -67,6 +68,7 @@ export const NODE_STATUS_COLORS: Record<string, string> = {
   in_progress: '#1677FF',
   done: '#52C41A',
   delayed: '#FF4D4F',
+  none: '#BFBFBF',
 };
 
 export { ITEM_STAGES } from '@erp/shared';

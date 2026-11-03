@@ -7,16 +7,17 @@ export const DICT_CATEGORIES: DictCategory[] = [
   'payment_method',
 ];
 
-/** 节点状态（代码内固定枚举，不可配置） */
-export type NodeStatus = 'pending' | 'in_progress' | 'done' | 'delayed';
+/** 节点状态（代码内固定枚举，不可配置）；none = 客户未继续下单 */
+export type NodeStatus = 'pending' | 'in_progress' | 'done' | 'delayed' | 'none';
 
-export const NODE_STATUS_VALUES: NodeStatus[] = ['pending', 'in_progress', 'done', 'delayed'];
+export const NODE_STATUS_VALUES: NodeStatus[] = ['pending', 'in_progress', 'done', 'delayed', 'none'];
 
 export const NODE_STATUS_LABELS: Record<NodeStatus, string> = {
   pending: '未开始',
   in_progress: '进行中',
   done: '已完成',
   delayed: '异常延误',
+  none: '无（客户未继续）',
 };
 
 export const NODE_STATUS_COLORS: Record<NodeStatus, string> = {
@@ -24,6 +25,7 @@ export const NODE_STATUS_COLORS: Record<NodeStatus, string> = {
   in_progress: '#1677FF',
   done: '#52C41A',
   delayed: '#FF4D4F',
+  none: '#BFBFBF',
 };
 
 export type TerminalResult = 'completed' | 'cancelled' | null;

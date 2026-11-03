@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { DashboardStats, OrderListRow, ReminderItem, StatusDistributionItem } from '@erp/shared';
-import { monthRange } from '@erp/shared';
-import { listOrders, UNFILLED_STATUS_COLOR, UNFILLED_STATUS_NAME } from './order-repo.js';
+import { monthRange, NODE_STATUS_COLORS } from '@erp/shared';
+import { listOrders, UNFILLED_STATUS_COLOR } from './order-repo.js';
 
 /** 非终态判定（状态为空视为未结束） */
 const NON_TERMINAL = '(s.is_terminal = 0 OR o.status_id IS NULL)';
@@ -68,27 +68,47 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
       .get() as { c: number }
   ).c;
 
-  const statusDistribution = db
+  // V1.10.4：状态分布按每张订单当前进行到的节点统计（不再使用订单状态字段）
+  const nodeRows = db
     .prepare(
-      'SELECT s.id AS statusId, s.name AS statusName, s.color, COUNT(o.id) AS count ' +
-        'FROM order_status s LEFT JOIN orders o ON o.status_id = s.id ' +
-        'GROUP BY s.id ORDER BY s.sort_order, s.id',
+      `SELECT o.id,
+        (SELECT COUNT(*) FROM order_node n WHERE n.order_id = o.id) AS nodeCount,
+        (SELECT COUNT(*) FROM order_node n WHERE n.order_id = o.id AND n.status = 'none') AS noneCount,
+        (SELECT n.name FROM order_node n WHERE n.order_id = o.id AND n.status != 'done' ORDER BY n.sort_order LIMIT 1) AS currentNodeName,
+        (SELECT n.status FROM order_node n WHERE n.order_id = o.id AND n.status != 'done' ORDER BY n.sort_order LIMIT 1) AS currentNodeStatus
+       FROM orders o`,
     )
-    .all()
-    .map((r) => ({ ...r, count: r.count ?? 0 }) as unknown as StatusDistributionItem);
+    .all() as {
+    nodeCount: number;
+    noneCount: number;
+    currentNodeName: string | null;
+    currentNodeStatus: string | null;
+  }[];
 
-  // 状态未填写的订单单独作为一个扇区
-  const unfilledCount = (
-    db.prepare('SELECT COUNT(*) AS c FROM orders WHERE status_id IS NULL').get() as { c: number }
-  ).c;
-  if (unfilledCount > 0) {
-    statusDistribution.push({
-      statusId: 0,
-      statusName: UNFILLED_STATUS_NAME,
-      color: UNFILLED_STATUS_COLOR,
-      count: unfilledCount,
-    });
+  const distMap = new Map<string, { statusName: string; color: string; count: number }>();
+  for (const r of nodeRows) {
+    let name: string;
+    let color: string;
+    if (r.nodeCount === 0) {
+      name = '未填写';
+      color = UNFILLED_STATUS_COLOR;
+    } else if (r.noneCount > 0) {
+      name = '无（客户未继续下单）';
+      color = '#BFBFBF';
+    } else if (!r.currentNodeName) {
+      name = '已完结';
+      color = '#52C41A';
+    } else {
+      name = r.currentNodeName;
+      color = NODE_STATUS_COLORS[(r.currentNodeStatus ?? 'pending') as keyof typeof NODE_STATUS_COLORS] ?? '#1677FF';
+    }
+    const cur = distMap.get(name) ?? { statusName: name, color, count: 0 };
+    cur.count += 1;
+    distMap.set(name, cur);
   }
+  const statusDistribution: StatusDistributionItem[] = [...distMap.values()]
+    .sort((a, b) => b.count - a.count || a.statusName.localeCompare(b.statusName, 'zh-CN'))
+    .map((v, i) => ({ statusId: i + 1, ...v }));
 
   const overdueOrders = listOrders(db, {
     onlyOverdue: true,
