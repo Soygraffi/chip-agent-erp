@@ -1,6 +1,6 @@
 ﻿import type { DatabaseSync } from 'node:sqlite';
 import type { DashboardStats, OrderListRow, ReminderItem, StatusDistributionItem } from '@erp/shared';
-import { monthRange, NODE_STATUS_COLORS } from '@erp/shared';
+import { monthRange } from '@erp/shared';
 import { listOrders, UNFILLED_STATUS_COLOR } from './order-repo.js';
 
 /** 非终态判定（状态为空视为未结束） */
@@ -75,15 +75,22 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
         (SELECT COUNT(*) FROM order_node n WHERE n.order_id = o.id) AS nodeCount,
         (SELECT COUNT(*) FROM order_node n WHERE n.order_id = o.id AND n.status = 'none') AS noneCount,
         (SELECT n.name FROM order_node n WHERE n.order_id = o.id AND n.status != 'done' ORDER BY n.sort_order LIMIT 1) AS currentNodeName,
-        (SELECT n.status FROM order_node n WHERE n.order_id = o.id AND n.status != 'done' ORDER BY n.sort_order LIMIT 1) AS currentNodeStatus
+        (SELECT n.sort_order FROM order_node n WHERE n.order_id = o.id AND n.status != 'done' ORDER BY n.sort_order LIMIT 1) AS currentNodeSort
        FROM orders o`,
     )
     .all() as {
     nodeCount: number;
     noneCount: number;
     currentNodeName: string | null;
-    currentNodeStatus: string | null;
+    currentNodeSort: number | null;
   }[];
+
+  // 每个节点用不同颜色，便于区分订单进行到哪一步
+  const STAGE_PALETTE = [
+    '#1677FF', '#13C2C2', '#2F54EB', '#722ED1', '#EB2F96',
+    '#FA8C16', '#FAAD14', '#A0D911', '#52C41A', '#F5222D',
+    '#08979C', '#D46B08',
+  ];
 
   const distMap = new Map<string, { statusName: string; color: string; count: number }>();
   for (const r of nodeRows) {
@@ -94,13 +101,14 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
       color = UNFILLED_STATUS_COLOR;
     } else if (r.noneCount > 0) {
       name = '未下单';
-      color = '#BFBFBF';
+      color = '#FF4D4F';
     } else if (!r.currentNodeName) {
       name = '已完结';
       color = '#52C41A';
     } else {
       name = r.currentNodeName;
-      color = NODE_STATUS_COLORS[(r.currentNodeStatus ?? 'pending') as keyof typeof NODE_STATUS_COLORS] ?? '#1677FF';
+      const idx = Math.max(0, (r.currentNodeSort ?? 1) - 1);
+      color = STAGE_PALETTE[idx % STAGE_PALETTE.length];
     }
     const cur = distMap.get(name) ?? { statusName: name, color, count: 0 };
     cur.count += 1;

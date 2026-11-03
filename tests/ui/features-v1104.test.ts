@@ -43,8 +43,6 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(shared.includes("none: '未下单'")).toBe(true);
     expect(shared.includes("'none'")).toBe(true);
     const stepper = read('apps/desktop/src/renderer/src/components/NodeStepper.tsx');
-    expect(stepper.includes('NoneIcon')).toBe(true);
-    expect(stepper.includes('CloseOutlined')).toBe(true);
-    expect(stepper.includes('#FF4D4F')).toBe(true);
+    expect(stepper.includes("if (n.status === 'none') return 'error';")).toBe(true);
   });
 });

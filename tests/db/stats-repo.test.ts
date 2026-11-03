@@ -1,4 +1,4 @@
-import { describe, it, beforeEach } from 'node:test';
+﻿import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import { dashboard, reminderCandidates } from '@erp/db';
@@ -92,6 +92,9 @@ describe('首页看板口径（SQL 实现，对照 PRD 4.1.3 / data-model 6.6，
     const byName = Object.fromEntries(s.statusDistribution.map((x) => [x.statusName, x.count]));
     // O1 当前在“发货中”，O2 全部完成，其余订单没有节点
     expect(byName).toEqual({ 发货中: 1, 已完结: 1, 未填写: 4 });
+    // 不同进度使用不同颜色
+    const colors = s.statusDistribution.map((x) => x.color);
+    expect(new Set(colors).size).toBe(colors.length);
   });
 
   it('逾期订单列表：按逾期天数倒序（交期越早越靠前）', () => {
