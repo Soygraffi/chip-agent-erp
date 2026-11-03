@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Col, Row, Select, Space, Statistic, message } from 'antd';
 import {
   AppstoreAddOutlined,
@@ -110,20 +110,44 @@ export function DashboardPage(): JSX.Element {
   useEffect(() => {
     if (!stats || distribution.length === 0 || !pieRef.current) return;
     const chart = echarts.init(pieRef.current);
+    const totalOrders = distribution.reduce((acc, s) => acc + s.count, 0);
     chart.setOption({
       tooltip: {
         trigger: 'item',
-        formatter: (p: { name: string; value: number }) =>
-          `${p.name}：${p.value} 个<br/><span style="color:#999;font-size:12px">${statusMeaning(p.name)}</span>`,
+        borderColor: '#fff',
+        borderWidth: 8,
+        backgroundColor: 'rgba(255,255,255,0.96)',
+        textStyle: { color: '#1f1f1f', fontSize: 13 },
+        extraCssText: 'box-shadow: 0 6px 20px rgba(0,0,0,0.12); border-radius: 10px;',
+        formatter: (p: { name: string; value: number; percent: number }) =>
+          `<b>${p.name}</b>　${p.value} 个（${p.percent}%）<br/><span style="color:#8c8c8c;font-size:12px">${statusMeaning(p.name)}</span>`,
       },
-      legend: { bottom: 0, icon: 'circle' },
+      title: {
+        text: String(totalOrders),
+        subtext: '订单总数',
+        left: '50%',
+        top: '36%',
+        textAlign: 'center',
+        textStyle: { fontSize: 28, fontWeight: 600, color: '#1f1f1f' },
+        subtextStyle: { fontSize: 12, color: '#8c8c8c' },
+      },
+      legend: {
+        bottom: 0,
+        icon: 'circle',
+        itemWidth: 9,
+        itemHeight: 9,
+        itemGap: 14,
+        textStyle: { color: '#595959', fontSize: 12 },
+      },
       series: [
         {
           type: 'pie',
-          radius: ['45%', '70%'],
-          center: ['50%', '45%'],
-          itemStyle: { borderColor: '#fff', borderWidth: 3 },
-          label: { formatter: '{b}\n{c}' },
+          radius: ['52%', '76%'],
+          center: ['50%', '44%'],
+          itemStyle: { borderColor: '#fff', borderWidth: 3, borderRadius: 6 },
+          label: { show: false },
+          labelLine: { show: false },
+          emphasis: { scale: true, scaleSize: 6 },
           data: distribution.map((s) => ({ name: s.statusName, value: s.count, itemStyle: { color: s.color } })),
         },
       ],

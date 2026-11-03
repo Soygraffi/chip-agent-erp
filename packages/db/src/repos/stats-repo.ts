@@ -1,4 +1,4 @@
-﻿import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import type { DashboardStats, OrderListRow, ReminderItem, StatusDistributionItem } from '@erp/shared';
 import { monthRange } from '@erp/shared';
 import { listOrders, UNFILLED_STATUS_COLOR } from './order-repo.js';
@@ -85,11 +85,10 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
     currentNodeSort: number | null;
   }[];
 
-  // 每个节点用不同颜色，便于区分订单进行到哪一步
+  // 柔和且区分度高的节点配色（按进度顺序）
   const STAGE_PALETTE = [
-    '#1677FF', '#13C2C2', '#2F54EB', '#722ED1', '#EB2F96',
-    '#FA8C16', '#FAAD14', '#A0D911', '#52C41A', '#F5222D',
-    '#08979C', '#D46B08',
+    '#5B8FF9', '#61DDAA', '#65789B', '#F6BD16', '#7262FD',
+    '#78D3F8', '#9661BC', '#F6903D', '#008685',
   ];
 
   const distMap = new Map<string, { statusName: string; color: string; count: number }>();
@@ -101,7 +100,7 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
       color = UNFILLED_STATUS_COLOR;
     } else if (r.noneCount > 0) {
       name = '未下单';
-      color = '#FF4D4F';
+      color = '#E8684A';
     } else if (!r.currentNodeName) {
       name = '已完结';
       color = '#52C41A';
