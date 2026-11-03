@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+﻿import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,6 +13,14 @@ describe('首页状态分布（数量为 0 的状态不展示）', () => {
     expect(src.includes('状态说明')).toBe(false);
     expect(src.includes('{distribution.map(')).toBe(false);
     expect(src.includes('stats.statusDistribution.map')).toBe(false);
+  });
+
+  it('记住饼图图例的显示/隐藏选择', () => {
+    const src = readFileSync(file, 'utf8');
+    expect(src.includes('PIE_LEGEND_KEY')).toBe(true);
+    expect(src.includes('legendselectchanged')).toBe(true);
+    expect(src.includes('legendSelected')).toBe(true);
+    expect(src.includes('localStorage.setItem')).toBe(true);
   });
 
   it('无数据时展示占位文案而不是空饼图', () => {

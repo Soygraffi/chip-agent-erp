@@ -18,6 +18,33 @@ import { api, errorMessage } from '../api';
 import type { DashboardStats } from '../models';
 import { OrdersBoard, SORT_OPTIONS } from '../components/OrdersBoard';
 
+const PIE_LEGEND_KEY = 'chip-agent.dashboard.pie.legend.selected';
+
+/** 读取上次饼图图例的显示/隐藏选择 */
+function loadPieLegendSelection(): Record<string, boolean> {
+  try {
+    const raw = window.localStorage.getItem(PIE_LEGEND_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const out: Record<string, boolean> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === 'boolean') out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function savePieLegendSelection(selected: Record<string, boolean>): void {
+  try {
+    window.localStorage.setItem(PIE_LEGEND_KEY, JSON.stringify(selected));
+  } catch {
+    /* ignore */
+  }
+}
+
 interface QuickActionItem {
   label: string;
   icon: React.ReactNode;
@@ -197,13 +224,18 @@ export function DashboardPage(): JSX.Element {
     return off;
   }, [load]);
 
-  // 仅展示有订单的状态（数量为 0 的不进入饼图与说明列表）
+  // 仅展示有订单的状态（数量为 0 的不进入饼图）
   const distribution = (stats?.statusDistribution ?? []).filter((s) => s.count > 0);
 
   useEffect(() => {
     if (!stats || distribution.length === 0 || !pieRef.current) return;
     const chart = echarts.init(pieRef.current);
     const totalOrders = distribution.reduce((acc, s) => acc + s.count, 0);
+    const savedSelection = loadPieLegendSelection();
+    const legendSelected: Record<string, boolean> = {};
+    for (const s of distribution) {
+      legendSelected[s.statusName] = savedSelection[s.statusName] !== false;
+    }
     chart.setOption({
       tooltip: {
         trigger: 'item',
@@ -251,6 +283,7 @@ export function DashboardPage(): JSX.Element {
           .slice()
           .reverse()
           .map((s) => s.statusName),
+        selected: legendSelected,
       },
       series: [
         {
@@ -265,6 +298,11 @@ export function DashboardPage(): JSX.Element {
           data: distribution.map((s) => ({ name: s.statusName, value: s.count, itemStyle: { color: s.color } })),
         },
       ],
+    });
+    // 记住哪些节点显示/隐藏，下次打开沿用
+    chart.on('legendselectchanged', (...args: unknown[]) => {
+      const params = args[0] as { selected?: Record<string, boolean> } | undefined;
+      if (params?.selected) savePieLegendSelection(params.selected);
     });
     const onResize = (): void => chart.resize();
     window.addEventListener('resize', onResize);
