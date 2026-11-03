@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd';
@@ -104,7 +104,8 @@ function Shell(): JSX.Element {
   }, []);
 
   // 返回（POP）时恢复到离开前的滚动位置；进入新页面则回到顶部
-  useEffect(() => {
+  // 用 useLayoutEffect 在浏览器绘制前完成定位，避免先看到顶部再跳回来
+  useLayoutEffect(() => {
     const content = document.querySelector('.app-content') as HTMLElement | null;
     if (navigationType !== 'POP') {
       window.scrollTo(0, 0);
@@ -121,14 +122,14 @@ function Shell(): JSX.Element {
       if (content) content.scrollTop = y;
       tries += 1;
       const now = Math.max(window.scrollY || 0, content?.scrollTop || 0);
+      // 首次立即定位；仅当内容高度还没撑开时才异步重试
       if (Math.abs(now - y) > 2 && tries < 80) {
         window.setTimeout(restore, 40);
       }
     };
-    const timer = window.setTimeout(restore, 20);
+    restore();
     return () => {
       stopped = true;
-      window.clearTimeout(timer);
     };
   }, [location.pathname, location.key, navigationType]);
 
