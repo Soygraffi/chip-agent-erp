@@ -238,14 +238,14 @@ export function DashboardPage(): JSX.Element {
         },
       ],
       legend: {
-        bottom: 0,
+        bottom: 2,
         icon: 'circle',
-        itemWidth: 8,
-        itemHeight: 8,
-        itemGap: 12,
+        itemWidth: 11,
+        itemHeight: 11,
+        itemGap: 18,
         type: 'scroll',
-        pageIconSize: 10,
-        textStyle: { color: '#595959', fontSize: 12 },
+        pageIconSize: 12,
+        textStyle: { color: '#595959', fontSize: 13, lineHeight: 18 },
         // 图例按圆环逆时针顺序排列（从顶部向左读）
         data: distribution
           .slice()
