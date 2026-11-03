@@ -30,6 +30,13 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(settings.includes("key: 'status'")).toBe(false);
   });
 
+  it('首页快捷入口有悬浮效果', () => {
+    const dash = read('apps/desktop/src/renderer/src/pages/DashboardPage.tsx');
+    expect(dash.includes('QuickAction')).toBe(true);
+    expect(dash.includes('onMouseEnter')).toBe(true);
+    expect(dash.includes('translateY(-3px)')).toBe(true);
+  });
+
   it('首页饼图按当前节点统计', () => {
     const dash = read('apps/desktop/src/renderer/src/pages/DashboardPage.tsx');
     expect(dash.includes('订单进度分布（按当前节点）')).toBe(true);

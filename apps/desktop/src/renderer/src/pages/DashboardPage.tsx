@@ -18,6 +18,62 @@ import { api, errorMessage } from '../api';
 import type { DashboardStats } from '../models';
 import { OrdersBoard, SORT_OPTIONS } from '../components/OrdersBoard';
 
+interface QuickActionItem {
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  path: string;
+}
+
+function QuickAction({ action, onClick }: { action: QuickActionItem; onClick: () => void }): JSX.Element {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onClick();
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        cursor: 'pointer',
+        borderRadius: 10,
+        padding: '18px 12px',
+        textAlign: 'center',
+        background: hover ? `${action.color}1f` : `${action.color}0d`,
+        border: `1px solid ${hover ? `${action.color}66` : `${action.color}22`}`,
+        transform: hover ? 'translateY(-3px)' : 'none',
+        boxShadow: hover ? '0 8px 18px rgba(0,0,0,0.10)' : 'none',
+        transition: 'all .18s ease',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 22,
+          color: action.color,
+          marginBottom: 6,
+          transform: hover ? 'scale(1.15)' : 'scale(1)',
+          transition: 'transform .18s ease',
+        }}
+      >
+        {action.icon}
+      </div>
+      <div
+        style={{
+          color: hover ? action.color : '#595959',
+          fontSize: 13,
+          fontWeight: hover ? 600 : 400,
+          transition: 'color .18s ease',
+        }}
+      >
+        {action.label}
+      </div>
+    </div>
+  );
+}
+
 interface MetricProps {
   title: string;
   value: number;
@@ -290,21 +346,7 @@ export function DashboardPage(): JSX.Element {
             <Row gutter={[12, 12]}>
               {quickActions.map((a) => (
                 <Col key={a.label} xs={12} md={6}>
-                  <div
-                    onClick={() => navigate(a.path)}
-                    style={{
-                      cursor: 'pointer',
-                      borderRadius: 10,
-                      padding: '18px 12px',
-                      textAlign: 'center',
-                      background: `${a.color}0d`,
-                      border: `1px solid ${a.color}22`,
-                      transition: 'all .15s',
-                    }}
-                  >
-                    <div style={{ fontSize: 22, color: a.color, marginBottom: 6 }}>{a.icon}</div>
-                    <div style={{ color: '#595959', fontSize: 13 }}>{a.label}</div>
-                  </div>
+                  <QuickAction action={a} onClick={() => navigate(a.path)} />
                 </Col>
               ))}
             </Row>
