@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+﻿import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -45,5 +45,6 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     const stepper = read('apps/desktop/src/renderer/src/components/NodeStepper.tsx');
     expect(stepper.includes('NoneIcon')).toBe(true);
     expect(stepper.includes('CloseOutlined')).toBe(true);
+    expect(stepper.includes('#FF4D4F')).toBe(true);
   });
 });

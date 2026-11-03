@@ -10,7 +10,7 @@ interface NodeStepperProps {
   compact?: boolean;
 }
 
-/** 「未下单」标记：浅灰空心圆 + 灰色叉，与异常延误的红色实心叉区分 */
+/** 「未下单」标记：红色空心圆 + 红色叉（与异常延误的红色实心圆叉区分） */
 function NoneIcon(): JSX.Element {
   return (
     <span
@@ -19,9 +19,9 @@ function NoneIcon(): JSX.Element {
         width: 24,
         height: 24,
         borderRadius: '50%',
-        background: '#FAFAFA',
-        border: '1px solid #BFBFBF',
-        color: '#8C8C8C',
+        background: '#FFF1F0',
+        border: '1px solid #FF4D4F',
+        color: '#FF4D4F',
         alignItems: 'center',
         justifyContent: 'center',
       }}
