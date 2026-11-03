@@ -1,4 +1,4 @@
-﻿/** 字典类别（可配置字典） */
+/** 字典类别（可配置字典） */
 export type DictCategory = 'customer_type' | 'order_type' | 'payment_method' | 'currency';
 
 export const DICT_CATEGORIES: DictCategory[] = [
@@ -353,6 +353,7 @@ export interface DashboardStats {
   activeOrderCount: number;
   monthNewOrderCount: number;
   monthTotalAmount: number;
+  yearTotalAmount: number;
   pendingShipCount: number;
   overdueOrderCount: number;
   keyOrderCount: number;

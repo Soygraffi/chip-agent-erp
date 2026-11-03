@@ -82,6 +82,7 @@ describe('首页看板口径（SQL 实现，对照 PRD 4.1.3 / data-model 6.6，
     expect(s.activeOrderCount).toBe(4); // O1 O2 O3 + 未填写O6
     expect(s.monthNewOrderCount).toBe(5); // O1 O2 O3 O5 O6
     expect(s.monthTotalAmount).toBe(650); // 100 + 50 + 200 + 300；取消(O5)不计
+    expect(s.yearTotalAmount).toBe(1649); // 年累计：100+50+200+999+300；取消(O5)不计
     expect(s.pendingShipCount).toBe(1); // 仅 O1
     expect(s.overdueOrderCount).toBe(2); // O1(10-20)、O3(10-01)
     expect(s.keyOrderCount).toBe(1); // O1

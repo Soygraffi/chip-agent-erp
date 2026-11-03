@@ -93,6 +93,43 @@ function statusMeaning(name: string): string {
   return STATUS_MEANINGS[name] ?? `当前进行到「${name}」节点`;
 }
 
+function BannerButton(props: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  primary?: boolean;
+  onClick: () => void;
+}): JSX.Element {
+  const [hover, setHover] = useState(false);
+  const style = props.primary
+    ? {
+        background: hover ? '#eaf1ff' : '#ffffff',
+        color: '#0b3d91',
+        border: 'none',
+        fontWeight: 600,
+      }
+    : {
+        background: hover ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.16)',
+        color: '#fff',
+        border: `1px solid ${hover ? '#ffffff' : 'rgba(255,255,255,0.4)'}`,
+      };
+  return (
+    <Button
+      icon={props.icon}
+      onClick={props.onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        ...style,
+        transform: hover ? 'translateY(-1px)' : 'none',
+        boxShadow: hover ? '0 6px 16px rgba(0,0,0,0.18)' : 'none',
+        transition: 'all .18s ease',
+      }}
+    >
+      {props.children}
+    </Button>
+  );
+}
+
 function MetricCard({ title, value, icon, color, money }: MetricProps): JSX.Element {
   return (
     <Card
@@ -244,20 +281,12 @@ export function DashboardPage(): JSX.Element {
             </div>
           </div>
           <Space>
-            <Button
-              icon={<PlusOutlined />}
-              style={{ background: '#ffffff', color: '#0b3d91', border: 'none', fontWeight: 600 }}
-              onClick={() => navigate('/orders/new')}
-            >
+            <BannerButton primary icon={<PlusOutlined />} onClick={() => navigate('/orders/new')}>
               新建订单
-            </Button>
-            <Button
-              icon={<TeamOutlined />}
-              style={{ background: 'rgba(255,255,255,0.16)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)' }}
-              onClick={() => navigate('/customers')}
-            >
+            </BannerButton>
+            <BannerButton icon={<TeamOutlined />} onClick={() => navigate('/customers')}>
               新建客户
-            </Button>
+            </BannerButton>
           </Space>
         </div>
       </Card>
@@ -274,7 +303,7 @@ export function DashboardPage(): JSX.Element {
           <MetricCard title="本月新增订单" value={stats?.monthNewOrderCount ?? 0} icon={<ProfileOutlined />} color="#13c2c2" />
         </Col>
         <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard title="本月订单金额" value={stats?.monthTotalAmount ?? 0} icon={<DollarOutlined />} color="#fa8c16" money />
+          <MetricCard title="本年订单金额" value={stats?.yearTotalAmount ?? 0} icon={<DollarOutlined />} color="#fa8c16" money />
         </Col>
         <Col xs={24} sm={12} lg={8} xl={4}>
           <MetricCard title="待发货订单" value={stats?.pendingShipCount ?? 0} icon={<InboxOutlined />} color="#52c41a" />

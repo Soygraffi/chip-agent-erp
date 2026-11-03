@@ -36,6 +36,19 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
     )
     .get(monthStart, monthEnd, monthStart, monthEnd) as { cnt: number; totalAmount: number };
 
+  // 本年订单金额（取消不计，与本月口径一致）
+  const year = today.slice(0, 4);
+  const yearTotalAmount = (
+    db
+      .prepare(
+        'SELECT ROUND(COALESCE(SUM(o.total_amount), 0), 2) AS totalAmount ' +
+          'FROM orders o LEFT JOIN order_status s ON o.status_id = s.id ' +
+          'WHERE o.order_date >= ? AND o.order_date <= ? ' +
+          "AND NOT (COALESCE(s.is_terminal, 0) = 1 AND s.terminal_result = 'cancelled')",
+      )
+      .get(`${year}-01-01`, `${year}-12-31`) as { totalAmount: number }
+  ).totalAmount;
+
   const overdueOrderCount = (
     db
       .prepare(
@@ -140,6 +153,7 @@ export function dashboard(db: DatabaseSync, today: string): DashboardStats {
     activeOrderCount,
     monthNewOrderCount: monthRow.cnt,
     monthTotalAmount: monthRow.totalAmount,
+    yearTotalAmount,
     pendingShipCount,
     overdueOrderCount,
     keyOrderCount,

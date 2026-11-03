@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+﻿import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -35,6 +35,13 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(main.includes('requestSingleInstanceLock')).toBe(true);
     expect(main.includes("app.on('second-instance'")).toBe(true);
     expect(main.includes('win.maximize()')).toBe(true);
+  });
+
+  it('首页顶部新建按钮有悬浮效果，金额改为本年', () => {
+    const dash = read('apps/desktop/src/renderer/src/pages/DashboardPage.tsx');
+    expect(dash.includes('BannerButton')).toBe(true);
+    expect(dash.includes('本年订单金额')).toBe(true);
+    expect(dash.includes('yearTotalAmount')).toBe(true);
   });
 
   it('首页快捷入口有悬浮效果', () => {
