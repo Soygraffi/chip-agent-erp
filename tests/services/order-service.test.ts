@@ -1,7 +1,7 @@
-import { describe, it, beforeEach } from 'node:test';
+﻿import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { orderService, orderAttachmentService, customerService, materialService, wechatService, supplierService } from '@erp/db';
+import { orderService, orderAttachmentService, customerService, materialService, wechatService, supplierService, nodeService } from '@erp/db';
 import { createTestDb, statusByName, dictIdByName, todayOrderNo } from '../db/helpers.ts';
 
 function baseInput(db: DatabaseSync) {
@@ -117,6 +117,24 @@ describe('订单服务（V1.2：日期/状态可选，无币种/负责人）', (
       today: '2026-10-30',
     });
     expect(page.rows.map((r) => r.id)).toEqual([c, a, b]);
+  });
+
+  it('未下单订单在首页看板排序中排到最后', () => {
+    const input = baseInput(db);
+    const normal = orderService.create(db, { ...input, orderNo: 'N-NORMAL', orderDate: '2026-10-01' });
+    const none = orderService.create(db, { ...input, orderNo: 'N-NONE', orderDate: '2026-10-30' });
+    const noneNode = orderService.get(db, none).nodes[0];
+    nodeService.update(db, noneNode.id, { status: 'none' });
+    const page = orderService.list(db, {
+      noneLast: true,
+      sortField: 'order_date',
+      sortDir: 'desc',
+      page: 1,
+      pageSize: 10,
+      today: '2026-10-30',
+    });
+    expect(page.rows[0].id).toBe(normal);
+    expect(page.rows[1].id).toBe(none);
   });
 
   it('日期/类型/状态均可留空：创建成功，详情显示未填写', () => {

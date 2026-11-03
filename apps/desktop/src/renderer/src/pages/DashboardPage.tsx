@@ -417,6 +417,7 @@ export function DashboardPage(): JSX.Element {
           showQuote={false}
           showSort={false}
           externalSort={orderSort}
+          noneLast
         />
       </Card>
     </div>

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -41,6 +41,8 @@ interface OrdersBoardProps {
   /** 外部受控排序（如首页把排序放在卡片右上角），格式 field:dir */
   externalSort?: string;
   onSortChange?: (value: string) => void;
+  /** 「未下单」的订单排到最后（首页看板） */
+  noneLast?: boolean;
 }
 
 export type SortField = 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual';
@@ -79,6 +81,7 @@ export function OrdersBoard({
   showSort = true,
   externalSort,
   onSortChange,
+  noneLast = false,
 }: OrdersBoardProps): JSX.Element {
   const navigate = useNavigate();
   const [rows, setRows] = useState<OrderWithDetails[]>([]);
@@ -117,6 +120,7 @@ export function OrdersBoard({
         dateTo: range?.[1]?.format('YYYY-MM-DD') ?? undefined,
         onlyOverdue,
         onlyKey,
+        noneLast,
         sortField,
         sortDir,
         page,
@@ -129,7 +133,7 @@ export function OrdersBoard({
     } finally {
       setLoading(false);
     }
-  }, [search, typeId, range, onlyOverdue, onlyKey, sortField, sortDir, page, pageSize]);
+  }, [search, typeId, range, onlyOverdue, onlyKey, noneLast, sortField, sortDir, page, pageSize]);
 
   useEffect(() => {
     void load();

@@ -130,6 +130,8 @@ export interface OrderFilter {
   deliveryTo?: string | null;
   onlyOverdue?: boolean;
   onlyKey?: boolean;
+  /** 存在「未下单」节点的订单排到最后（首页看板） */
+  noneLast?: boolean;
   sortField?: 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual';
   sortDir?: 'asc' | 'desc';
   page: number;
@@ -203,7 +205,11 @@ export function listOrders(db: DatabaseSync, filter: OrderFilter): Page<OrderLis
   };
   const sortCol = sortMap[filter.sortField ?? 'order_date'];
   const dir = filter.sortDir === 'asc' ? 'ASC' : 'DESC';
-  const orderBy = `${sortCol} ${dir}, o.id ${dir}`;
+  // 可选：把存在「未下单」节点的订单排到最后（首页看板用）
+  const noneRank = filter.noneLast
+    ? "((SELECT COUNT(*) FROM order_node n WHERE n.order_id = o.id AND n.status = 'none') > 0) ASC, "
+    : '';
+  const orderBy = `${noneRank}${sortCol} ${dir}, o.id ${dir}`;
 
   const rows = db
     .prepare(
