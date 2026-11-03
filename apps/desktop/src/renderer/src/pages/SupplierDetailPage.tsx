@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import { Avatar, Button, Card, Col, Descriptions, Row, Space, Statistic, Table, Tag, message } from 'antd';
-import { ArrowLeftOutlined, PictureOutlined, ShopOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ShopOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { Supplier, SupplierMaterialRow, SupplierOrderRow } from '../models';
@@ -39,16 +39,6 @@ export function SupplierDetailPage(): JSX.Element {
     }
   }, [supplierId]);
 
-  const uploadLogo = async (): Promise<void> => {
-    try {
-      await api.suppliers.uploadLogo(supplierId);
-      void message.success('Logo 已更新');
-      await load();
-    } catch (e) {
-      void message.error(errorMessage(e));
-    }
-  };
-
   useEffect(() => {
     void load();
   }, [load]);
@@ -70,9 +60,6 @@ export function SupplierDetailPage(): JSX.Element {
       }
       extra={
         <Space>
-          <Button icon={<PictureOutlined />} onClick={() => void uploadLogo()}>
-            上传/更换 Logo
-          </Button>
           <Button onClick={() => navigate('/suppliers')}>返回列表</Button>
         </Space>
       }

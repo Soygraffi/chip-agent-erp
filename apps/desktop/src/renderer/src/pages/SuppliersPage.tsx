@@ -186,12 +186,6 @@ export function SuppliersPage(): JSX.Element {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Space size={4}>
-                    <Button
-                      size="small"
-                      icon={<PictureOutlined />}
-                      title="上传/更换 Logo"
-                      onClick={() => void uploadLogo(s)}
-                    />
                     <Button size="small" onClick={() => navigate(`/suppliers/${s.id}`)}>详情</Button>
                     <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(s)} />
                     <Popconfirm
