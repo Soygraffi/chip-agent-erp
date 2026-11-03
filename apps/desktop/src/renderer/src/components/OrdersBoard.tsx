@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -45,6 +45,8 @@ interface OrdersBoardProps {
   noneLast?: boolean;
   /** 列表缓存键：返回首页时先用上次数据渲染，避免高度变化导致滚动位置跳动 */
   cacheKey?: string;
+  /** 外部触发刷新（页面常驻不卸载时，返回列表需要重新拉数据） */
+  refreshToken?: number;
 }
 
 export type SortField = 'order_date' | 'total_amount' | 'expected_delivery_date' | 'progress' | 'manual';
@@ -87,6 +89,7 @@ export function OrdersBoard({
   onSortChange,
   noneLast = false,
   cacheKey,
+  refreshToken = 0,
 }: OrdersBoardProps): JSX.Element {
   const navigate = useNavigate();
   const cached = cacheKey ? BOARD_CACHE.get(cacheKey) : undefined;
@@ -140,7 +143,7 @@ export function OrdersBoard({
     } finally {
       setLoading(false);
     }
-  }, [search, typeId, range, onlyOverdue, onlyKey, noneLast, sortField, sortDir, page, pageSize, cacheKey]);
+  }, [search, typeId, range, onlyOverdue, onlyKey, noneLast, sortField, sortDir, page, pageSize, cacheKey, refreshToken]);
 
   useEffect(() => {
     void load();
@@ -285,7 +288,7 @@ export function OrdersBoard({
           <Card
             key={o.id}
             size="small"
-            loading={loading}
+            loading={loading && rows.length === 0}
             style={{ borderLeft: o.daysOverdue > 0 ? '4px solid #ff4d4f' : undefined }}
             title={
               <Space wrap>

@@ -18,6 +18,7 @@ import {
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { usePageRefresh } from '../hooks/usePageRefresh';
 import { pinyinFilterOption } from '../utils/pinyin';
 import type { MaterialListRow, Page } from '../models';
 
@@ -82,6 +83,8 @@ export function MaterialsPage(): JSX.Element {
     void load();
     void api.suppliers.options().then((r) => setSuppliers(r as { id: number; name: string }[]));
   }, [load]);
+
+  usePageRefresh('/materials', load);
 
   const openCreate = (): void => {
     setEditing(null);

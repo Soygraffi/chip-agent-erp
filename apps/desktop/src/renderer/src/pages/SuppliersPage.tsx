@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -24,6 +24,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { usePageRefresh } from '../hooks/usePageRefresh';
 import type { Page, SupplierListRow } from '../models';
 import { matchesPinyin } from '../utils/pinyin';
 
@@ -63,6 +64,8 @@ export function SuppliersPage(): JSX.Element {
   useEffect(() => {
     void load();
   }, [load]);
+
+  usePageRefresh('/suppliers', load);
 
   const openCreate = (): void => {
     setEditing(null);
@@ -154,7 +157,7 @@ export function SuppliersPage(): JSX.Element {
             <Col key={s.id} xs={24} sm={12} md={8} xl={6}>
               <Card
                 hoverable
-                loading={loading}
+                loading={loading && rows.length === 0}
                 bodyStyle={{ padding: 16 }}
                 onClick={() => navigate(`/suppliers/${s.id}`)}
               >

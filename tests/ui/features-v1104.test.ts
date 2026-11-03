@@ -38,7 +38,21 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(app.includes('scrollPositions')).toBe(true);
     expect(app.includes('useLayoutEffect')).toBe(true);
     expect(app.includes('MemoryRouter')).toBe(true);
-    expect(app.includes("location.pathname === '/dashboard' ? 'block' : 'none'")).toBe(true);
+    // 所有顶层页面常驻不卸载（首次访问后）
+    expect(app.includes('visitedTop')).toBe(true);
+    expect(app.includes("location.pathname === p.path ? 'block' : 'none'")).toBe(true);
+    expect(app.includes("path: '/orders'")).toBe(true);
+    expect(app.includes("path: '/customers'")).toBe(true);
+    expect(app.includes("path: '/suppliers'")).toBe(true);
+  });
+
+  it('常驻页面返回时主动刷新数据', () => {
+    const hook = read('apps/desktop/src/renderer/src/hooks/usePageRefresh.ts');
+    expect(hook.includes('app:page-refresh')).toBe(true);
+    for (const f of ['OrdersPage', 'CustomersPage', 'SuppliersPage', 'MaterialsPage', 'WechatGroupsPage']) {
+      expect(read(`apps/desktop/src/renderer/src/pages/${f}.tsx`).includes('usePageRefresh')).toBe(true);
+    }
+    expect(read('apps/desktop/src/renderer/src/components/OrdersBoard.tsx').includes('refreshToken')).toBe(true);
   });
 
   it('窗口默认最大化且单实例运行', () => {

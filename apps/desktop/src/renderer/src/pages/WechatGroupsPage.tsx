@@ -14,6 +14,7 @@ import {
 } from 'antd';
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { api, errorMessage } from '../api';
+import { usePageRefresh } from '../hooks/usePageRefresh';
 import { matchesPinyin, pinyinFilterOption } from '../utils/pinyin';
 import type { WechatGroupWithCustomer, WechatMember } from '../models';
 
@@ -65,6 +66,8 @@ export function WechatGroupsPage(): JSX.Element {
     void load();
     void api.customers.options().then((r) => setCustomers(r as CustomerOption[]));
   }, [load]);
+
+  usePageRefresh('/wechat', load);
 
   const openEdit = (g: WechatGroupWithCustomer): void => {
     setEditingGroup(g);

@@ -49,6 +49,8 @@ function Shell(): JSX.Element {
   const location = useLocation();
   const navigationType = useNavigationType();
   const [menuItems, setMenuItems] = useState(MENU_ITEMS);
+  // 已经访问过的顶层页面（首次访问后才挂载，之后常驻）
+  const [visitedTop, setVisitedTop] = useState<string[]>(['/dashboard']);
 
   // 顶层页面：按 ESC 不再返回
   const TOP_LEVEL = [
@@ -78,6 +80,13 @@ function Shell(): JSX.Element {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [location.pathname, navigate]);
+
+  // 记录访问过的顶层页面，保证从详情返回时页面还在
+  useEffect(() => {
+    if (TOP_LEVEL.includes(location.pathname)) {
+      setVisitedTop((v) => (v.includes(location.pathname) ? v : [...v, location.pathname]));
+    }
+  }, [location.pathname]);
 
   // 错误兜底页「返回首页」等自定义事件
   useEffect(() => {
@@ -135,6 +144,13 @@ function Shell(): JSX.Element {
     };
   }, [location.pathname, location.key, navigationType]);
 
+  // 顶层页面常驻不卸载：进入页面时通知它刷新一次数据（避免返回后看到旧数据）
+  useLayoutEffect(() => {
+    if (TOP_LEVEL.includes(location.pathname)) {
+      window.dispatchEvent(new CustomEvent('app:page-refresh', { detail: { path: location.pathname } }));
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
     const load = (): void => {
       void api.settings.getMenuOrder().then((saved) => setMenuItems(applyMenuOrder(saved ?? '')));
@@ -149,6 +165,18 @@ function Shell(): JSX.Element {
       .map((m) => m.key)
       .filter((k) => location.pathname.startsWith(k))
       .sort((a, b) => b.length - a.length)[0] ?? '/dashboard';
+
+  // 顶层页面常驻不卸载：进入详情再返回时直接显示原页面，滚动位置零闪跳
+  const topPages: { path: string; element: JSX.Element }[] = [
+    { path: '/dashboard', element: <DashboardPage /> },
+    { path: '/orders', element: <OrdersPage /> },
+    { path: '/customers', element: <CustomersPage /> },
+    { path: '/suppliers', element: <SuppliersPage /> },
+    { path: '/materials', element: <MaterialsPage /> },
+    { path: '/wechat', element: <WechatGroupsPage /> },
+    { path: '/tools', element: <ToolsPage /> },
+    { path: '/settings', element: <SettingsPage /> },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -168,25 +196,20 @@ function Shell(): JSX.Element {
           <ReminderBell />
         </Header>
         <Content className="app-content">
-          {/* 首页看板常驻不卸载：进入订单再返回时直接显示原页面，保证滚动位置零闪跳 */}
-          <div style={{ display: location.pathname === '/dashboard' ? 'block' : 'none' }}>
-            <DashboardPage />
-          </div>
+          {topPages
+            .filter((p) => visitedTop.includes(p.path) || location.pathname === p.path)
+            .map((p) => (
+              <div key={p.path} style={{ display: location.pathname === p.path ? 'block' : 'none' }}>
+                {p.element}
+              </div>
+            ))}
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<span style={{ display: 'none' }} />} />
-            <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
-            <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
-            <Route path="/wechat" element={<WechatGroupsPage />} />
-            <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/new" element={<OrderFormPage />} />
             <Route path="/orders/:id/edit" element={<OrderFormPage />} />
             <Route path="/orders/:id" element={<OrderDetailPage />} />
-            <Route path="/materials" element={<MaterialsPage />} />
-            <Route path="/tools" element={<ToolsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </Content>
       </Layout>

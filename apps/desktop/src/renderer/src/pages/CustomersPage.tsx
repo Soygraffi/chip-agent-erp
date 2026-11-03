@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -26,6 +26,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { usePageRefresh } from '../hooks/usePageRefresh';
 import type { CustomerListRow, Page } from '../models';
 
 interface DictOption {
@@ -84,6 +85,9 @@ export function CustomersPage(): JSX.Element {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // 页面常驻不卸载：返回时刷新一次，避免看到旧数据
+  usePageRefresh('/customers', load);
 
   useEffect(() => {
     void api.dicts.list('customer_type').then((r) => setTypes(r as DictOption[]));
@@ -224,7 +228,7 @@ export function CustomersPage(): JSX.Element {
               >
                 <Card
                   hoverable
-                  loading={loading}
+                  loading={loading && rows.length === 0}
                   className={c.isKey ? 'customer-card customer-card-key' : 'customer-card'}
                   onClick={() => navigate(`/customers/${c.id}`)}
                   bodyStyle={{ padding: 16 }}
