@@ -1,4 +1,4 @@
-/** 渲染层 API：window.api 的强类型封装，统一解包 {ok,data}|{ok:false,...} 信封 */
+﻿/** 渲染层 API：window.api 的强类型封装，统一解包 {ok,data}|{ok:false,...} 信封 */
 import type { Api } from '../../preload/index';
 
 declare global {
@@ -171,6 +171,8 @@ export const api = {
     setQuoteConfig: (cfg: unknown): Promise<unknown> => call('settings:setQuoteConfig', cfg),
     getMenuOrder: (): Promise<string> => call('settings:getMenuOrder'),
     setMenuOrder: (order: string[]): Promise<string> => call('settings:setMenuOrder', order),
+    getOrderSort: (): Promise<string> => call('settings:getOrderSort'),
+    setOrderSort: (value: string): Promise<string> => call('settings:setOrderSort', value),
     storageInfo: (): Promise<unknown> => call('settings:storageInfo'),
     migrateDataDir: (dir: string): Promise<unknown> => call('settings:migrateDataDir', dir),
     setBackupDir: (dir: string): Promise<unknown> => call('settings:setBackupDir', dir),

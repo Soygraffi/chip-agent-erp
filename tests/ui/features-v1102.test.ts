@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+﻿import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -79,6 +79,15 @@ describe('V1.10.1 客户删除/明细交货/时间轴/排序/拖动设置', () =
     expect(settings.includes('it.materialName')).toBe(true);
     expect(settings.includes('it.chipModel')).toBe(true);
     expect(settings.includes('it.qty')).toBe(true);
+  });
+
+  it('记住上一次排序选择，不再每次默认按日期', () => {
+    const board = read('apps/desktop/src/renderer/src/components/OrdersBoard.tsx');
+    expect(board.includes('getOrderSort')).toBe(true);
+    expect(board.includes('setOrderSort')).toBe(true);
+    const dash = read('apps/desktop/src/renderer/src/pages/DashboardPage.tsx');
+    expect(dash.includes('getOrderSort')).toBe(true);
+    expect(dash.includes('setOrderSort')).toBe(true);
   });
 
   it('订单文档支持上传 Excel', () => {

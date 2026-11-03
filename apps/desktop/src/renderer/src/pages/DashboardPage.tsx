@@ -82,6 +82,12 @@ export function DashboardPage(): JSX.Element {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [orderSort, setOrderSort] = useState('order_date:desc');
+
+  useEffect(() => {
+    void api.settings.getOrderSort().then((saved) => {
+      if (saved) setOrderSort(saved);
+    });
+  }, []);
   const pieRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -302,7 +308,10 @@ export function DashboardPage(): JSX.Element {
               style={{ width: 170 }}
               value={orderSort}
               options={SORT_OPTIONS}
-              onChange={(v) => setOrderSort(v as string)}
+              onChange={(v) => {
+                setOrderSort(v as string);
+                void api.settings.setOrderSort(v as string);
+              }}
             />
             <Button size="small" onClick={() => navigate('/orders')}>
               查看全部订单

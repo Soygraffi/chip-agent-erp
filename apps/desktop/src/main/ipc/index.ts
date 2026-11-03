@@ -591,6 +591,17 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
     if (r.ok) changed();
     return r;
   });
+  ipcMain.handle('settings:getOrderSort', () =>
+    wrap(() => getSetting(db(), 'order_sort_last') ?? 'order_date:desc'),
+  );
+  ipcMain.handle('settings:setOrderSort', (_e, value: string) => {
+    const r = wrap(() => {
+      setSetting(db(), 'order_sort_last', value || 'order_date:desc');
+      return value || 'order_date:desc';
+    });
+    if (r.ok) changed();
+    return r;
+  });
   ipcMain.handle('settings:setQuoteConfig', (_e, cfg: { companyName: string; quoteTerms: string; quoteFooter: string; salesPerson?: string; salesPhone?: string }) => {
     const r = wrap(() => {
       setSetting(db(), 'company_name', cfg.companyName.trim());

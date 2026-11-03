@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -151,6 +151,18 @@ export function OrdersBoard({
     setSortDir(d === 'asc' ? 'asc' : 'desc');
   }, [externalSort]);
 
+  // 记住上一次选择的排序（未外部受控时自动恢复）
+  useEffect(() => {
+    if (externalSort) return;
+    void api.settings.getOrderSort().then((saved) => {
+      const [f, d] = (saved || 'order_date:desc').split(':');
+      if (['order_date', 'total_amount', 'expected_delivery_date', 'progress', 'manual'].includes(f)) {
+        setSortField(f as SortField);
+        setSortDir(d === 'asc' ? 'asc' : 'desc');
+      }
+    });
+  }, [externalSort]);
+
   const openNode = (n: OrderNode): void => {
     setNodeModal(n);
   };
@@ -198,6 +210,7 @@ export function OrdersBoard({
         const [f, d] = (v as string).split(':');
         setSortField(f as SortField);
         setSortDir(d as 'asc' | 'desc');
+        void api.settings.setOrderSort(v as string);
         onSortChange?.(v as string);
       }}
     />
