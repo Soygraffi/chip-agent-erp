@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -609,6 +609,12 @@ interface OrderSortRow {
   id: number;
   orderNo: string;
   customerName: string;
+  items: {
+    brand: string | null;
+    materialName: string | null;
+    chipModel: string;
+    qty: number;
+  }[];
 }
 
 function OrderSortTab(): JSX.Element {
@@ -616,9 +622,21 @@ function OrderSortTab(): JSX.Element {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    void api.orders.list({ page: 1, pageSize: 500 }).then((r) => {
-      const rows = (r as { rows: OrderSortRow[] }).rows ?? [];
-      setItems(rows.map((x) => ({ id: x.id, orderNo: x.orderNo, customerName: x.customerName })));
+    void api.orders.overview({ page: 1, pageSize: 500 }).then((r) => {
+      const rows = (r as { rows: (OrderSortRow & { items?: OrderSortRow['items'] })[] }).rows ?? [];
+      setItems(
+        rows.map((x) => ({
+          id: x.id,
+          orderNo: x.orderNo,
+          customerName: x.customerName,
+          items: (x.items ?? []).map((it) => ({
+            brand: it.brand,
+            materialName: it.materialName,
+            chipModel: it.chipModel,
+            qty: it.qty,
+          })),
+        })),
+      );
     });
   }, []);
 
@@ -635,7 +653,7 @@ function OrderSortTab(): JSX.Element {
   };
 
   return (
-    <Card size="small" title="订单展示顺序（拖动排序）" style={{ maxWidth: 720 }}>
+    <Card size="small" title="订单展示顺序（拖动排序）" style={{ maxWidth: 900 }}>
       <div style={{ color: '#8c8c8c', marginBottom: 12 }}>
         直接拖动下面的订单调整先后顺序，保存后到「订单管理 → 排序 → 按设置排序（自定义）」查看。
       </div>
@@ -649,10 +667,20 @@ function OrderSortTab(): JSX.Element {
           });
         }}
         renderMain={(o) => (
-          <Space>
-            <span style={{ color: '#999' }}>{o.orderNo}</span>
-            <span>{o.customerName}</span>
-          </Space>
+          <div style={{ width: '100%' }}>
+            <Space>
+              <span style={{ color: '#999' }}>{o.orderNo}</span>
+              <span>{o.customerName}</span>
+            </Space>
+            <div style={{ color: '#595959', fontSize: 12, marginTop: 4, lineHeight: 1.7 }}>
+              {o.items.length === 0 && <span style={{ color: '#bfbfbf' }}>暂无物料</span>}
+              {o.items.map((it, i) => (
+                <div key={i}>
+                  {it.brand ?? '-'} · {it.materialName ?? '-'} · {it.chipModel} × {it.qty}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       />
       <Button type="primary" loading={loading} onClick={() => void save()} style={{ marginTop: 12 }}>

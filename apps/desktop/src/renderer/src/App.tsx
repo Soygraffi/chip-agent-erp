@@ -1,4 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
+import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
 import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd';
 import type { MenuProps } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
@@ -19,6 +21,8 @@ import { ReminderBell, StartupReminderModal } from './components/Reminders';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { applyMenuOrder, MENU_ITEMS } from './menu';
 import { api } from './api';
+
+dayjs.locale('zh-cn');
 
 const { Sider, Content, Header } = Layout;
 
@@ -65,7 +69,8 @@ function Shell(): JSX.Element {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
-            <Route path="/suppliers" element={<SuppliersPage />} />`n            <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
+            <Route path="/suppliers" element={<SuppliersPage />} />
+            <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
             <Route path="/wechat" element={<WechatGroupsPage />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/new" element={<OrderFormPage />} />

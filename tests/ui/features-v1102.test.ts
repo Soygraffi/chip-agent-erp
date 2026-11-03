@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -73,5 +73,17 @@ describe('V1.10.1 客户删除/明细交货/时间轴/排序/拖动设置', () =
     expect(settings.includes('订单展示顺序（拖动排序）')).toBe(true);
     expect(settings.includes('SortableList')).toBe(true);
     expect(settings.includes('api.orders.reorder')).toBe(true);
+    // 拖动列表显示品牌/物料名称/料号规格/数量
+    expect(settings.includes('orders.overview')).toBe(true);
+    expect(settings.includes('it.brand')).toBe(true);
+    expect(settings.includes('it.materialName')).toBe(true);
+    expect(settings.includes('it.chipModel')).toBe(true);
+    expect(settings.includes('it.qty')).toBe(true);
+  });
+
+  it('日期控件使用中文 locale', () => {
+    const app = read('apps/desktop/src/renderer/src/App.tsx');
+    expect(app.includes("dayjs.locale('zh-cn')")).toBe(true);
+    expect(app.includes('antd/locale/zh_CN')).toBe(true);
   });
 });
