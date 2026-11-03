@@ -4,7 +4,7 @@ import 'dayjs/locale/zh-cn';
 import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd';
 import type { MenuProps } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import { HashRouter, Routes, Route, useNavigate, useLocation, useNavigationType, Navigate } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useNavigate, useLocation, useNavigationType, Navigate } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
@@ -31,7 +31,7 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 const scrollPositions: Record<string, number> = {};
 let currentPath = '/dashboard';
 
-/** 立即抓取当前滚动位置，写入内存与当前历史记录 */
+/** 立即抓取当前滚动位置，写入内存（路由切换不会丢） */
 function captureScrollPosition(): void {
   const content = document.querySelector('.app-content') as HTMLElement | null;
   const y = Math.max(
@@ -40,12 +40,6 @@ function captureScrollPosition(): void {
     content?.scrollTop || 0,
   );
   if (y > 0) scrollPositions[currentPath] = y;
-  try {
-    const state = (window.history.state ?? {}) as Record<string, unknown>;
-    if (state.scrollY !== y) window.history.replaceState({ ...state, scrollY: y }, '');
-  } catch {
-    /* ignore */
-  }
 }
 
 const { Sider, Content, Header } = Layout;
@@ -85,6 +79,13 @@ function Shell(): JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [location.pathname, navigate]);
 
+  // 错误兜底页「返回首页」等自定义事件
+  useEffect(() => {
+    const goDashboard = (): void => navigate('/dashboard');
+    window.addEventListener('app:go-dashboard', goDashboard);
+    return () => window.removeEventListener('app:go-dashboard', goDashboard);
+  }, [navigate]);
+
   // 记录/恢复滚动位置：按 ESC 返回时回到离开前的确切位置
   currentPath = location.pathname;
 
@@ -112,7 +113,8 @@ function Shell(): JSX.Element {
       if (content) content.scrollTop = 0;
       return;
     }
-    const y = (window.history.state as { scrollY?: number } | null)?.scrollY ?? scrollPositions[location.pathname] ?? 0;
+    // 以内存里的滚动位置为准（离开页面时点击/滚动/ESC 前都已抓取）
+    const y = scrollPositions[location.pathname] ?? 0;
     if (y <= 0) return;
     let stopped = false;
     let tries = 0;
@@ -210,9 +212,9 @@ export function App(): JSX.Element {
   return (
     <ConfigProvider locale={zhCN} theme={{ algorithm: theme.defaultAlgorithm }}>
       <ErrorBoundary>
-        <HashRouter>
+        <MemoryRouter initialEntries={['/']}>
           <Shell />
-        </HashRouter>
+        </MemoryRouter>
       </ErrorBoundary>
     </ConfigProvider>
   );

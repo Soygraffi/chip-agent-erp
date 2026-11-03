@@ -43,7 +43,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
               key="back"
               onClick={() => {
                 this.setState({ error: null });
-                window.location.hash = '#/dashboard';
+                // 应用内路由为内存路由，用自定义事件通知 Shell 跳回首页
+                window.dispatchEvent(new Event('app:go-dashboard'));
               }}
             >
               返回首页

@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,6 +37,7 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(app.includes('navigate(-1)')).toBe(true);
     expect(app.includes('scrollPositions')).toBe(true);
     expect(app.includes('useLayoutEffect')).toBe(true);
+    expect(app.includes('MemoryRouter')).toBe(true);
   });
 
   it('窗口默认最大化且单实例运行', () => {
