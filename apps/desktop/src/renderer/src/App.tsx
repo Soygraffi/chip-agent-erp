@@ -24,6 +24,9 @@ import { api } from './api';
 
 dayjs.locale('zh-cn');
 
+// 交给应用自己恢复滚动位置，关闭浏览器默认的返回滚动
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
 const { Sider, Content, Header } = Layout;
 
 function Shell(): JSX.Element {
@@ -59,45 +62,58 @@ function Shell(): JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [location.pathname, navigate]);
 
-  // 记录/恢复滚动位置：按 ESC 返回首页时回到离开前的位置
+  // 记录/恢复滚动位置：按 ESC 返回时回到离开前的确切位置
   useEffect(() => {
-    const scrollMemory: Record<string, number> = (() => {
+    const STORAGE_KEY = 'scroll-memory-v2';
+    const readMemory = (): Record<string, number> => {
       try {
-        return JSON.parse(sessionStorage.getItem('scroll-memory') ?? '{}') as Record<string, number>;
+        return JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, number>;
       } catch {
         return {};
       }
-    })();
+    };
+    const memory = readMemory();
+    const entryKey = location.key || location.pathname;
     const content = document.querySelector('.app-content') as HTMLElement | null;
-    const currentY = (): number => Math.max(window.scrollY || 0, content?.scrollTop || 0);
+    const currentY = (): number =>
+      Math.max(window.scrollY || 0, document.scrollingElement?.scrollTop || 0, content?.scrollTop || 0);
     const save = (): void => {
-      scrollMemory[location.pathname] = currentY();
+      memory[entryKey] = currentY();
+      memory[location.pathname] = currentY();
       try {
-        sessionStorage.setItem('scroll-memory', JSON.stringify(scrollMemory));
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
       } catch {
         /* ignore */
       }
     };
-    window.addEventListener('scroll', save, { passive: true });
+    window.addEventListener('scroll', save, { passive: true, capture: true });
     content?.addEventListener('scroll', save, { passive: true });
 
     if (navigationType === 'POP') {
-      const y = scrollMemory[location.pathname] ?? 0;
-      const restore = (): void => {
-        window.scrollTo(0, y);
-        if (content) content.scrollTop = y;
-      };
-      window.setTimeout(restore, 30);
-      // 数据异步加载后内容高度可能变化，再兜底恢复一次
-      window.setTimeout(restore, 350);
+      const y = memory[entryKey] ?? memory[location.pathname] ?? 0;
+      if (y > 0) {
+        let tries = 0;
+        const restore = (): void => {
+          window.scrollTo(0, y);
+          document.scrollingElement?.scrollTo?.(0, y);
+          if (content) content.scrollTop = y;
+          // 数据异步渲染、内容高度变化时继续重试，直到回到目标位置
+          tries += 1;
+          if (Math.abs(currentY() - y) > 2 && tries < 60) {
+            window.setTimeout(restore, 50);
+          }
+        };
+        window.setTimeout(restore, 20);
+      }
     } else {
       window.scrollTo(0, 0);
+      document.scrollingElement?.scrollTo?.(0, 0);
       if (content) content.scrollTop = 0;
     }
 
     return () => {
       save();
-      window.removeEventListener('scroll', save);
+      window.removeEventListener('scroll', save, { capture: true });
       content?.removeEventListener('scroll', save);
     };
   }, [location.pathname, location.key, navigationType]);
