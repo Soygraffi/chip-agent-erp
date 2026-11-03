@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,6 +28,14 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(board.includes('未下单')).toBe(true);
     const settings = read('apps/desktop/src/renderer/src/pages/SettingsPage.tsx');
     expect(settings.includes("key: 'status'")).toBe(false);
+  });
+
+  it('ESC 返回上一页，最多返回到顶层页面并保留滚动位置', () => {
+    const app = read('apps/desktop/src/renderer/src/App.tsx');
+    expect(app.includes("'Escape'")).toBe(true);
+    expect(app.includes('TOP_LEVEL')).toBe(true);
+    expect(app.includes('navigate(-1)')).toBe(true);
+    expect(app.includes('scroll-memory')).toBe(true);
   });
 
   it('窗口默认最大化且单实例运行', () => {

@@ -1,10 +1,10 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd';
 import type { MenuProps } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import { HashRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, useNavigate, useLocation, useNavigationType, Navigate } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
@@ -29,7 +29,78 @@ const { Sider, Content, Header } = Layout;
 function Shell(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
+  const navigationType = useNavigationType();
   const [menuItems, setMenuItems] = useState(MENU_ITEMS);
+
+  // 顶层页面：按 ESC 不再返回
+  const TOP_LEVEL = [
+    '/dashboard',
+    '/orders',
+    '/customers',
+    '/suppliers',
+    '/materials',
+    '/wechat',
+    '/tools',
+    '/settings',
+  ];
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return;
+      // 有弹窗 / 下拉浮层时交给组件自己关闭
+      if (document.querySelector('.ant-modal-wrap:not([style*="display: none"])')) return;
+      if (document.querySelector('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)')) return;
+      if (document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')) return;
+      if (TOP_LEVEL.includes(location.pathname)) return;
+      e.preventDefault();
+      navigate(-1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [location.pathname, navigate]);
+
+  // 记录/恢复滚动位置：按 ESC 返回首页时回到离开前的位置
+  useEffect(() => {
+    const scrollMemory: Record<string, number> = (() => {
+      try {
+        return JSON.parse(sessionStorage.getItem('scroll-memory') ?? '{}') as Record<string, number>;
+      } catch {
+        return {};
+      }
+    })();
+    const content = document.querySelector('.app-content') as HTMLElement | null;
+    const currentY = (): number => Math.max(window.scrollY || 0, content?.scrollTop || 0);
+    const save = (): void => {
+      scrollMemory[location.pathname] = currentY();
+      try {
+        sessionStorage.setItem('scroll-memory', JSON.stringify(scrollMemory));
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('scroll', save, { passive: true });
+    content?.addEventListener('scroll', save, { passive: true });
+
+    if (navigationType === 'POP') {
+      const y = scrollMemory[location.pathname] ?? 0;
+      const restore = (): void => {
+        window.scrollTo(0, y);
+        if (content) content.scrollTop = y;
+      };
+      window.setTimeout(restore, 30);
+      // 数据异步加载后内容高度可能变化，再兜底恢复一次
+      window.setTimeout(restore, 350);
+    } else {
+      window.scrollTo(0, 0);
+      if (content) content.scrollTop = 0;
+    }
+
+    return () => {
+      save();
+      window.removeEventListener('scroll', save);
+      content?.removeEventListener('scroll', save);
+    };
+  }, [location.pathname, location.key, navigationType]);
 
   useEffect(() => {
     const load = (): void => {
