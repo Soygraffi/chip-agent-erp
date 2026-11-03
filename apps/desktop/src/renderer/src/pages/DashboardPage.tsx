@@ -246,6 +246,11 @@ export function DashboardPage(): JSX.Element {
         type: 'scroll',
         pageIconSize: 10,
         textStyle: { color: '#595959', fontSize: 12 },
+        // 图例按圆环逆时针顺序排列（从顶部向左读）
+        data: distribution
+          .slice()
+          .reverse()
+          .map((s) => s.statusName),
       },
       series: [
         {
