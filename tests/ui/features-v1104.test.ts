@@ -35,7 +35,7 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(app.includes("'Escape'")).toBe(true);
     expect(app.includes('TOP_LEVEL')).toBe(true);
     expect(app.includes('navigate(-1)')).toBe(true);
-    expect(app.includes('scroll-memory')).toBe(true);
+    expect(app.includes('scrollPositions')).toBe(true);
   });
 
   it('窗口默认最大化且单实例运行', () => {

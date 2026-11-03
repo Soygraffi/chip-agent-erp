@@ -27,6 +27,27 @@ dayjs.locale('zh-cn');
 // 交给应用自己恢复滚动位置，关闭浏览器默认的返回滚动
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
+/** 各页面最近一次滚动位置（模块级，路由切换不会丢） */
+const scrollPositions: Record<string, number> = {};
+let currentPath = '/dashboard';
+
+/** 立即抓取当前滚动位置，写入内存与当前历史记录 */
+function captureScrollPosition(): void {
+  const content = document.querySelector('.app-content') as HTMLElement | null;
+  const y = Math.max(
+    window.scrollY || 0,
+    document.scrollingElement?.scrollTop || 0,
+    content?.scrollTop || 0,
+  );
+  if (y > 0) scrollPositions[currentPath] = y;
+  try {
+    const state = (window.history.state ?? {}) as Record<string, unknown>;
+    if (state.scrollY !== y) window.history.replaceState({ ...state, scrollY: y }, '');
+  } catch {
+    /* ignore */
+  }
+}
+
 const { Sider, Content, Header } = Layout;
 
 function Shell(): JSX.Element {
@@ -55,6 +76,8 @@ function Shell(): JSX.Element {
       if (document.querySelector('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)')) return;
       if (document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')) return;
       if (TOP_LEVEL.includes(location.pathname)) return;
+      // 离开前先记住当前滚动位置
+      captureScrollPosition();
       e.preventDefault();
       navigate(-1);
     };
@@ -63,58 +86,49 @@ function Shell(): JSX.Element {
   }, [location.pathname, navigate]);
 
   // 记录/恢复滚动位置：按 ESC 返回时回到离开前的确切位置
+  currentPath = location.pathname;
+
+  // 全局记录滚动位置：滚动事件 + 点击前 + 定时兜底，确保路由切换前一定拿到准确位置
   useEffect(() => {
-    const STORAGE_KEY = 'scroll-memory-v2';
-    const readMemory = (): Record<string, number> => {
-      try {
-        return JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, number>;
-      } catch {
-        return {};
-      }
+    const record = (): void => {
+      captureScrollPosition();
     };
-    const memory = readMemory();
-    const entryKey = location.key || location.pathname;
-    const content = document.querySelector('.app-content') as HTMLElement | null;
-    const currentY = (): number =>
-      Math.max(window.scrollY || 0, document.scrollingElement?.scrollTop || 0, content?.scrollTop || 0);
-    const save = (): void => {
-      memory[entryKey] = currentY();
-      memory[location.pathname] = currentY();
-      try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
-      } catch {
-        /* ignore */
-      }
-    };
-    window.addEventListener('scroll', save, { passive: true, capture: true });
-    content?.addEventListener('scroll', save, { passive: true });
-
-    if (navigationType === 'POP') {
-      const y = memory[entryKey] ?? memory[location.pathname] ?? 0;
-      if (y > 0) {
-        let tries = 0;
-        const restore = (): void => {
-          window.scrollTo(0, y);
-          document.scrollingElement?.scrollTo?.(0, y);
-          if (content) content.scrollTop = y;
-          // 数据异步渲染、内容高度变化时继续重试，直到回到目标位置
-          tries += 1;
-          if (Math.abs(currentY() - y) > 2 && tries < 60) {
-            window.setTimeout(restore, 50);
-          }
-        };
-        window.setTimeout(restore, 20);
-      }
-    } else {
-      window.scrollTo(0, 0);
-      document.scrollingElement?.scrollTo?.(0, 0);
-      if (content) content.scrollTop = 0;
-    }
-
+    window.addEventListener('scroll', record, { passive: true, capture: true });
+    window.addEventListener('click', record, true);
+    const timer = window.setInterval(record, 200);
     return () => {
-      save();
-      window.removeEventListener('scroll', save, { capture: true });
-      content?.removeEventListener('scroll', save);
+      window.removeEventListener('scroll', record, { capture: true });
+      window.removeEventListener('click', record, true);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  // 返回（POP）时恢复到离开前的滚动位置；进入新页面则回到顶部
+  useEffect(() => {
+    const content = document.querySelector('.app-content') as HTMLElement | null;
+    if (navigationType !== 'POP') {
+      window.scrollTo(0, 0);
+      if (content) content.scrollTop = 0;
+      return;
+    }
+    const y = (window.history.state as { scrollY?: number } | null)?.scrollY ?? scrollPositions[location.pathname] ?? 0;
+    if (y <= 0) return;
+    let stopped = false;
+    let tries = 0;
+    const restore = (): void => {
+      if (stopped) return;
+      window.scrollTo(0, y);
+      if (content) content.scrollTop = y;
+      tries += 1;
+      const now = Math.max(window.scrollY || 0, content?.scrollTop || 0);
+      if (Math.abs(now - y) > 2 && tries < 80) {
+        window.setTimeout(restore, 40);
+      }
+    };
+    const timer = window.setTimeout(restore, 20);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
     };
   }, [location.pathname, location.key, navigationType]);
 
