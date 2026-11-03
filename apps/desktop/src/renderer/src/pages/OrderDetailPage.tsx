@@ -532,7 +532,7 @@ export function OrderDetailPage(): JSX.Element {
         title={`订单文档（${docs.length}）`}
         extra={
           <Button size="small" icon={<FileAddOutlined />} onClick={() => void uploadDoc()}>
-            上传 PDF / Word / 图片
+            上传 PDF / Word / Excel / 图片
           </Button>
         }
         style={{ marginBottom: 16, marginTop: 16 }}
@@ -540,7 +540,7 @@ export function OrderDetailPage(): JSX.Element {
         <List
           size="small"
           dataSource={docs}
-          locale={{ emptyText: '暂无订单文档，可上传 PDF、Word 或图片' }}
+          locale={{ emptyText: '暂无订单文档，可上传 PDF、Word、Excel 或图片' }}
           renderItem={(doc) => (
             <List.Item
               actions={[

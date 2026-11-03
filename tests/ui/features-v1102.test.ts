@@ -81,6 +81,14 @@ describe('V1.10.1 客户删除/明细交货/时间轴/排序/拖动设置', () =
     expect(settings.includes('it.qty')).toBe(true);
   });
 
+  it('订单文档支持上传 Excel', () => {
+    const ipc = read('apps/desktop/src/main/ipc/index.ts');
+    expect(ipc.includes("'xlsx'")).toBe(true);
+    expect(ipc.includes("'xls'")).toBe(true);
+    const detail = read('apps/desktop/src/renderer/src/pages/OrderDetailPage.tsx');
+    expect(detail.includes('上传 PDF / Word / Excel / 图片')).toBe(true);
+  });
+
   it('日期控件使用中文 locale', () => {
     const app = read('apps/desktop/src/renderer/src/App.tsx');
     expect(app.includes("dayjs.locale('zh-cn')")).toBe(true);

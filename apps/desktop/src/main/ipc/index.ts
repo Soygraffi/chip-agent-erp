@@ -262,9 +262,10 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
       const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
       if (!win) throw new BizError('IO_ERROR', '没有可用窗口');
       const r = await dialog.showOpenDialog(win, {
-        title: '上传订单文档（PDF / Word / 图片）',
+        title: '上传订单文档（PDF / Word / Excel / 图片）',
         filters: [
           { name: '文档', extensions: ['pdf', 'doc', 'docx'] },
+          { name: 'Excel', extensions: ['xls', 'xlsx', 'csv'] },
           { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] },
           { name: '所有文件', extensions: ['*'] },
         ],
