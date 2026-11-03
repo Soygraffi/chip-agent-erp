@@ -215,15 +215,28 @@ export function DashboardPage(): JSX.Element {
         formatter: (p: { name: string; value: number; percent: number }) =>
           `<b>${p.name}</b>　${p.value} 个（${p.percent}%）<br/><span style="color:#8c8c8c;font-size:12px">${statusMeaning(p.name)}</span>`,
       },
-      title: {
-        text: String(totalOrders),
-        subtext: '订单总数',
-        left: '50%',
-        top: '36%',
-        textAlign: 'center',
-        textStyle: { fontSize: 28, fontWeight: 600, color: '#1f1f1f' },
-        subtextStyle: { fontSize: 12, color: '#8c8c8c' },
-      },
+      graphic: [
+        {
+          type: 'text',
+          left: 'center',
+          top: 'middle',
+          silent: true,
+          style: {
+            text: `{num|${totalOrders}}\n{label|订单总数}`,
+            textAlign: 'center',
+            rich: {
+              num: {
+                fontSize: 30,
+                fontWeight: 600,
+                color: '#1f1f1f',
+                lineHeight: 38,
+                fontFamily: 'Arial, sans-serif',
+              },
+              label: { fontSize: 12, color: '#8c8c8c', lineHeight: 18 },
+            },
+          },
+        },
+      ],
       legend: {
         bottom: 0,
         icon: 'circle',
@@ -235,8 +248,8 @@ export function DashboardPage(): JSX.Element {
       series: [
         {
           type: 'pie',
-          radius: ['52%', '76%'],
-          center: ['50%', '44%'],
+          radius: ['44%', '64%'],
+          center: ['50%', '50%'],
           itemStyle: { borderColor: '#fff', borderWidth: 3, borderRadius: 6 },
           label: { show: false },
           labelLine: { show: false },
