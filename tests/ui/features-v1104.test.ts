@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '../test-utils.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,6 +28,13 @@ describe('V1.10.4 节点「无」与订单状态按节点', () => {
     expect(board.includes('未下单')).toBe(true);
     const settings = read('apps/desktop/src/renderer/src/pages/SettingsPage.tsx');
     expect(settings.includes("key: 'status'")).toBe(false);
+  });
+
+  it('窗口默认最大化且单实例运行', () => {
+    const main = read('apps/desktop/src/main/index.ts');
+    expect(main.includes('requestSingleInstanceLock')).toBe(true);
+    expect(main.includes("app.on('second-instance'")).toBe(true);
+    expect(main.includes('win.maximize()')).toBe(true);
   });
 
   it('首页快捷入口有悬浮效果', () => {

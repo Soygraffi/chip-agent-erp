@@ -72,7 +72,8 @@ function createWindow(): void {
   win.webContents.on('unresponsive', () => log('renderer-unresponsive'));
   win.webContents.on('devtools-opened', () => log('devtools-opened'));
   win.once('ready-to-show', () => {
-    log('ready-to-show -> show window');
+    log('ready-to-show -> maximize & show window');
+    win.maximize();
     win.show();
   });
   win.on('closed', () => log('window closed'));
@@ -81,6 +82,7 @@ function createWindow(): void {
   setTimeout(() => {
     if (!win.isDestroyed() && !win.isVisible()) {
       log('force-show (ready-to-show 未触发)');
+      win.maximize();
       win.show();
     }
   }, 5000);
@@ -99,17 +101,34 @@ function createWindow(): void {
 app.setName('ChipAgentERP');
 log('app start, electron', process.versions.electron, 'node', process.versions.node);
 
-app.whenReady().then(() => {
-  log('app ready');
-  ctxRef.ctx = initApp(app.getPath('userData'));
-  log('db initialized at', ctxRef.ctx.dataDir);
-  registerIpc(ctxRef as { ctx: AppContext });
-  log('ipc registered');
-  createWindow();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+// 单实例：再次双击桌面图标时，激活已打开的窗口而不是新开一个
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  log('another instance is already running -> quit this one');
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    log('second-instance -> focus existing window');
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
   });
-});
+
+  app.whenReady().then(() => {
+    log('app ready');
+    ctxRef.ctx = initApp(app.getPath('userData'));
+    log('db initialized at', ctxRef.ctx.dataDir);
+    registerIpc(ctxRef as { ctx: AppContext });
+    log('ipc registered');
+    createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   log('window-all-closed -> quit');
