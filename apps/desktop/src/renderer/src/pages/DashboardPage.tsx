@@ -240,17 +240,20 @@ export function DashboardPage(): JSX.Element {
       legend: {
         bottom: 0,
         icon: 'circle',
-        itemWidth: 9,
-        itemHeight: 9,
-        itemGap: 14,
+        itemWidth: 8,
+        itemHeight: 8,
+        itemGap: 12,
+        type: 'scroll',
+        pageIconSize: 10,
         textStyle: { color: '#595959', fontSize: 12 },
       },
       series: [
         {
           type: 'pie',
-          radius: ['44%', '64%'],
+          radius: ['40%', '62%'],
           center: ['50%', '50%'],
-          itemStyle: { borderColor: '#fff', borderWidth: 3, borderRadius: 6 },
+          padAngle: 1.5,
+          itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 8 },
           label: { show: false },
           labelLine: { show: false },
           emphasis: { scale: true, scaleSize: 6 },
@@ -334,12 +337,17 @@ export function DashboardPage(): JSX.Element {
             size="small"
             bordered={false}
             loading={loading}
+            extra={
+              <span style={{ color: '#8c8c8c', fontSize: 12 }}>
+                共 {distribution.reduce((acc, s) => acc + s.count, 0)} 单
+              </span>
+            }
             style={{ borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', height: '100%' }}
           >
             {distribution.length === 0 ? (
               <div
                 style={{
-                  height: 240,
+                  height: 300,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -349,33 +357,8 @@ export function DashboardPage(): JSX.Element {
                 暂无订单数据
               </div>
             ) : (
-              <div ref={pieRef} style={{ height: 240 }} />
+              <div ref={pieRef} style={{ height: 300 }} />
             )}
-            <div style={{ marginTop: 4, borderTop: '1px dashed #f0f0f0', paddingTop: 10 }}>
-              <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 6 }}>
-                状态说明（仅显示有订单的状态，数量为 0 的不展示）
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {distribution.map((s) => (
-                  <div key={s.statusName} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: s.color,
-                        display: 'inline-block',
-                        flexShrink: 0,
-                        transform: 'translateY(-1px)',
-                      }}
-                    />
-                    <span style={{ color: '#262626', minWidth: 64 }}>{s.statusName}</span>
-                    <span style={{ color: '#8c8c8c' }}>{statusMeaning(s.statusName)}</span>
-                  </div>
-                ))}
-                {distribution.length === 0 && <span style={{ color: '#bfbfbf' }}>暂无订单数据</span>}
-              </div>
-            </div>
           </Card>
         </Col>
         <Col xs={24} lg={14}>
