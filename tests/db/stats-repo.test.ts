@@ -1,4 +1,4 @@
-﻿import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach } from 'node:test';
 import { expect } from '../test-utils.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import { dashboard, reminderCandidates } from '@erp/db';
@@ -31,12 +31,14 @@ describe('首页看板口径（SQL 实现，对照 PRD 4.1.3 / data-model 6.6，
     const cancelled = statusByName(db, '已取消');
     const arrival = templateIdByCode(db, 'arrival');
     const ship = templateIdByCode(db, 'ship');
+    const confirm = templateIdByCode(db, 'confirm');
 
     // O1：进行中、本月、逾期（10-20）、重点、待发货（到货入库完成+发货中未完成）
     const o1 = seedOrder(db, {
       customerId: custA, statusId: inProg, orderDate: '2026-10-05',
       totalAmount: 100, expectedDeliveryDate: '2026-10-20', isKey: true,
     });
+    seedNode(db, o1, { templateId: confirm, name: '客户确认', status: 'done', sortOrder: 0 });
     seedNode(db, o1, { templateId: arrival, name: '到货入库', status: 'done', sortOrder: 1 });
     seedNode(db, o1, { templateId: ship, name: '发货中', status: 'pending', sortOrder: 2 });
 
@@ -45,6 +47,7 @@ describe('首页看板口径（SQL 实现，对照 PRD 4.1.3 / data-model 6.6，
       customerId: custA, statusId: shipped, orderDate: '2026-10-10',
       totalAmount: 50, expectedDeliveryDate: null,
     });
+    seedNode(db, o2, { templateId: confirm, name: '客户确认', status: 'done', sortOrder: 0 });
     seedNode(db, o2, { templateId: arrival, name: '到货入库', status: 'done', sortOrder: 1 });
     seedNode(db, o2, { templateId: ship, name: '发货中', status: 'done', sortOrder: 2 });
 
@@ -54,11 +57,12 @@ describe('首页看板口径（SQL 实现，对照 PRD 4.1.3 / data-model 6.6，
       totalAmount: 200, expectedDeliveryDate: '2026-10-01',
     });
 
-    // O4：已完结、上月 → 不计入本月新增与金额
-    seedOrder(db, {
+    // O4：已完结、上月 → 不计入本月新增与金额；客户确认已完成 → 计入本年金额
+    const o4 = seedOrder(db, {
       customerId: custC, statusId: done, orderDate: '2026-09-30',
       totalAmount: 999, expectedDeliveryDate: null,
     });
+    seedNode(db, o4, { templateId: confirm, name: '客户确认', status: 'done', sortOrder: 0 });
 
     // O5：已取消、本月 → 计入本月新增数，不计入本月金额
     seedOrder(db, {
@@ -82,7 +86,8 @@ describe('首页看板口径（SQL 实现，对照 PRD 4.1.3 / data-model 6.6，
     expect(s.activeOrderCount).toBe(4); // O1 O2 O3 + 未填写O6
     expect(s.monthNewOrderCount).toBe(5); // O1 O2 O3 O5 O6
     expect(s.monthTotalAmount).toBe(650); // 100 + 50 + 200 + 300；取消(O5)不计
-    expect(s.yearTotalAmount).toBe(1649); // 年累计：100+50+200+999+300；取消(O5)不计
+    // 本年金额只算「客户确认」已完成的订单：O1 100 + O2 50 + O4 999
+    expect(s.yearTotalAmount).toBe(1149);
     expect(s.pendingShipCount).toBe(1); // 仅 O1
     expect(s.overdueOrderCount).toBe(2); // O1(10-20)、O3(10-01)
     expect(s.keyOrderCount).toBe(1); // O1
@@ -91,8 +96,8 @@ describe('首页看板口径（SQL 实现，对照 PRD 4.1.3 / data-model 6.6，
   it('当前节点分布（按节点统计，无节点为未填写）', () => {
     const s = dashboard(db, TODAY);
     const byName = Object.fromEntries(s.statusDistribution.map((x) => [x.statusName, x.count]));
-    // O1 当前在“发货中”，O2 全部完成，其余订单没有节点
-    expect(byName).toEqual({ 发货中: 1, 已完结: 1, 未填写: 4 });
+    // O1 当前在“发货中”，O2/O4 节点全部完成，其余订单没有节点
+    expect(byName).toEqual({ 发货中: 1, 已完结: 2, 未填写: 3 });
     // 不同进度使用不同颜色
     const colors = s.statusDistribution.map((x) => x.color);
     expect(new Set(colors).size).toBe(colors.length);
