@@ -23,6 +23,7 @@ export interface SupplierCreateInput {
   phone?: string | null;
   address?: string | null;
   remark?: string | null;
+  logoPath?: string | null;
 }
 
 export const supplierService = {

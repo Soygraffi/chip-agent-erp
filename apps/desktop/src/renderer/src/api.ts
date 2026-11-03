@@ -124,6 +124,8 @@ export const api = {
     create: (input: unknown): Promise<number> => call('suppliers:create', input),
     update: (id: number, input: unknown): Promise<void> => call('suppliers:update', id, input),
     remove: (id: number): Promise<void> => call('suppliers:delete', id),
+    uploadLogo: (id: number): Promise<unknown> => call('suppliers:uploadLogo', id),
+    clearLogo: (id: number): Promise<void> => call('suppliers:clearLogo', id),
     orders: (id: number): Promise<unknown> => call('suppliers:orders', id),
     materials: (id: number): Promise<unknown> => call('suppliers:materials', id),
   },

@@ -10,10 +10,11 @@ export interface SupplierInput {
   phone?: string | null;
   address?: string | null;
   remark?: string | null;
+  logoPath?: string | null;
 }
 
 const COLS = `s.id, s.name, s.name_norm AS nameNorm, s.short_name AS shortName, s.contact, s.phone,
-  s.address, s.remark, s.deleted_at AS deletedAt, s.created_at AS createdAt, s.updated_at AS updatedAt`;
+  s.address, s.remark, s.logo_path AS logoPath, s.deleted_at AS deletedAt, s.created_at AS createdAt, s.updated_at AS updatedAt`;
 
 function mapSupplier(r: Record<string, unknown>): Supplier {
   return {
@@ -23,8 +24,9 @@ function mapSupplier(r: Record<string, unknown>): Supplier {
     phone: (r.phone as string | null) ?? null,
     address: (r.address as string | null) ?? null,
     remark: (r.remark as string | null) ?? null,
+    logoPath: (r.logoPath as string | null) ?? null,
     deletedAt: (r.deletedAt as string | null) ?? null,
-  } as Supplier;
+  } as unknown as Supplier;
 }
 
 export function insertSupplier(db: DatabaseSync, s: SupplierInput): number {
@@ -58,6 +60,7 @@ export function updateSupplier(
     phone: 'phone',
     address: 'address',
     remark: 'remark',
+    logoPath: 'logo_path',
   };
   const fields: string[] = [];
   const args: (string | number | null)[] = [];

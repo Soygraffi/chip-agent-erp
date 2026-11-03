@@ -75,6 +75,28 @@ export function storeCustomerLogo(
   return { storedPath: relPath, originalName };
 }
 
+/** 供应商 logo：attachments/supplier-logos/{supplierId}/{uuid}.ext（≤5MB、仅图片） */
+export function storeSupplierLogo(
+  attachmentsDir: string,
+  supplierId: number,
+  sourcePath: string,
+  size: number,
+): { storedPath: string; originalName: string } {
+  if (size > 5 * 1024 * 1024) throw bizError('VALIDATION', 'Logo 图片不能超过 5MB');
+  const originalName = basename(sourcePath);
+  const ext = extname(originalName).toLowerCase();
+  if (!['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(ext)) {
+    throw bizError('VALIDATION', 'Logo 仅支持 png / jpg / jpeg / gif / webp / bmp');
+  }
+  const relDir = join('attachments', 'supplier-logos', String(supplierId));
+  const absDir = join(dirname(attachmentsDir), relDir);
+  mkdirSync(absDir, { recursive: true });
+  const storedName = `${randomUUID()}${ext}`;
+  const relPath = join(relDir, storedName);
+  copyFileSync(sourcePath, join(dirname(attachmentsDir), relPath));
+  return { storedPath: relPath, originalName };
+}
+
 /** 删除托管附件文件（数据库记录已删后清理实体） */
 export function removeStoredFile(dataDir: string, storedPath: string): void {
   const abs = join(dataDir, storedPath);

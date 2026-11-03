@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Avatar,
   Button,
   Card,
   Col,
@@ -13,7 +14,14 @@ import {
   Tag,
   message,
 } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PictureOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  ShopOutlined,
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { Page, SupplierListRow } from '../models';
@@ -27,6 +35,8 @@ export function SuppliersPage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<SupplierListRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [logoUrls, setLogoUrls] = useState<Record<number, string>>({});
+  const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -35,6 +45,14 @@ export function SuppliersPage(): JSX.Element {
       const r = (await api.suppliers.list({ search: search || undefined, page: 1, pageSize: 1000 })) as Page<SupplierListRow>;
       setRows(r.rows);
       setTotal(r.total);
+      const withLogo = r.rows.filter((s) => !!s.logoPath);
+      const entries = await Promise.all(
+        withLogo.map(async (s) => {
+          const u = await api.attachments.url(s.logoPath as string).catch(() => null);
+          return [s.id, (u as { url?: string } | null)?.url ?? ''] as const;
+        }),
+      );
+      setLogoUrls(Object.fromEntries(entries.filter(([, u]) => u)));
     } catch (e) {
       void message.error(errorMessage(e));
     } finally {
@@ -55,7 +73,23 @@ export function SuppliersPage(): JSX.Element {
   const openEdit = (row: SupplierListRow): void => {
     setEditing(row);
     form.setFieldsValue(row);
+    setEditLogoUrl(logoUrls[row.id] ?? null);
     setCreating(true);
+  };
+
+  const uploadLogo = async (row: SupplierListRow, forEdit = false): Promise<void> => {
+    try {
+      const r = (await api.suppliers.uploadLogo(row.id)) as { storedPath: string } | null;
+      if (!r) return;
+      void message.success('Logo 已更新');
+      if (forEdit) {
+        const u = (await api.attachments.url(r.storedPath)) as { url: string };
+        setEditLogoUrl(u.url);
+      }
+      await load();
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
   };
 
   const submit = async (): Promise<void> => {
@@ -125,21 +159,13 @@ export function SuppliersPage(): JSX.Element {
                 onClick={() => navigate(`/suppliers/${s.id}`)}
               >
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 8,
-                      background: '#f6ffed',
-                      color: '#52c41a',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <ShopOutlined />
-                  </div>
+                  <Avatar
+                    shape="square"
+                    size={40}
+                    src={logoUrls[s.id] || undefined}
+                    icon={<ShopOutlined />}
+                    style={{ background: '#f6ffed', color: '#52c41a', flexShrink: 0 }}
+                  />
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.name}>
                       {s.name}
@@ -160,6 +186,12 @@ export function SuppliersPage(): JSX.Element {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Space size={4}>
+                    <Button
+                      size="small"
+                      icon={<PictureOutlined />}
+                      title="上传/更换 Logo"
+                      onClick={() => void uploadLogo(s)}
+                    />
                     <Button size="small" onClick={() => navigate(`/suppliers/${s.id}`)}>详情</Button>
                     <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(s)} />
                     <Popconfirm
@@ -187,6 +219,20 @@ export function SuppliersPage(): JSX.Element {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
+          {editing && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <Avatar
+                shape="square"
+                size={56}
+                src={editLogoUrl || undefined}
+                icon={<ShopOutlined />}
+                style={{ background: '#f6ffed', color: '#52c41a' }}
+              />
+              <Button size="small" icon={<PictureOutlined />} onClick={() => void uploadLogo(editing, true)}>
+                上传/更换 Logo
+              </Button>
+            </div>
+          )}
           <Form.Item name="name" label="供应商名称" rules={[{ required: true, message: '请输入供应商名称' }]}>
             <Input autoFocus />
           </Form.Item>

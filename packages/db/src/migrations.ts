@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 数据库迁移脚本（对应 docs/data-model.md 二章 DDL 与四章种子数据）
  * 采用 TS 内嵌 SQL 而非独立 .sql 文件，避免打包/测试路径问题；版本号与语义不变。
  */
@@ -546,6 +546,10 @@ CREATE INDEX idx_follow_up_node ON node_follow_up(node_id, created_at);
 CREATE INDEX idx_attachment_node ON node_attachment(node_id);
 `;
 
+const V15_SUPPLIER_LOGO = `;
+ALTER TABLE supplier ADD COLUMN logo_path TEXT;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: 'init', sql: DDL },
   { version: 2, name: 'seed', sql: SEED },
@@ -561,5 +565,6 @@ export const MIGRATIONS: Migration[] = [
   { version: 12, name: 'v1.10 item delivery date & progress', sql: V110 },
   { version: 13, name: 'v1.10.1 item stage & manual order sort', sql: V1101 },
   { version: 14, name: 'v1.10.4 node status none', sql: V1104 },
+  { version: 15, name: 'v1.10.5 supplier logo', sql: V15_SUPPLIER_LOGO },
 ];
 

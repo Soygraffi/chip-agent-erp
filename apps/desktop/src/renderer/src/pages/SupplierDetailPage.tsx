@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Col, Descriptions, Row, Space, Statistic, Table, Tag, message } from 'antd';
-import { ArrowLeftOutlined, ShopOutlined } from '@ant-design/icons';
+import { Avatar, Button, Card, Col, Descriptions, Row, Space, Statistic, Table, Tag, message } from 'antd';
+import { ArrowLeftOutlined, PictureOutlined, ShopOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { Supplier, SupplierMaterialRow, SupplierOrderRow } from '../models';
@@ -14,6 +14,7 @@ export function SupplierDetailPage(): JSX.Element {
   const supplierId = Number(id);
   const navigate = useNavigate();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [orders, setOrders] = useState<SupplierOrderRow[]>([]);
   const [materials, setMaterials] = useState<SupplierMaterialRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,14 @@ export function SupplierDetailPage(): JSX.Element {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setSupplier((await api.suppliers.get(supplierId)) as Supplier);
+      const s = (await api.suppliers.get(supplierId)) as Supplier;
+      setSupplier(s);
+      if (s.logoPath) {
+        const u = (await api.attachments.url(s.logoPath).catch(() => null)) as { url?: string } | null;
+        setLogoUrl(u?.url ?? null);
+      } else {
+        setLogoUrl(null);
+      }
       setOrders((await api.suppliers.orders(supplierId)) as SupplierOrderRow[]);
       setMaterials((await api.suppliers.materials(supplierId)) as SupplierMaterialRow[]);
     } catch (e) {
@@ -30,6 +38,16 @@ export function SupplierDetailPage(): JSX.Element {
       setLoading(false);
     }
   }, [supplierId]);
+
+  const uploadLogo = async (): Promise<void> => {
+    try {
+      await api.suppliers.uploadLogo(supplierId);
+      void message.success('Logo 已更新');
+      await load();
+    } catch (e) {
+      void message.error(errorMessage(e));
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -45,13 +63,16 @@ export function SupplierDetailPage(): JSX.Element {
       title={
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/suppliers')} />
-          <ShopOutlined style={{ color: '#52c41a' }} />
+          <Avatar shape="square" size={32} src={logoUrl || undefined} icon={<ShopOutlined />} style={{ background: '#f6ffed', color: '#52c41a' }} />
           <span>{supplier.name}</span>
           {supplier.shortName && <Tag>{supplier.shortName}</Tag>}
         </Space>
       }
       extra={
         <Space>
+          <Button icon={<PictureOutlined />} onClick={() => void uploadLogo()}>
+            上传/更换 Logo
+          </Button>
           <Button onClick={() => navigate('/suppliers')}>返回列表</Button>
         </Space>
       }

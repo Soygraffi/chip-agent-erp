@@ -290,6 +290,7 @@ export interface Supplier {
   phone: string | null;
   address: string | null;
   remark: string | null;
+  logoPath: string | null;
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;

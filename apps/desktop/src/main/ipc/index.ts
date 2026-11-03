@@ -29,6 +29,7 @@ import {
   storeAttachment,
   storeOrderAttachment,
   storeCustomerLogo,
+  storeSupplierLogo,
   removeStoredFile,
   removeStoredFiles,
   attachmentAbsolutePath,
@@ -567,6 +568,36 @@ export function registerIpc(ctxRef: { ctx: AppContext }): void {
   });
   ipcMain.handle('suppliers:delete', (_e, id: number) => {
     const r = wrap(() => supplierService.softDelete(db(), id, todayStr()));
+    if (r.ok) changed();
+    return r;
+  });
+  ipcMain.handle('suppliers:uploadLogo', (_e, id: number) =>
+    wrapAsync(async () => {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      if (!win) throw new BizError('IO_ERROR', '没有可用窗口');
+      const r = await dialog.showOpenDialog(win, {
+        title: '选择供应商 Logo',
+        filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+        properties: ['openFile'],
+      });
+      if (r.canceled || r.filePaths.length === 0) return null;
+      const sourcePath = r.filePaths[0];
+      const { size } = statSync(sourcePath);
+      const { storedPath } = storeSupplierLogo(ctxRef.ctx.attachmentsDir, id, sourcePath, size);
+      const old = supplierService.get(db(), id).logoPath;
+      supplierService.update(db(), id, { logoPath: storedPath });
+      if (old && old !== storedPath) removeStoredFile(ctxRef.ctx.dataDir, old);
+      changed();
+      return { storedPath };
+    }),
+  );
+  ipcMain.handle('suppliers:clearLogo', (_e, id: number) => {
+    const r = wrap(() => {
+      const old = supplierService.get(db(), id).logoPath;
+      supplierService.update(db(), id, { logoPath: null });
+      if (old) removeStoredFile(ctxRef.ctx.dataDir, old);
+      return { ok: true };
+    });
     if (r.ok) changed();
     return r;
   });
